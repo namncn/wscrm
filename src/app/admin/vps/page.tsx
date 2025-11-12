@@ -75,7 +75,6 @@ export default function VPSPage() {
 
   const [newVPS, setNewVPS] = useState({
     planName: '',
-    ipAddress: '',
     cpu: 0,
     ram: 0,
     storage: 0,
@@ -166,7 +165,14 @@ export default function VPSPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...newVPS,
+          planName: newVPS.planName,
+          cpu: newVPS.cpu,
+          ram: newVPS.ram,
+          storage: newVPS.storage,
+          bandwidth: newVPS.bandwidth,
+          price: newVPS.price,
+          os: newVPS.os,
+          customerId: newVPS.customerId,
           expiryDate: newVPS.expiryDate
             ? format(newVPS.expiryDate, 'yyyy-MM-dd')
             : null,
@@ -178,7 +184,6 @@ export default function VPSPage() {
         setIsCreateVPSDialogOpen(false)
         setNewVPS({
           planName: '',
-          ipAddress: '',
           cpu: 0,
           ram: 0,
           storage: 0,
@@ -214,7 +219,7 @@ export default function VPSPage() {
         body: JSON.stringify({
           id: editVPS.id,
           planName: editVPS.planName,
-          ipAddress: editVPS.ipAddress,
+          ...(editVPS.customerId && { ipAddress: editVPS.ipAddress }),
           cpu: editVPS.cpu,
           ram: editVPS.ram,
           storage: editVPS.storage,
@@ -281,7 +286,6 @@ export default function VPSPage() {
 
   const filteredVPS = vps.filter(v =>
     v.planName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (v.ipAddress && v.ipAddress.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (v.os && v.os.toLowerCase().includes(searchTerm.toLowerCase()))
   )
   const filteredPurchased = purchasedVps.filter(v =>
@@ -376,7 +380,7 @@ export default function VPSPage() {
                   Thêm VPS
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
+              <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
                 <DialogTitle>Thêm VPS Mới</DialogTitle>
                 <DialogDescription>
@@ -394,19 +398,6 @@ export default function VPSPage() {
                       placeholder="VPS Basic"
                       value={newVPS.planName}
                       onChange={(e) => setNewVPS({...newVPS, planName: e.target.value})}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="ipAddress" className="text-right">
-                    IP Address
-                  </Label>
-                  <div className="col-span-3">
-                    <Input
-                      id="ipAddress"
-                      placeholder="192.168.1.100"
-                      value={newVPS.ipAddress}
-                      onChange={(e) => setNewVPS({...newVPS, ipAddress: e.target.value})}
                     />
                   </div>
                 </div>
@@ -566,6 +557,17 @@ export default function VPSPage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-vps-ip" className="text-right">IP Address</Label>
+                    <div className="col-span-3">
+                      <Input 
+                        id="reg-vps-ip" 
+                        value={registerVPS.ipAddress} 
+                        onChange={(e) => setRegisterVPS({...registerVPS, ipAddress: e.target.value})} 
+                        placeholder="192.168.1.100" 
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="reg-vps-cpu" className="text-right">CPU</Label>
                     <div className="col-span-3">
                       <Input id="reg-vps-cpu" type="number" value={registerVPS.cpu} onChange={(e) => setRegisterVPS({...registerVPS, cpu: parseInt(e.target.value) || 0})} placeholder="2" />
@@ -711,16 +713,18 @@ export default function VPSPage() {
                       <Label className="font-medium mb-2 block">Tên Gói</Label>
                       <p className="text-sm text-gray-600">{selectedVPS.planName}</p>
                     </div>
-                    <div>
-                      <Label className="font-medium mb-2 block">IP Address</Label>
-                      <p className="text-sm text-gray-600">
-                        {selectedVPS.ipAddress ? (
-                          <code className="bg-gray-100 px-2 py-1 rounded">{selectedVPS.ipAddress}</code>
-                        ) : (
-                          'Chưa có'
-                        )}
-                      </p>
-                    </div>
+                    {selectedVPS.customerId && (
+                      <div>
+                        <Label className="font-medium mb-2 block">IP Address</Label>
+                        <p className="text-sm text-gray-600">
+                          {selectedVPS.ipAddress ? (
+                            <code className="bg-gray-100 px-2 py-1 rounded">{selectedVPS.ipAddress}</code>
+                          ) : (
+                            'Chưa có'
+                          )}
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -796,18 +800,20 @@ export default function VPSPage() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="edit-ipAddress" className="text-right">
-                      IP Address
-                    </Label>
-                    <div className="col-span-3">
-                      <Input
-                        id="edit-ipAddress"
-                        value={editVPS.ipAddress || ''}
-                        onChange={(e) => setEditVPS({...editVPS, ipAddress: e.target.value})}
-                      />
+                  {editVPS.customerId && (
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="edit-ipAddress" className="text-right">
+                        IP Address
+                      </Label>
+                      <div className="col-span-3">
+                        <Input
+                          id="edit-ipAddress"
+                          value={editVPS.ipAddress || ''}
+                          onChange={(e) => setEditVPS({...editVPS, ipAddress: e.target.value})}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="edit-cpu" className="text-right">
                       CPU (cores)
@@ -1059,7 +1065,7 @@ export default function VPSPage() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
-                    placeholder={activeTab === 'packages' ? 'Tìm kiếm VPS, IP hoặc hệ điều hành...' : 'Tìm VPS đã đăng ký...'}
+                    placeholder={activeTab === 'packages' ? 'Tìm kiếm VPS hoặc hệ điều hành...' : 'Tìm VPS đã đăng ký...'}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -1087,7 +1093,6 @@ export default function VPSPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Tên Gói</TableHead>
-                        <TableHead>IP Address</TableHead>
                         <TableHead>CPU</TableHead>
                         <TableHead>RAM</TableHead>
                         <TableHead>Storage</TableHead>
@@ -1101,7 +1106,6 @@ export default function VPSPage() {
                       {paginatedVPS.map((v) => (
                         <TableRow key={v.id}>
                           <TableCell className="font-medium">{v.planName}</TableCell>
-                          <TableCell>{v.ipAddress ? (<code className="bg-gray-100 px-2 py-1 rounded text-sm">{v.ipAddress}</code>) : ('Chưa có')}</TableCell>
                           <TableCell><div className="flex items-center space-x-1"><Cpu className="h-4 w-4 text-gray-500" /><span>{v.cpu} cores</span></div></TableCell>
                           <TableCell><div className="flex items-center space-x-1"><MemoryStick className="h-4 w-4 text-gray-500" /><span>{v.ram} GB</span></div></TableCell>
                           <TableCell><div className="flex items-center space-x-1"><HardDrive className="h-4 w-4 text-gray-500" /><span>{v.storage} GB</span></div></TableCell>
