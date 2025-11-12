@@ -615,7 +615,11 @@ export default function MembersPage() {
                           <div className="flex items-center space-x-3">
                             <Avatar className="h-8 w-8">
                               <AvatarFallback className="bg-primary text-primary-foreground">
-                                {member.name.split(' ').map(n => n[0]).join('')}
+                                {(() => {
+                                  const parts = member.name.trim().split(/\s+/)
+                                  const last = parts.filter(Boolean).pop()
+                                  return last ? last.charAt(0).toUpperCase() : 'U'
+                                })()}
                               </AvatarFallback>
                             </Avatar>
                             <div>

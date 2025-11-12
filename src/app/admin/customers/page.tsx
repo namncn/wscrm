@@ -1009,7 +1009,10 @@ export default function CustomersPage() {
                         <div className="flex items-center space-x-3">
                           <Avatar className="h-8 w-8">
                             <AvatarFallback className="bg-primary text-white">
-                              {customer.name.split(' ').map(n => n[0]).join('')}
+                              {(() => {
+                                const parts = customer.name.trim().split(/\s+/)
+                                return parts.length ? parts[parts.length - 1].charAt(0).toUpperCase() : 'C'
+                              })()}
                             </AvatarFallback>
                           </Avatar>
                           <div>
