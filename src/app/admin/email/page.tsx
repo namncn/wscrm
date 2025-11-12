@@ -730,15 +730,16 @@ export default function EmailPage() {
 
         {/* View Email Dialog */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="sm:max-w-[700px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Chi Tiết Email</DialogTitle>
               <DialogDescription>
                 Thông tin chi tiết của email thông báo
               </DialogDescription>
             </DialogHeader>
             {selectedEmail && (
-              <div className="space-y-4">
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="space-y-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="font-medium mb-2 block">Trạng thái</Label>
@@ -802,9 +803,10 @@ export default function EmailPage() {
                     <div className="text-sm">{selectedEmail.retryCount}</div>
                   </div>
                 )}
+                </div>
               </div>
             )}
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
                 Đóng
               </Button>
@@ -814,14 +816,15 @@ export default function EmailPage() {
 
         {/* Edit Email Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Chỉnh Sửa Email</DialogTitle>
               <DialogDescription>
                 Cập nhật thông tin email thông báo
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="flex-1 overflow-y-auto px-6">
+              <div className="grid gap-4 py-4">
               <div>
                 <Label htmlFor="editSubject">Chủ đề</Label>
                 <Input
@@ -873,8 +876,9 @@ export default function EmailPage() {
                   className="mt-2"
                 />
               </div>
+              </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                 Hủy
               </Button>
@@ -894,14 +898,14 @@ export default function EmailPage() {
 
         {/* Delete Email Dialog */}
         <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[400px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Xác nhận xóa</DialogTitle>
               <DialogDescription>
                 Bạn có chắc chắn muốn xóa email này? Hành động này không thể hoàn tác.
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
                 Hủy
               </Button>

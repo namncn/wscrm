@@ -417,14 +417,15 @@ export default function MembersPage() {
                   Thêm Thành Viên
                 </Button>
               </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
+            <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+              <DialogHeader className="px-6 pt-6 pb-4">
                 <DialogTitle>Thêm Thành Viên Mới</DialogTitle>
                 <DialogDescription>
                   Nhập thông tin thành viên mới vào form bên dưới.
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="name" className="text-right">
                     Tên
@@ -492,8 +493,9 @@ export default function MembersPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                </div>
               </div>
-              <DialogFooter>
+              <DialogFooter className="px-6 pt-4 pb-6 border-t">
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   Hủy
                 </Button>
@@ -734,14 +736,15 @@ export default function MembersPage() {
 
         {/* Role Change Dialog */}
         <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[400px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Thay Đổi Quyền Thành Viên</DialogTitle>
               <DialogDescription>
                 Chọn vai trò mới cho thành viên "{selectedMember?.name}"
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="flex-1 overflow-y-auto px-6">
+              <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <label className="text-right font-medium">Vai trò</label>
                 <Select value={newRole} onValueChange={(value: 'ADMIN' | 'USER') => setNewRole(value)}>
@@ -764,8 +767,9 @@ export default function MembersPage() {
                   </SelectContent>
                 </Select>
               </div>
+              </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsRoleDialogOpen(false)}>
                 Hủy
               </Button>
@@ -778,15 +782,16 @@ export default function MembersPage() {
 
         {/* View Member Dialog */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Chi Tiết Thành Viên</DialogTitle>
               <DialogDescription>
                 Thông tin chi tiết của thành viên
               </DialogDescription>
             </DialogHeader>
             {selectedMember && (
-              <div className="grid gap-4 py-4">
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right font-medium">Tên</Label>
                   <div className="col-span-3">{selectedMember.name}</div>
@@ -815,9 +820,10 @@ export default function MembersPage() {
                     {new Date(selectedMember.updatedAt).toLocaleDateString('vi-VN')}
                   </div>
                 </div>
+                </div>
               </div>
             )}
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
                 Đóng
               </Button>
@@ -827,14 +833,15 @@ export default function MembersPage() {
 
         {/* Edit Member Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Chỉnh Sửa Thành Viên</DialogTitle>
               <DialogDescription>
                 Cập nhật thông tin thành viên
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="flex-1 overflow-y-auto px-6">
+              <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-name" className="text-right">
                   Tên
@@ -902,8 +909,9 @@ export default function MembersPage() {
                   </SelectContent>
                 </Select>
               </div>
+              </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                 Hủy
               </Button>
@@ -916,15 +924,15 @@ export default function MembersPage() {
 
         {/* Delete Member Dialog */}
         <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[400px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Xác nhận xóa thành viên</DialogTitle>
               <DialogDescription>
                 Bạn có chắc chắn muốn xóa thành viên "{selectedMember?.name}"? 
                 Hành động này không thể hoàn tác.
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
                 Hủy
               </Button>
