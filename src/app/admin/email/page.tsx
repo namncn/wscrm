@@ -446,7 +446,7 @@ export default function EmailPage() {
         {/* Header */}
         <div className="flex justify-between items-center flex-col sm:flex-row gap-4">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Quản Lý Email</h1>
+            <h1 className="text-3xl font-bold bg-primary bg-clip-text text-transparent">Quản Lý Email</h1>
             <p className="text-gray-600 mt-1">Theo dõi và quản lý email thông báo</p>
           </div>
           <div className="flex gap-2 flex-col sm:flex-row">

@@ -406,7 +406,7 @@ export default function MembersPage() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Quản Lý Thành Viên</h1>
+            <h1 className="text-3xl font-bold bg-primary bg-clip-text text-transparent">Quản Lý Thành Viên</h1>
             <p className="text-gray-600 mt-1">Quản lý quyền hạn và vai trò của thành viên</p>
           </div>
           {isAdmin && (
@@ -614,7 +614,7 @@ export default function MembersPage() {
                         <TableCell>
                           <div className="flex items-center space-x-3">
                             <Avatar className="h-8 w-8">
-                              <AvatarFallback className={`${isCurrentUser ? 'bg-gradient-to-r from-blue-600 to-purple-600' : 'bg-gradient-to-r from-blue-500 to-purple-500'} text-white`}>
+                              <AvatarFallback className="bg-primary text-primary-foreground">
                                 {member.name.split(' ').map(n => n[0]).join('')}
                               </AvatarFallback>
                             </Avatar>

@@ -220,7 +220,7 @@ export default function AdminInvoicesPage() {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Hoá đơn</h1>
+            <h1 className="text-3xl font-bold bg-primary bg-clip-text text-transparent">Hoá đơn</h1>
             <p className="text-slate-600">
               Theo dõi các hoá đơn đã phát hành, trạng thái thanh toán và gửi nhắc nhở cho khách hàng.
             </p>
@@ -230,13 +230,13 @@ export default function AdminInvoicesPage() {
               variant="outline"
               onClick={handleRefresh}
               disabled={isLoading || refreshing}
-              className="flex items-center gap-2 border-blue-200 text-blue-600 hover:bg-blue-50"
+              className="flex items-center gap-2 border-blue-200 text-primary hover:bg-blue-50"
             >
               {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
               Làm mới
             </Button>
             <Button
-              className="flex items-center gap-2 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+              className="flex items-center gap-2 bg-primary text-white shadow-sm hover:bg-blue-700"
               onClick={() => {
                 if (!isAdmin) {
                   toastError('Bạn không có quyền tạo hoá đơn mới')

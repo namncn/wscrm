@@ -70,7 +70,7 @@ export function Header({ isMobileSidebarOpen, setIsMobileSidebarOpen }: HeaderPr
             <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                       <Avatar className="h-10 w-10">
-                        <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white">
+                        <AvatarFallback className="bg-primary text-primary-foreground">
                           {session?.user?.name?.charAt(0).toUpperCase() || 'U'}
                         </AvatarFallback>
                       </Avatar>

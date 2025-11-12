@@ -29,6 +29,7 @@ import {
   LogOut,
   ChevronDown,
   X,
+  NotebookText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -165,17 +166,7 @@ export function AppSidebar({ isOpen, setIsOpen }: SidebarProps) {
 
   // Logo component
   const LogoIcon = () => (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="32" height="32" rx="6" fill="url(#gradient)" />
-      <path d="M8 12h16v2H8v-2zm0 4h16v2H8v-2zm0 4h12v2H8v-2z" fill="white" />
-      <circle cx="22" cy="10" r="2" fill="white" />
-      <defs>
-        <linearGradient id="gradient" x1="0" y1="0" x2="32" y2="32">
-          <stop stopColor="#3B82F6" />
-          <stop offset="1" stopColor="#1D4ED8" />
-        </linearGradient>
-      </defs>
-    </svg>
+    <NotebookText className="size-8 text-white" />
   )
 
   return (
@@ -189,11 +180,11 @@ export function AppSidebar({ isOpen, setIsOpen }: SidebarProps) {
         )}
       >
         <SidebarRail className="border-r border-transparent" />
-        <SidebarHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4">
+        <SidebarHeader className="bg-primary text-primary-foreground p-4">
           <div className="flex w-full items-center justify-between gap-3">
             <div
               className={cn(
-                'flex items-center gap-3 text-white',
+                'flex items-center gap-2 text-white',
                 isCollapsed && 'w-full justify-center'
               )}
             >
@@ -233,7 +224,7 @@ export function AppSidebar({ isOpen, setIsOpen }: SidebarProps) {
                           className={cn(
                             'flex items-center px-3 py-3 text-sm font-medium rounded-md transition-all duration-300 relative',
                             isActive
-                              ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700'
+                              ? 'bg-primary/10 text-primary'
                               : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                           )}
                           onClick={() => setIsOpen(false)}
@@ -244,7 +235,7 @@ export function AppSidebar({ isOpen, setIsOpen }: SidebarProps) {
                             className={cn(
                               'h-5 w-5 transition-all duration-300',
                               isCollapsed ? 'mx-auto' : 'mr-3',
-                              item.color,
+                              isActive ? 'text-primary' : item.color,
                               !isActive && 'opacity-80 group-hover:opacity-100'
                             )}
                           />
@@ -280,7 +271,7 @@ export function AppSidebar({ isOpen, setIsOpen }: SidebarProps) {
                 )}
               >
                 <Avatar className="h-9 w-9">
-                  <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white">
+                  <AvatarFallback className="bg-primary text-primary-foreground">
                     {session?.user?.name?.charAt(0).toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>

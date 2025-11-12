@@ -423,7 +423,7 @@ const updateLineItem = (id: string, key: keyof InvoiceLineItem, value: string | 
       <div className="space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Tạo hoá đơn mới</h1>
+            <h1 className="text-3xl font-bold bg-primary bg-clip-text text-transparent">Tạo hoá đơn mới</h1>
             <p className="text-slate-600">
               Điền thông tin hoá đơn, cấu hình lập lịch gửi email nhắc nhở và lưu lại để gửi cho khách hàng.
             </p>
@@ -432,7 +432,7 @@ const updateLineItem = (id: string, key: keyof InvoiceLineItem, value: string | 
             <Button
               variant="outline"
               asChild
-              className="flex items-center gap-2 border-slate-200 text-slate-600 hover:bg-slate-50"
+              className="flex items-center gap-2 border-slate-200 text-primary hover:bg-slate-50"
               disabled={isSubmitting || isScheduling}
             >
               <Link href="/admin/invoices">
@@ -443,7 +443,7 @@ const updateLineItem = (id: string, key: keyof InvoiceLineItem, value: string | 
             <Button
               variant="outline"
               onClick={resetForms}
-              className="flex items-center gap-2 border-blue-200 text-blue-600 hover:bg-blue-50"
+              className="flex items-center gap-2 border-primary text-primary hover:bg-slate-50"
               disabled={isSubmitting || isScheduling}
             >
               <RefreshCw className="h-4 w-4" />
@@ -451,7 +451,7 @@ const updateLineItem = (id: string, key: keyof InvoiceLineItem, value: string | 
             </Button>
             <Button
               onClick={handleCreateInvoice}
-              className="flex items-center gap-2 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+              className="flex items-center gap-2 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
               disabled={isSubmitting || isScheduling}
             >
               {isSubmitting ? (

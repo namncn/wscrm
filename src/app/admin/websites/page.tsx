@@ -442,7 +442,7 @@ export default function WebsitesPage() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Quản Lý Websites</h1>
+            <h1 className="text-3xl font-bold bg-primary bg-clip-text text-transparent">Quản Lý Websites</h1>
             <p className="text-gray-600 mt-1">Theo dõi và quản lý tất cả websites</p>
           </div>
           <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
