@@ -175,7 +175,7 @@ export default function SettingsPage() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Cài Đặt Hệ Thống</h1>
+            <h1 className="text-3xl font-bold bg-primary bg-clip-text text-transparent">Cài Đặt Hệ Thống</h1>
             <p className="text-gray-600 mt-1">Quản lý cài đặt và cấu hình hệ thống {brandName}</p>
           </div>
           <div className="flex items-center space-x-2">
