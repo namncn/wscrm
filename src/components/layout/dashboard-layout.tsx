@@ -1,12 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Sidebar } from '@/components/layout/sidebar'
+import { AppSidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
-import { SidebarProvider } from '@/contexts/sidebar-context'
+import {
+  SidebarProvider,
+  SidebarInset,
+} from '@/components/ui/sidebar'
 function DashboardFooter() {
   return (
-    <footer className="px-6 py-4 bg-white/80 text-center text-sm text-slate-600 border-t border-slate-200">
+    <footer className="p-6 bg-white/80 text-center text-sm text-slate-600 border-t border-slate-200">
       Một sản phẩm của <a href="https://anlinh.vn" target="_blank">An Linh Technology JSC</a>
     </footer>
   )
@@ -18,8 +21,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <SidebarProvider>
       <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-        <Sidebar isOpen={isMobileSidebarOpen} setIsOpen={setIsMobileSidebarOpen} />
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <AppSidebar isOpen={isMobileSidebarOpen} setIsOpen={setIsMobileSidebarOpen} />
+        <SidebarInset className="flex overflow-hidden">
           <Header 
             isMobileSidebarOpen={isMobileSidebarOpen} 
             setIsMobileSidebarOpen={setIsMobileSidebarOpen} 
@@ -28,7 +31,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {children}
           </main>
           <DashboardFooter />
-        </div>
+        </SidebarInset>
       </div>
     </SidebarProvider>
   )

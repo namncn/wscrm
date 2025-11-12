@@ -1,9 +1,9 @@
 'use client'
 
-import { User, LogOut, ChevronLeft, ChevronRight, Settings, Menu, X } from 'lucide-react'
+import { User, LogOut, PanelLeft, Settings, Menu, X } from 'lucide-react'
 import { useSession, signOut } from 'next-auth/react'
 import Link from 'next/link'
-import { useSidebar } from '@/contexts/sidebar-context'
+import { useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -22,14 +22,15 @@ interface HeaderProps {
 
 export function Header({ isMobileSidebarOpen, setIsMobileSidebarOpen }: HeaderProps) {
   const { data: session } = useSession()
-  const { isCollapsed, toggleSidebar } = useSidebar()
+  const { open, toggle } = useSidebar()
+  const isCollapsed = !open
 
   const handleSignOut = () => {
     signOut({ callbackUrl: '/auth/signin' })
   }
 
   return (
-        <header className="bg-gradient-to-r from-white via-blue-50 to-indigo-50 border-b border-gray-200 backdrop-blur-sm">
+      <header className="bg-gradient-to-r from-white via-blue-50 to-indigo-50 border-b border-gray-200 backdrop-blur-sm">
       <div className="flex items-center justify-between px-6 py-3">
         {/* Sidebar Toggle + Search */}
         <div className="flex items-center space-x-3 flex-1 max-w-lg">
@@ -51,13 +52,13 @@ export function Header({ isMobileSidebarOpen, setIsMobileSidebarOpen }: HeaderPr
           <Button
             variant="ghost"
             size="sm"
-            onClick={toggleSidebar}
+            onClick={toggle}
             className="hidden lg:flex items-center justify-center w-8 h-8"
           >
             {isCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
+              <PanelLeft className="h-4 w-4" />
             ) : (
-              <ChevronLeft className="h-4 w-4" />
+              <PanelLeft className="h-4 w-4" />
             )}
           </Button>
         </div>

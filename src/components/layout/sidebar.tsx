@@ -3,9 +3,17 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useSession } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import { cn, getBrandName } from '@/lib/utils'
-import { useSidebar } from '@/contexts/sidebar-context'
+import {
+  Sidebar as SidebarPrimitive,
+  SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
+  SidebarTrigger,
+  SidebarRail,
+  useSidebar,
+} from '@/components/ui/sidebar'
 import {
   LayoutDashboard,
   Users,
@@ -17,16 +25,28 @@ import {
   User,
   Shield,
   Mail,
-  Cloud
+  Cloud,
+  LogOut,
+  ChevronDown,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
 
   const navigation = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard, color: 'text-blue-600' },
     { name: 'Khách Hàng', href: '/admin/customers', icon: Users, color: 'text-green-600' },
     { name: 'Đơn Hàng', href: '/admin/orders', icon: ShoppingCart, color: 'text-purple-600' },
-  { name: 'Hợp Đồng', href: '/admin/contracts', icon: FileText, color: 'text-orange-600' },
-  { name: 'Hoá Đơn', href: '/admin/invoices', icon: FileText, color: 'text-amber-600' },
+    { name: 'Hợp Đồng', href: '/admin/contracts', icon: FileText, color: 'text-orange-600' },
+    { name: 'Hoá Đơn', href: '/admin/invoices', icon: FileText, color: 'text-amber-600' },
     { name: 'Websites', href: '/admin/websites', icon: Globe, color: 'text-emerald-600' },
     { name: 'Tên Miền', href: '/admin/domain', icon: Globe, color: 'text-cyan-600' },
     { name: 'Hosting', href: '/admin/hosting', icon: Server, color: 'text-indigo-600' },
@@ -81,8 +101,9 @@ function NavItemTooltip({ text, targetRef }: { text: string; targetRef: React.Re
   )
 }
 
-export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
-  const { isCollapsed, toggleSidebar, isHydrated, shouldEnableTransition } = useSidebar()
+export function AppSidebar({ isOpen, setIsOpen }: SidebarProps) {
+  const { open, isHydrated } = useSidebar()
+  const isCollapsed = !open
   const pathname = usePathname()
   const { data: session, status } = useSession()
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
@@ -127,31 +148,30 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   return (
     <>
       {/* Sidebar */}
-      <div className={cn(
-        "fixed inset-y-0 left-0 z-40 bg-white border-r border-gray-200 transform lg:translate-x-0 lg:static lg:inset-0",
-        // Only enable transition after initial render to prevent transition on load
-        shouldEnableTransition && "transition-all duration-300 ease-in-out",
-        isOpen ? "translate-x-0" : "-translate-x-full",
-        isCollapsed ? "w-16" : "w-64"
-      )}>
-        <div className="flex flex-col h-full">
-          {/* Header with Logo */}
-          <div className="flex items-center h-14 px-4 bg-gradient-to-r from-blue-600 to-purple-600">
-            {!isCollapsed && (
-              <div className="flex items-center space-x-3">
-                <LogoIcon />
-                <h1 className="text-lg font-bold text-white">{brandName}</h1>
-              </div>
-            )}
-            {isCollapsed && (
-              <div className="flex items-center justify-center w-full">
-                <LogoIcon />
-              </div>
-            )}
+      <SidebarPrimitive
+        className={cn(
+          'fixed inset-y-0 left-0 z-40 bg-white lg:static lg:inset-auto',
+          isHydrated && 'transition-transform duration-300 ease-in-out',
+          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        )}
+      >
+        <SidebarRail className="border-r border-transparent" />
+        <SidebarHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3">
+          <div className="flex w-full items-center justify-between gap-3">
+            <div
+              className={cn(
+                'flex items-center gap-3 text-white',
+                isCollapsed && 'w-full justify-center'
+              )}
+            >
+              <LogoIcon />
+              {!isCollapsed && <h1 className="text-lg font-bold">{brandName}</h1>}
+            </div>
           </div>
+        </SidebarHeader>
 
-          {/* Navigation */}
-          <nav className="flex-1 px-2 py-6 space-y-1 overflow-y-auto">
+        <SidebarContent className="px-2 py-4">
+          <nav className="space-y-1">
             {filteredNavigation.map((item) => {
               const isActive =
                 pathname === item.href ||
@@ -196,59 +216,87 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
               )
             })}
           </nav>
+        </SidebarContent>
 
-          {/* Cloud upgrade box */}
-          <div
-            className={cn(
-              'border-t border-gray-200 bg-gradient-to-r from-gray-50 to-slate-50',
-              isCollapsed ? 'p-2' : 'p-3'
-            )}
-          >
-            <div
-              className={cn(
-                'rounded-lg border border-dashed border-purple-200 bg-white shadow-sm',
-                isCollapsed ? 'flex flex-col items-center gap-2 p-2' : 'space-y-3 p-3'
-              )}
-            >
-              {!isCollapsed && (
-                <>
-                  <div className="flex items-center gap-2 text-purple-700">
-                    <Cloud className="h-5 w-5" />
-                    <span className="text-sm font-semibold">Nâng cấp lên bản Cloud</span>
-                  </div>
-                  <p className="text-xs text-purple-600 leading-snug">
-                    {upgradeTooltip}
-                  </p>
-                </>
-              )}
+        {/* Cloud upgrade box temporarily disabled */}
+        {/* ... keep commented block? optionally when needed ... */}
+
+        <SidebarFooter className="p-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button
-                asChild
-                size={isCollapsed ? 'icon' : 'default'}
+                variant="ghost"
                 className={cn(
-                  'bg-purple-600 hover:bg-purple-700 text-white',
-                  isCollapsed ? 'h-9 w-9 rounded-full' : 'w-full'
+                  'w-full justify-start gap-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 h-auto border-none p-2 rounded-none',
+                  isCollapsed && 'justify-center border-none bg-transparent hover:bg-transparent p-2'
                 )}
               >
-                <Link
-                  href={upgradeUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={upgradeTooltip}
-                >
-                  {isCollapsed ? (
-                    <Cloud className="h-4 w-4" />
-                  ) : (
-                    <span className="flex items-center justify-center gap-2">
-                      <Cloud className="h-4 w-4" />
-                      Nâng cấp lên Cloud
+                <Avatar className="h-9 w-9">
+                  <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white">
+                    {session?.user?.name?.charAt(0).toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                {!isCollapsed && (
+                  <>
+                    <div className="min-w-0 flex-1 text-left">
+                      <p className="text-sm font-semibold text-gray-900 truncate">
+                        {session?.user?.name || 'Người dùng'}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {session?.user?.email || '—'}
+                      </p>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-gray-400" />
+                  </>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="w-56"
+              align={isCollapsed ? 'end' : 'start'}
+              side={isCollapsed ? 'right' : 'top'}
+              sideOffset={isCollapsed ? 12 : 8}
+            >
+              <DropdownMenuLabel className="font-normal py-2">
+                <div className="flex flex-col space-y-2">
+                  <p className="text-sm font-medium leading-none">
+                    {session?.user?.name || 'Người dùng'}
+                  </p>
+                  <p className="text-xs leading-none text-muted-foreground">
+                    {session?.user?.email || '—'}
+                  </p>
+                  {(session?.user as any)?.role && (
+                    <span className="inline-flex w-fit items-center rounded bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-600">
+                      {(session?.user as any).role === 'ADMIN' ? 'Quản trị viên' : 'Thành viên'}
                     </span>
                   )}
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/admin/profile" className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span>Hồ sơ</span>
                 </Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/admin/settings" className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  <span>Cài đặt</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => signOut({ callbackUrl: '/auth/signin' })}
+                className="text-red-500 focus:text-red-600"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Đăng xuất</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarFooter>
+      </SidebarPrimitive>
 
       {/* Overlay for mobile */}
       {isOpen && (
