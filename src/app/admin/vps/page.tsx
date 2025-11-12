@@ -380,7 +380,7 @@ export default function VPSPage() {
                   Thêm VPS
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
+              <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
                 <DialogTitle>Thêm VPS Mới</DialogTitle>
                 <DialogDescription>
