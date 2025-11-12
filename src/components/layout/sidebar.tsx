@@ -156,7 +156,7 @@ export function AppSidebar({ isOpen, setIsOpen }: SidebarProps) {
         )}
       >
         <SidebarRail className="border-r border-transparent" />
-        <SidebarHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3">
+        <SidebarHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4">
           <div className="flex w-full items-center justify-between gap-3">
             <div
               className={cn(
@@ -227,7 +227,7 @@ export function AppSidebar({ isOpen, setIsOpen }: SidebarProps) {
               <Button
                 variant="ghost"
                 className={cn(
-                  'w-full justify-start gap-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 h-auto border-none p-2 rounded-none',
+                  'w-full justify-start gap-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 h-auto border-none p-2',
                   isCollapsed && 'justify-center border-none bg-transparent hover:bg-transparent p-2'
                 )}
               >

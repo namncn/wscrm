@@ -39,7 +39,7 @@ export function Header({ isMobileSidebarOpen, setIsMobileSidebarOpen }: HeaderPr
             variant="ghost"
             size="sm"
             onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-            className="lg:hidden flex items-center justify-center w-8 h-8"
+            className="lg:hidden flex items-center justify-center w-10 h-10"
           >
             {isMobileSidebarOpen ? (
               <X className="h-5 w-5" />
@@ -53,7 +53,7 @@ export function Header({ isMobileSidebarOpen, setIsMobileSidebarOpen }: HeaderPr
             variant="ghost"
             size="sm"
             onClick={toggle}
-            className="hidden lg:flex items-center justify-center w-8 h-8"
+            className="hidden lg:flex items-center justify-center w-10 h-10"
           >
             {isCollapsed ? (
               <PanelLeft className="h-4 w-4" />
@@ -68,8 +68,8 @@ export function Header({ isMobileSidebarOpen, setIsMobileSidebarOpen }: HeaderPr
           {/* User menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                      <Avatar className="h-8 w-8">
+                    <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                      <Avatar className="h-10 w-10">
                         <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white">
                           {session?.user?.name?.charAt(0).toUpperCase() || 'U'}
                         </AvatarFallback>
