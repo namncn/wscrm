@@ -375,14 +375,15 @@ export default function CustomersPage() {
               Thêm Khách Hàng
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Thêm Khách Hàng Mới</DialogTitle>
               <DialogDescription>
                 Nhập thông tin khách hàng mới vào form bên dưới.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="flex-1 overflow-y-auto px-6">
+              <div className="grid gap-4 py-4">
               <div className="space-y-4">
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-3">Thông tin cá nhân</h3>
@@ -518,8 +519,9 @@ export default function CustomersPage() {
                   </div>
                 </div>
               </div>
+              </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Hủy
               </Button>
@@ -532,15 +534,16 @@ export default function CustomersPage() {
 
         {/* View Customer Dialog */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Chi Tiết Khách Hàng</DialogTitle>
               <DialogDescription>
                 Thông tin chi tiết của khách hàng
               </DialogDescription>
             </DialogHeader>
             {selectedCustomer && (
-              <div className="grid gap-4 py-4">
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="grid gap-4 py-4">
                 <div className="space-y-4">
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-3">Thông tin cá nhân</h3>
@@ -655,9 +658,10 @@ export default function CustomersPage() {
                     </div>
                   </div>
                 </div>
+                </div>
               </div>
             )}
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
                 Đóng
               </Button>
@@ -667,14 +671,15 @@ export default function CustomersPage() {
 
         {/* Edit Customer Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Chỉnh Sửa Khách Hàng</DialogTitle>
               <DialogDescription>
                 Cập nhật thông tin khách hàng
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="flex-1 overflow-y-auto px-6">
+              <div className="grid gap-4 py-4">
               <div className="space-y-4">
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-3">Thông tin cá nhân</h3>
@@ -849,8 +854,9 @@ export default function CustomersPage() {
                   </div>
                 </div>
               </div>
+              </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                 Hủy
               </Button>
@@ -863,15 +869,15 @@ export default function CustomersPage() {
 
         {/* Delete Customer Dialog */}
         <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[400px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Xác nhận xóa khách hàng</DialogTitle>
               <DialogDescription>
                 Bạn có chắc chắn muốn xóa khách hàng "{selectedCustomer?.name}"? 
                 Hành động này không thể hoàn tác.
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
                 Hủy
               </Button>

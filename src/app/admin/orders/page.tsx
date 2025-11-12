@@ -643,14 +643,15 @@ export default function OrdersPage() {
                 Tạo Đơn Hàng
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
+            <DialogContent className="sm:max-w-[650px] max-h-[90vh] flex flex-col p-0">
+              <DialogHeader className="px-6 pt-6 pb-4">
                 <DialogTitle>Tạo Đơn Hàng Mới</DialogTitle>
                 <DialogDescription>
                   Tạo đơn hàng mới cho khách hàng
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="customer" className="text-right">
                     Khách hàng
@@ -1057,8 +1058,9 @@ export default function OrdersPage() {
                     />
                   </div>
                 </div>
+                </div>
               </div>
-              <DialogFooter>
+              <DialogFooter className="px-6 pt-4 pb-6 border-t">
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   Hủy
                 </Button>
@@ -1272,15 +1274,16 @@ export default function OrdersPage() {
 
         {/* View Order Dialog */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+              <DialogHeader className="px-6 pt-6 pb-4">
                 <DialogTitle>Chi Tiết Đơn Hàng</DialogTitle>
               <DialogDescription>
                 Thông tin chi tiết của đơn hàng
               </DialogDescription>
             </DialogHeader>
             {selectedOrder && (
-              <div className="grid gap-4 py-4">
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="font-medium mb-2 block">Mã đơn hàng</Label>
@@ -1349,9 +1352,10 @@ export default function OrdersPage() {
                     </div>
                   </div>
                 </div>
+                </div>
               </div>
             )}
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button
                 type="button"
                 variant="secondary"
@@ -1380,15 +1384,16 @@ export default function OrdersPage() {
 
         {/* Edit Order Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Chỉnh Sửa Đơn Hàng</DialogTitle>
               <DialogDescription>
                 Cập nhật thông tin đơn hàng
               </DialogDescription>
             </DialogHeader>
             {selectedOrder && (
-              <div className="grid gap-4 py-4">
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="font-medium mb-2 block">Mã đơn hàng</Label>
@@ -1523,9 +1528,10 @@ export default function OrdersPage() {
                     />
                   </div>
                 </div>
+                </div>
               </div>
             )}
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                 Hủy
               </Button>
@@ -1545,15 +1551,15 @@ export default function OrdersPage() {
 
         {/* Delete Order Dialog */}
         <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[400px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Xác nhận xóa đơn hàng</DialogTitle>
               <DialogDescription>
                 Bạn có chắc chắn muốn xóa đơn hàng "{selectedOrder?.orderNumber}"? 
                 Hành động này không thể hoàn tác.
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
                 Hủy
               </Button>

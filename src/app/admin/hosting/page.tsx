@@ -431,14 +431,15 @@ export default function HostingPage() {
                   Thêm Gói Hosting
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
+              <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+                <DialogHeader className="px-6 pt-6 pb-4">
                   <DialogTitle>Thêm Gói Hosting Mới</DialogTitle>
                   <DialogDescription>
                     Nhập thông tin gói hosting mới vào form bên dưới.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="flex-1 overflow-y-auto px-6">
+                  <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="planName" className="text-right">
                       Tên gói
@@ -593,8 +594,9 @@ export default function HostingPage() {
                       />
                     </div>
                   </div>
+                  </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="px-6 pt-4 pb-6 border-t">
                   <Button variant="outline" onClick={() => setIsCreateHostingDialogOpen(false)}>
                     Hủy
                   </Button>
@@ -620,12 +622,13 @@ export default function HostingPage() {
                   Đăng ký Hosting
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
+              <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+                <DialogHeader className="px-6 pt-6 pb-4">
                   <DialogTitle>Đăng ký Hosting cho khách hàng</DialogTitle>
                   <DialogDescription>Nhập thông tin gói và gán cho khách hàng</DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="flex-1 overflow-y-auto px-6">
+                  <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right">Tên gói</Label>
                     <div className="col-span-3">
@@ -719,8 +722,9 @@ export default function HostingPage() {
                       <Input id="reg-location" value={registerHosting.serverLocation} onChange={(e) => setRegisterHosting({...registerHosting, serverLocation: e.target.value})} placeholder="Hanoi" />
                     </div>
                   </div>
+                  </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="px-6 pt-4 pb-6 border-t">
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -995,15 +999,16 @@ export default function HostingPage() {
 
         {/* View Hosting Dialog */}
         <Dialog open={isViewHostingDialogOpen} onOpenChange={setIsViewHostingDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Chi Tiết Gói Hosting</DialogTitle>
               <DialogDescription>
                 Thông tin chi tiết của gói hosting
               </DialogDescription>
             </DialogHeader>
             {selectedHosting && (
-              <div className="grid gap-4 py-4">
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="font-medium mb-2 block">Tên gói</Label>
@@ -1092,9 +1097,10 @@ export default function HostingPage() {
                     </div>
                   </div>
                 </div>
+                </div>
               </div>
             )}
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsViewHostingDialogOpen(false)}>
                 Đóng
               </Button>
@@ -1104,14 +1110,15 @@ export default function HostingPage() {
 
         {/* Edit Hosting Dialog */}
         <Dialog open={isEditHostingDialogOpen} onOpenChange={setIsEditHostingDialogOpen}>
-          <DialogContent className="sm:max-w-[550px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Chỉnh Sửa Gói Hosting</DialogTitle>
               <DialogDescription>
                 Cập nhật thông tin gói hosting
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="flex-1 overflow-y-auto px-6">
+              <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-planName" className="text-right">
                   Tên gói
@@ -1324,8 +1331,9 @@ export default function HostingPage() {
                   </div>
                 </>
               )}
+              </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsEditHostingDialogOpen(false)}>
                 Hủy
               </Button>
@@ -1345,24 +1353,26 @@ export default function HostingPage() {
 
         {/* Delete Hosting Dialog */}
         <Dialog open={isDeleteHostingDialogOpen} onOpenChange={setIsDeleteHostingDialogOpen}>
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[400px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Xóa Gói Hosting</DialogTitle>
               <DialogDescription>
                 Bạn có chắc chắn muốn xóa gói hosting này không? Hành động này không thể hoàn tác.
               </DialogDescription>
             </DialogHeader>
             {selectedHosting && (
-              <div className="py-4">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="font-medium">{selectedHosting.planName}</div>
-                  <div className="text-sm text-gray-600">
-                    {formatStorage(selectedHosting.storage)} - {formatCurrency(selectedHosting.price)}
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="py-4">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="font-medium">{selectedHosting.planName}</div>
+                    <div className="text-sm text-gray-600">
+                      {formatStorage(selectedHosting.storage)} - {formatCurrency(selectedHosting.price)}
+                    </div>
                   </div>
                 </div>
               </div>
             )}
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsDeleteHostingDialogOpen(false)}>
                 Hủy
               </Button>

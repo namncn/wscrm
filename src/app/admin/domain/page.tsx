@@ -522,14 +522,15 @@ export default function domainPage() {
                     Thêm Tên Miền
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px]">
-                  <DialogHeader>
+                <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+                  <DialogHeader className="px-6 pt-6 pb-4">
                     <DialogTitle>Thêm Tên Miền Mới</DialogTitle>
                     <DialogDescription>
                       Nhập thông tin tên miền mới vào form bên dưới.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="grid gap-4 py-4">
+                  <div className="flex-1 overflow-y-auto px-6">
+                    <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="domainName" className="text-right">
                         Tên miền
@@ -628,8 +629,9 @@ export default function domainPage() {
                         </Select>
                       </div>
                     </div>
+                    </div>
                   </div>
-                  <DialogFooter>
+                  <DialogFooter className="px-6 pt-4 pb-6 border-t">
                     <Button variant="outline" onClick={() => setIsCreateDomainDialogOpen(false)}>
                       Hủy
                     </Button>
@@ -654,14 +656,15 @@ export default function domainPage() {
                     Thêm Gói Tên Miền
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px]">
-                  <DialogHeader>
+                <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+                  <DialogHeader className="px-6 pt-6 pb-4">
                     <DialogTitle>Thêm Gói Tên Miền Mới</DialogTitle>
                     <DialogDescription>
                       Nhập thông tin gói tên miền mới vào form bên dưới.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="grid gap-4 py-4">
+                  <div className="flex-1 overflow-y-auto px-6">
+                    <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="packageName" className="text-right">
                         Tên gói
@@ -755,8 +758,9 @@ export default function domainPage() {
                         </Select>
                       </div>
                     </div>
+                    </div>
                   </div>
-                  <DialogFooter>
+                  <DialogFooter className="px-6 pt-4 pb-6 border-t">
                     <Button variant="outline" onClick={() => setIsCreatePackageDialogOpen(false)}>
                       Hủy
                     </Button>
@@ -1063,15 +1067,16 @@ export default function domainPage() {
 
         {/* View Domain Dialog */}
         <Dialog open={isViewDomainDialogOpen} onOpenChange={setIsViewDomainDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Chi Tiết Tên Miền</DialogTitle>
               <DialogDescription>
                 Thông tin chi tiết của tên miền
               </DialogDescription>
             </DialogHeader>
             {selectedDomain && (
-              <div className="space-y-4">
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="space-y-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="font-medium mb-2 block">Tên miền</Label>
@@ -1115,21 +1120,28 @@ export default function domainPage() {
                   </p>
                 </div>
               </div>
+                </div>
               </div>
             )}
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
+              <Button variant="outline" onClick={() => setIsViewDomainDialogOpen(false)}>
+                Đóng
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
         {/* Edit Domain Dialog */}
         <Dialog open={isEditDomainDialogOpen} onOpenChange={setIsEditDomainDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Chỉnh Sửa Tên Miền</DialogTitle>
               <DialogDescription>
                 Cập nhật thông tin tên miền
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="flex-1 overflow-y-auto px-6">
+              <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="editDomainName" className="text-right">
                   Tên miền
@@ -1225,8 +1237,9 @@ export default function domainPage() {
                   </Select>
                 </div>
               </div>
+              </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsEditDomainDialogOpen(false)}>
                 Hủy
               </Button>
@@ -1246,14 +1259,14 @@ export default function domainPage() {
 
         {/* Delete Domain Dialog */}
         <Dialog open={isDeleteDomainDialogOpen} onOpenChange={setIsDeleteDomainDialogOpen}>
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[400px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Xác nhận xóa</DialogTitle>
               <DialogDescription>
                 Bạn có chắc chắn muốn xóa tên miền này? Hành động này không thể hoàn tác.
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsDeleteDomainDialogOpen(false)}>
                 Hủy
               </Button>
@@ -1273,15 +1286,16 @@ export default function domainPage() {
 
         {/* Edit Package Dialog */}
         <Dialog open={isEditPackageDialogOpen} onOpenChange={setIsEditPackageDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Chỉnh Sửa Gói Tên Miền</DialogTitle>
               <DialogDescription>
                 Cập nhật thông tin gói tên miền
               </DialogDescription>
             </DialogHeader>
             {selectedPackage && (
-              <div className="grid gap-4 py-4">
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="editPackageName" className="text-right">
                     Tên gói
@@ -1394,9 +1408,10 @@ export default function domainPage() {
                     </Select>
                   </div>
                 </div>
+                </div>
               </div>
             )}
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsEditPackageDialogOpen(false)}>
                 Hủy
               </Button>
@@ -1416,14 +1431,14 @@ export default function domainPage() {
 
         {/* Delete Package Dialog */}
         <Dialog open={isDeleteDomainDialogOpen} onOpenChange={setIsDeleteDomainDialogOpen}>
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[400px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Xác nhận xóa</DialogTitle>
               <DialogDescription>
                 Bạn có chắc chắn muốn xóa gói tên miền này? Hành động này không thể hoàn tác.
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter>
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
               <Button variant="outline" onClick={() => setIsDeleteDomainDialogOpen(false)}>
                 Hủy
               </Button>

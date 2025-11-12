@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { format } from 'date-fns'
+import { format, parse } from 'date-fns'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/layout/dashboard-layout'
@@ -228,7 +228,18 @@ export default function VPSPage() {
           status: editVPS.status,
           os: editVPS.os,
           customerId: editVPS.customerId,
-          expiryDate: editVPS.expiryDate,
+          ...(editVPS.customerId && {
+            createdAt: editVPS.createdAt
+              ? editVPS.createdAt.includes('T')
+                ? format(new Date(editVPS.createdAt), 'yyyy-MM-dd')
+                : editVPS.createdAt
+              : null,
+            expiryDate: editVPS.expiryDate
+              ? editVPS.expiryDate.includes('T')
+                ? format(new Date(editVPS.expiryDate), 'yyyy-MM-dd')
+                : editVPS.expiryDate
+              : null,
+          }),
         }),
       })
 
@@ -380,14 +391,15 @@ export default function VPSPage() {
                   Thêm VPS
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
+              <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+              <DialogHeader className="px-6 pt-6 pb-4">
                 <DialogTitle>Thêm VPS Mới</DialogTitle>
                 <DialogDescription>
                   Nhập thông tin máy chủ ảo mới để tạo
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="planName" className="text-right">
                     Tên Gói
@@ -500,8 +512,9 @@ export default function VPSPage() {
                     />
                   </div>
                 </div>
+                </div>
               </div>
-              <DialogFooter>
+              <DialogFooter className="px-6 pt-4 pb-6 border-t">
                 <Button variant="outline" onClick={() => setIsCreateVPSDialogOpen(false)}>
                   Hủy
                 </Button>
@@ -530,12 +543,13 @@ export default function VPSPage() {
                   Đăng ký VPS
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
+              <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+                <DialogHeader className="px-6 pt-6 pb-4">
                   <DialogTitle>Đăng ký VPS cho khách hàng</DialogTitle>
                   <DialogDescription>Nhập thông tin VPS và gán cho khách hàng</DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="flex-1 overflow-y-auto px-6">
+                  <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right">Tên Gói</Label>
                     <div className="col-span-3">
@@ -642,8 +656,9 @@ export default function VPSPage() {
                       />
                     </div>
                   </div>
+                  </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="px-6 pt-4 pb-6 border-t">
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -699,15 +714,16 @@ export default function VPSPage() {
 
         {/* View VPS Dialog */}
           <Dialog open={isViewVPSDialogOpen} onOpenChange={setIsViewVPSDialogOpen}>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+              <DialogHeader className="px-6 pt-6 pb-4">
                 <DialogTitle>Chi Tiết VPS</DialogTitle>
                 <DialogDescription>
                   Thông tin chi tiết về máy chủ ảo
                 </DialogDescription>
               </DialogHeader>
               {selectedVPS && (
-                <div className="grid gap-4 py-4">
+                <div className="flex-1 overflow-y-auto px-6">
+                  <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="font-medium mb-2 block">Tên Gói</Label>
@@ -766,9 +782,10 @@ export default function VPSPage() {
                       <p className="text-sm text-gray-600">{formatDate(selectedVPS.expiryDate)}</p>
                     </div>
                   </div>
+                  </div>
                 </div>
               )}
-              <DialogFooter>
+              <DialogFooter className="px-6 pt-4 pb-6 border-t">
                 <Button variant="outline" onClick={() => setIsViewVPSDialogOpen(false)}>
                   Đóng
                 </Button>
@@ -779,15 +796,16 @@ export default function VPSPage() {
 
           {/* Edit VPS Dialog */}
           <Dialog open={isEditVPSDialogOpen} onOpenChange={setIsEditVPSDialogOpen}>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+              <DialogHeader className="px-6 pt-6 pb-4">
                 <DialogTitle>Chỉnh Sửa VPS</DialogTitle>
                 <DialogDescription>
                   Cập nhật thông tin máy chủ ảo
                 </DialogDescription>
               </DialogHeader>
               {editVPS && (
-                <div className="grid gap-4 py-4">
+                <div className="flex-1 overflow-y-auto px-6">
+                  <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="edit-planName" className="text-right">
                       Tên Gói
@@ -926,9 +944,58 @@ export default function VPSPage() {
                       />
                     </div>
                   </div>
+                  {editVPS.customerId && (
+                    <>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-createdAt" className="text-right">
+                          Ngày Đăng Ký
+                        </Label>
+                        <div className="col-span-3">
+                          <DatePicker
+                            value={
+                              editVPS.createdAt
+                                ? editVPS.createdAt.includes('T')
+                                  ? new Date(editVPS.createdAt)
+                                  : parse(editVPS.createdAt, 'yyyy-MM-dd', new Date())
+                                : undefined
+                            }
+                            onChange={(date) =>
+                              setEditVPS({
+                                ...editVPS,
+                                createdAt: date ? format(date, 'yyyy-MM-dd') : '',
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-expiryDate" className="text-right">
+                          Ngày Hết Hạn
+                        </Label>
+                        <div className="col-span-3">
+                          <DatePicker
+                            value={
+                              editVPS.expiryDate
+                                ? editVPS.expiryDate.includes('T')
+                                  ? new Date(editVPS.expiryDate)
+                                  : parse(editVPS.expiryDate, 'yyyy-MM-dd', new Date())
+                                : undefined
+                            }
+                            onChange={(date) =>
+                              setEditVPS({
+                                ...editVPS,
+                                expiryDate: date ? format(date, 'yyyy-MM-dd') : null,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  </div>
                 </div>
               )}
-              <DialogFooter>
+              <DialogFooter className="px-6 pt-4 pb-6 border-t">
                 <Button variant="outline" onClick={() => setIsEditVPSDialogOpen(false)}>
                   Hủy
                 </Button>
@@ -948,21 +1015,23 @@ export default function VPSPage() {
 
           {/* Delete VPS Dialog */}
           <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-            <DialogContent className="sm:max-w-[400px]">
-              <DialogHeader>
+            <DialogContent className="sm:max-w-[400px] max-h-[90vh] flex flex-col p-0">
+              <DialogHeader className="px-6 pt-6 pb-4">
                 <DialogTitle>Xác Nhận Xóa VPS</DialogTitle>
                 <DialogDescription>
                   Bạn có chắc chắn muốn xóa VPS này không? Hành động này không thể hoàn tác.
                 </DialogDescription>
               </DialogHeader>
               {selectedVPS && (
-                <div className="py-4">
-                  <p className="text-sm text-gray-600">
-                    VPS: <span className="font-medium">{selectedVPS.planName}</span>
-                  </p>
+                <div className="flex-1 overflow-y-auto px-6">
+                  <div className="py-4">
+                    <p className="text-sm text-gray-600">
+                      VPS: <span className="font-medium">{selectedVPS.planName}</span>
+                    </p>
+                  </div>
                 </div>
               )}
-              <DialogFooter>
+              <DialogFooter className="px-6 pt-4 pb-6 border-t">
                 <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
                   Hủy
                 </Button>

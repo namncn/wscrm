@@ -519,14 +519,15 @@ export default function ContractsPage() {
                 Tạo Hợp Đồng
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+              <DialogHeader className="px-6 pt-6 pb-4">
                 <DialogTitle>Tạo Hợp Đồng Mới</DialogTitle>
                 <DialogDescription>
                   Tạo hợp đồng mới từ đơn hàng
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="order" className="text-right">
                     Đơn hàng
@@ -616,8 +617,9 @@ export default function ContractsPage() {
                     onChange={(e) => setNewContract({...newContract, notes: e.target.value})}
                   />
                 </div>
+                </div>
               </div>
-              <DialogFooter>
+              <DialogFooter className="px-6 pt-4 pb-6 border-t">
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   Hủy
                 </Button>
@@ -828,11 +830,15 @@ export default function ContractsPage() {
 
       {/* Edit Contract Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4">
             <DialogTitle>Chỉnh Sửa Hợp Đồng</DialogTitle>
+            <DialogDescription>
+              Cập nhật thông tin hợp đồng
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto px-6">
+            <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-startDate" className="font-medium mb-2 block">Ngày bắt đầu</Label>
@@ -1172,35 +1178,36 @@ export default function ContractsPage() {
                 </p>
               </div>
             )}
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Hủy
-              </Button>
-              <Button onClick={handleUpdateContract} disabled={isUpdating}>
-                {isUpdating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Đang cập nhật...
-                  </>
-                ) : (
-                  'Cập nhật'
-                )}
-              </Button>
             </div>
           </div>
+          <DialogFooter className="px-6 pt-4 pb-6 border-t">
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Hủy
+            </Button>
+            <Button onClick={handleUpdateContract} disabled={isUpdating}>
+              {isUpdating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Đang cập nhật...
+                </>
+              ) : (
+                'Cập nhật'
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Email Confirmation Dialog */}
       <Dialog open={isEmailConfirmDialogOpen} onOpenChange={setIsEmailConfirmDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[400px] max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4">
             <DialogTitle>Gửi Email Thông Báo</DialogTitle>
             <DialogDescription>
               Bạn có chắc chắn muốn gửi email thông báo hợp đồng mới cho khách hàng <strong>{selectedContract?.customerName}</strong> ({selectedContract?.customerEmail})?
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="px-6 pt-4 pb-6 border-t">
             <Button variant="outline" onClick={() => setIsEmailConfirmDialogOpen(false)} disabled={isSendingEmail}>
               Hủy
             </Button>
@@ -1223,22 +1230,21 @@ export default function ContractsPage() {
 
       {/* Delete Contract Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[400px] max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4">
             <DialogTitle>Xác nhận xóa hợp đồng</DialogTitle>
+            <DialogDescription>
+              Bạn có chắc chắn muốn xóa hợp đồng <strong>{selectedContract?.contractNumber}</strong>? Hành động này không thể hoàn tác.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <p>Bạn có chắc chắn muốn xóa hợp đồng <strong>{selectedContract?.contractNumber}</strong>?</p>
-            <p className="text-sm text-gray-500">Hành động này không thể hoàn tác.</p>
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-                Hủy
-              </Button>
-              <Button variant="destructive" onClick={confirmDeleteContract}>
-                Xóa
-              </Button>
-            </div>
-          </div>
+          <DialogFooter className="px-6 pt-4 pb-6 border-t">
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Hủy
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteContract}>
+              Xóa
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </DashboardLayout>

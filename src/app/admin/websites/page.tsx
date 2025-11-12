@@ -473,14 +473,15 @@ export default function WebsitesPage() {
                 Tạo Website
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+              <DialogHeader className="px-6 pt-6 pb-4">
                 <DialogTitle>Tạo Website Mới</DialogTitle>
                 <DialogDescription>
                   Tạo website mới và liên kết với các dịch vụ
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="name" className="text-right">
                     Tên website <span className="text-red-500">*</span>
@@ -608,8 +609,9 @@ export default function WebsitesPage() {
                     onChange={(e) => setNewWebsite({...newWebsite, notes: e.target.value})}
                   />
                 </div>
+                </div>
               </div>
-              <DialogFooter>
+              <DialogFooter className="px-6 pt-4 pb-6 border-t">
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   Hủy
                 </Button>
@@ -819,22 +821,21 @@ export default function WebsitesPage() {
 
       {/* Delete Website Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[400px] max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4">
             <DialogTitle>Xác nhận xóa website</DialogTitle>
+            <DialogDescription>
+              Bạn có chắc chắn muốn xóa website <strong>{selectedWebsite?.name}</strong>? Hành động này không thể hoàn tác.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <p>Bạn có chắc chắn muốn xóa website <strong>{selectedWebsite?.name}</strong>?</p>
-            <p className="text-sm text-gray-500">Hành động này không thể hoàn tác.</p>
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-                Hủy
-              </Button>
-              <Button variant="destructive" onClick={confirmDeleteWebsite}>
-                Xóa
-              </Button>
-            </div>
-          </div>
+          <DialogFooter className="px-6 pt-4 pb-6 border-t">
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Hủy
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteWebsite}>
+              Xóa
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </DashboardLayout>
