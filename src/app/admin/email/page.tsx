@@ -624,10 +624,7 @@ export default function EmailPage() {
                   {filteredEmails.map((email) => (
                     <TableRow key={email.id}>
                       <TableCell>
-                        <div className="flex items-center space-x-2">
-                          {getStatusIcon(email.status)}
-                          {getStatusBadge(email.status)}
-                        </div>
+                        {getStatusBadge(email.status)}
                       </TableCell>
                       <TableCell>
                         <span className="text-sm">{getNotificationTypeLabel(email.notificationType)}</span>
