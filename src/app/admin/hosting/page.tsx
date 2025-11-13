@@ -91,14 +91,21 @@ export default function HostingPage() {
   const [isRegisterHostingDialogOpen, setIsRegisterHostingDialogOpen] = useState(false)
   const createInitialRegisterHostingState = () => ({
     planName: '',
-    storage: 0,
-    bandwidth: 0,
+    storage: '',
+    bandwidth: '',
     price: 0,
-    status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
+    status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED',
     customerId: null as number | null,
     registrationDate: undefined as Date | undefined,
     expiryDate: undefined as Date | undefined,
     serverLocation: '',
+    domain: '',
+    addonDomain: 'Unlimited',
+    subDomain: 'Unlimited',
+    ftpAccounts: 'Unlimited',
+    databases: 'Unlimited',
+    hostingType: 'VPS Hosting',
+    operatingSystem: 'Linux',
   })
   const [registerHosting, setRegisterHosting] = useState(createInitialRegisterHostingState)
 
@@ -753,15 +760,15 @@ export default function HostingPage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-storage" className="text-right">Dung lượng (GB)</Label>
+                    <Label htmlFor="reg-storage" className="text-right">Dung lượng (MB)</Label>
                     <div className="col-span-3">
-                      <Input id="reg-storage" type="number" value={registerHosting.storage} onChange={(e) => setRegisterHosting({...registerHosting, storage: parseInt(e.target.value) || 0})} placeholder="10" />
+                      <Input id="reg-storage" type="text" value={registerHosting.storage} onChange={(e) => setRegisterHosting({...registerHosting, storage: e.target.value})} placeholder="Unlimited" />
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-bandwidth" className="text-right">Băng thông (GB)</Label>
+                    <Label htmlFor="reg-bandwidth" className="text-right">Băng thông (MB)</Label>
                     <div className="col-span-3">
-                      <Input id="reg-bandwidth" type="number" value={registerHosting.bandwidth} onChange={(e) => setRegisterHosting({...registerHosting, bandwidth: parseInt(e.target.value) || 0})} placeholder="100" />
+                      <Input id="reg-bandwidth" type="text" value={registerHosting.bandwidth} onChange={(e) => setRegisterHosting({...registerHosting, bandwidth: e.target.value})} placeholder="Unlimited" />
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -771,22 +778,45 @@ export default function HostingPage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-status" className="text-right">Trạng thái</Label>
+                    <div className="col-span-3">
+                      <Select 
+                        value={registerHosting.status} 
+                        onValueChange={(value: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED') =>
+                          setRegisterHosting({...registerHosting, status: value})
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ACTIVE">Hoạt động</SelectItem>
+                          <SelectItem value="INACTIVE">Không hoạt động</SelectItem>
+                          <SelectItem value="SUSPENDED">Tạm ngừng</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right">Khách hàng</Label>
                     <div className="col-span-3">
                       <CustomerCombobox
                         customers={customers}
                         value={registerHosting.customerId}
-                        onValueChange={(val) =>
+                        onValueChange={(val) => {
+                          const customerIdNum = typeof val === 'number' ? val : val ? parseInt(String(val), 10) : null
                           setRegisterHosting({
                             ...registerHosting,
-                            customerId:
-                              typeof val === 'number'
-                                ? val
-                                : val
-                                ? parseInt(String(val), 10)
-                                : null,
+                            customerId: customerIdNum,
+                            domain: ''
                           })
-                        }
+                          // Fetch domains when customer changes
+                          if (customerIdNum) {
+                            fetchDomains(customerIdNum)
+                          } else {
+                            setDomains([])
+                          }
+                        }}
                         placeholder="Chọn khách hàng"
                       />
                     </div>
@@ -820,6 +850,69 @@ export default function HostingPage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-domain" className="text-right">Domain</Label>
+                    <div className="col-span-3">
+                      <DomainCombobox
+                        domains={domains}
+                        value={registerHosting.domain || null}
+                        onValueChange={(val) => setRegisterHosting({...registerHosting, domain: val || ''})}
+                        placeholder="Chọn domain"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-addonDomain" className="text-right">Addon Domain</Label>
+                    <div className="col-span-3">
+                      <Input id="reg-addonDomain" placeholder="Unlimited" value={registerHosting.addonDomain} onChange={(e) => setRegisterHosting({...registerHosting, addonDomain: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-subDomain" className="text-right">Sub Domain</Label>
+                    <div className="col-span-3">
+                      <Input id="reg-subDomain" placeholder="Unlimited" value={registerHosting.subDomain} onChange={(e) => setRegisterHosting({...registerHosting, subDomain: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-ftpAccounts" className="text-right">Tài khoản FTP</Label>
+                    <div className="col-span-3">
+                      <Input id="reg-ftpAccounts" placeholder="Unlimited" value={registerHosting.ftpAccounts} onChange={(e) => setRegisterHosting({...registerHosting, ftpAccounts: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-databases" className="text-right">Database</Label>
+                    <div className="col-span-3">
+                      <Input id="reg-databases" placeholder="Unlimited" value={registerHosting.databases} onChange={(e) => setRegisterHosting({...registerHosting, databases: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-hostingType" className="text-right">Loại hosting</Label>
+                    <div className="col-span-3">
+                      <Select 
+                        value={registerHosting.hostingType} 
+                        onValueChange={(value) =>
+                          setRegisterHosting({...registerHosting, hostingType: value})
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn loại hosting" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Shared Hosting">Shared Hosting</SelectItem>
+                          <SelectItem value="VPS Hosting">VPS Hosting</SelectItem>
+                          <SelectItem value="Cloud Hosting">Cloud Hosting</SelectItem>
+                          <SelectItem value="Dedicated Server">Dedicated Server</SelectItem>
+                          <SelectItem value="WordPress Hosting">WordPress Hosting</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-operatingSystem" className="text-right">Hệ điều hành</Label>
+                    <div className="col-span-3">
+                      <Input id="reg-operatingSystem" placeholder="Linux" value={registerHosting.operatingSystem} onChange={(e) => setRegisterHosting({...registerHosting, operatingSystem: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="reg-location" className="text-right">Vị trí máy chủ</Label>
                     <div className="col-span-3">
                       <Input id="reg-location" value={registerHosting.serverLocation} onChange={(e) => setRegisterHosting({...registerHosting, serverLocation: e.target.value})} placeholder="Hanoi" />
@@ -839,16 +932,41 @@ export default function HostingPage() {
                   </Button>
                   <Button onClick={async () => {
                     try {
+                      // Validate required fields
+                      if (!registerHosting.customerId) {
+                        toastError('Vui lòng chọn khách hàng')
+                        return
+                      }
+                      
+                      // Convert storage and bandwidth from MB string to GB number
+                      const storageStr = registerHosting.storage.trim()
+                      const bandwidthStr = registerHosting.bandwidth.trim()
+                      
+                      const storageGB = storageStr === '' || storageStr.toLowerCase() === 'unlimited'
+                        ? 0 
+                        : (() => {
+                            const parsed = parseFloat(storageStr)
+                            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+                          })()
+                      
+                      const bandwidthGB = bandwidthStr === '' || bandwidthStr.toLowerCase() === 'unlimited'
+                        ? 0
+                        : (() => {
+                            const parsed = parseFloat(bandwidthStr)
+                            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+                          })()
+                      
                       const res = await fetch('/api/hosting', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                           planName: registerHosting.planName,
-                          storage: registerHosting.storage,
-                          bandwidth: registerHosting.bandwidth,
-                          price: registerHosting.price,
+                          storage: storageGB,
+                          bandwidth: bandwidthGB,
+                          price: registerHosting.price || 0,
                           status: registerHosting.status,
                           customerId: registerHosting.customerId || null,
+                          domain: registerHosting.domain || null,
                           createdAt: registerHosting.registrationDate
                             ? format(registerHosting.registrationDate, 'yyyy-MM-dd')
                             : null,
@@ -856,6 +974,12 @@ export default function HostingPage() {
                             ? format(registerHosting.expiryDate, 'yyyy-MM-dd')
                             : null,
                           serverLocation: registerHosting.serverLocation || null,
+                          addonDomain: registerHosting.addonDomain || 'Unlimited',
+                          subDomain: registerHosting.subDomain || 'Unlimited',
+                          ftpAccounts: registerHosting.ftpAccounts || 'Unlimited',
+                          databases: registerHosting.databases || 'Unlimited',
+                          hostingType: registerHosting.hostingType || 'VPS Hosting',
+                          operatingSystem: registerHosting.operatingSystem || 'Linux',
                         })
                       })
                       if (!res.ok) {
