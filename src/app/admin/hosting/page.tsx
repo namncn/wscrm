@@ -64,6 +64,36 @@ const formatDateToLocalString = (date: Date): string => {
   return `${year}-${month}-${day}`
 }
 
+// Helper function to calculate month-over-month change percentage
+const calculateMonthOverMonthChange = <T extends { createdAt: string }>(
+  items: T[],
+  getValue: (item: T) => number = () => 1
+): string => {
+  const now = new Date()
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+
+  const currentMonthValue = items
+    .filter(item => new Date(item.createdAt) >= currentMonthStart)
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  const lastMonthValue = items
+    .filter(item => {
+      const itemDate = new Date(item.createdAt)
+      return itemDate >= lastMonthStart && itemDate <= lastMonthEnd
+    })
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  if (lastMonthValue === 0) {
+    return currentMonthValue > 0 ? '+100%' : '—'
+  }
+
+  const changePercent = ((currentMonthValue - lastMonthValue) / lastMonthValue) * 100
+  const sign = changePercent >= 0 ? '+' : ''
+  return `${sign}${Math.round(changePercent)}%`
+}
+
 export default function HostingPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -1085,7 +1115,9 @@ export default function HostingPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{purchasedHostings.length}</div>
-                <p className="text-xs text-gray-600">+8% so với tháng trước</p>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(purchasedHostings)} so với tháng trước
+                </p>
               </CardContent>
             </Card>
             <Card>
@@ -1115,7 +1147,9 @@ export default function HostingPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{formatCurrency(purchasedHostings.reduce((sum, h) => sum + parseFloat(h.price), 0).toString())}</div>
-                <p className="text-xs text-gray-600">Tổng giá trị hosting</p>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(purchasedHostings, (h) => parseFloat(h.price))} so với tháng trước
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -1131,7 +1165,9 @@ export default function HostingPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{hostings.length}</div>
-                <p className="text-xs text-gray-600">+8% so với tháng trước</p>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(hostings)} so với tháng trước
+                </p>
               </CardContent>
             </Card>
             <Card>
@@ -1200,6 +1236,7 @@ export default function HostingPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-fit">Thao Tác</TableHead>
                       <TableHead>Tên Gói</TableHead>
                       <TableHead>Dung Lượng</TableHead>
                       <TableHead>Băng Thông</TableHead>
@@ -1211,12 +1248,24 @@ export default function HostingPage() {
                       <TableHead>Ngày Tạo</TableHead>
                       <TableHead>Ngày Cập Nhật</TableHead>
                       <TableHead>Trạng Thái</TableHead>
-                      <TableHead className="text-right">Thao Tác</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedHostings.map((hosting) => (
                       <TableRow key={hosting.id}>
+                        <TableCell className="w-fit">
+                          <div className="flex gap-1">
+                            <Button variant="outline" size="sm" className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteHosting(hosting)} title="Xóa">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" className="w-8" onClick={() => handleEditHosting(hosting)} title="Chỉnh sửa">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" className="w-8" onClick={() => handleViewHosting(hosting)} title="Xem chi tiết">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <span className="font-medium">{hosting.planName}</span>
                         </TableCell>
@@ -1256,19 +1305,6 @@ export default function HostingPage() {
                           </span>
                         </TableCell>
                         <TableCell>{getStatusBadge(hosting.status)}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end space-x-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleViewHosting(hosting)} title="Xem chi tiết">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleEditHosting(hosting)} title="Chỉnh sửa">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDeleteHosting(hosting)} title="Xóa" className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1285,7 +1321,7 @@ export default function HostingPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID</TableHead>
+                      <TableHead className="w-fit">Thao Tác</TableHead>
                       <TableHead>Tên Gói</TableHead>
                       <TableHead>Dung Lượng</TableHead>
                       <TableHead>Băng Thông</TableHead>
@@ -1294,7 +1330,6 @@ export default function HostingPage() {
                       <TableHead>Ngày Hết Hạn</TableHead>
                       <TableHead>Giá</TableHead>
                       <TableHead>Trạng Thái</TableHead>
-                      <TableHead className="text-right">Thao Tác</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1305,8 +1340,23 @@ export default function HostingPage() {
                       const label = customer ? `${customer.name} (${customer.email})` : '—'
                       return (
                         <TableRow key={hosting.id}>
-                          <TableCell className="font-mono text-gray-600">{hosting.id}</TableCell>
-                          <TableCell className="font-medium">{hosting.planName}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button variant="outline" size="sm" className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteHosting(hosting)} title="Xóa">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Button variant="outline" size="sm" className="w-8" onClick={() => handleEditHosting(hosting)} title="Chỉnh sửa">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button variant="outline" size="sm" className="w-8" onClick={() => handleViewHosting(hosting)} title="Xem chi tiết">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium">{hosting.planName}</div>
+                            <div className="text-xs text-gray-500 font-mono">ID: {hosting.id}</div>
+                          </TableCell>
                           <TableCell>{formatStorage(hosting.storage)}</TableCell>
                           <TableCell>{formatBandwidth(hosting.bandwidth)}</TableCell>
                           <TableCell>{label}</TableCell>
@@ -1314,19 +1364,6 @@ export default function HostingPage() {
                           <TableCell>{(hosting as any).expiryDate ? new Date((hosting as any).expiryDate as any).toLocaleDateString('vi-VN') : '—'}</TableCell>
                           <TableCell>{formatCurrency(hosting.price)}</TableCell>
                           <TableCell>{getStatusBadge(hosting.status)}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end space-x-2">
-                              <Button variant="ghost" size="sm" onClick={() => handleViewHosting(hosting)} title="Xem chi tiết">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleEditHosting(hosting)} title="Chỉnh sửa">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleDeleteHosting(hosting)} title="Xóa" className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
                         </TableRow>
                       )
                     })}
@@ -1398,14 +1435,6 @@ export default function HostingPage() {
                       <Label className="font-medium mb-2 block">Domain</Label>
                       <div className="text-sm text-gray-600">{(selectedHosting as any).domain || '—'}</div>
                     </div>
-                    <div>
-                      <Label className="font-medium mb-2 block">Vị trí máy chủ</Label>
-                      <div className="text-sm text-gray-600">{(selectedHosting as any).serverLocation || '—'}</div>
-                    </div>
-                  </div>
-                )}
-                {!(selectedHosting as any).customerId && (
-                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="font-medium mb-2 block">Vị trí máy chủ</Label>
                       <div className="text-sm text-gray-600">{(selectedHosting as any).serverLocation || '—'}</div>
@@ -1495,10 +1524,24 @@ export default function HostingPage() {
                 {!(selectedHosting as any).customerId && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
+                      <Label className="font-medium mb-2 block">Ngày tạo</Label>
+                      <div className="text-sm text-gray-600">
+                        {new Date(selectedHosting.createdAt).toLocaleDateString('vi-VN')}
+                      </div>
+                    </div>
+                    <div>
                       <Label className="font-medium mb-2 block">Ngày cập nhật</Label>
                       <div className="text-sm text-gray-600">
                         {new Date(selectedHosting.updatedAt).toLocaleDateString('vi-VN')}
                       </div>
+                    </div>
+                  </div>
+                )}
+                {!(selectedHosting as any).customerId && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="font-medium mb-2 block">Vị trí máy chủ</Label>
+                      <div className="text-sm text-gray-600">{(selectedHosting as any).serverLocation || '—'}</div>
                     </div>
                   </div>
                 )}

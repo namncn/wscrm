@@ -431,7 +431,7 @@ export default function ServicesPage() {
                         <TableHead>Trạng Thái</TableHead>
                         <TableHead>Ngày Hết Hạn</TableHead>
                         <TableHead>Giá</TableHead>
-                        <TableHead>Thao Tác</TableHead>
+                        <TableHead className="w-fit">Thao Tác</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -458,13 +458,13 @@ export default function ServicesPage() {
                               currency: 'VND',
                             }).format(domain.price) : 'Chưa có'}
                           </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                              <Button variant="ghost" size="sm">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm">
+                          <TableCell className="w-fit">
+                            <div className="flex gap-1">
+                              <Button variant="outline" size="sm" className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50">
                                 <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Button variant="outline" size="sm" className="w-8">
+                                <Edit className="h-4 w-4" />
                               </Button>
                             </div>
                           </TableCell>
@@ -503,7 +503,7 @@ export default function ServicesPage() {
                         <TableHead>Trạng Thái</TableHead>
                         <TableHead>Ngày Hết Hạn</TableHead>
                         <TableHead>Giá</TableHead>
-                        <TableHead>Thao Tác</TableHead>
+                        <TableHead className="w-fit">Thao Tác</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -530,13 +530,13 @@ export default function ServicesPage() {
                               currency: 'VND',
                             }).format(hosting.price)}
                           </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                              <Button variant="ghost" size="sm">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm">
+                          <TableCell className="w-fit">
+                            <div className="flex gap-1">
+                              <Button variant="outline" size="sm" className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50">
                                 <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Button variant="outline" size="sm" className="w-8">
+                                <Edit className="h-4 w-4" />
                               </Button>
                             </div>
                           </TableCell>
@@ -575,7 +575,7 @@ export default function ServicesPage() {
                         <TableHead>Trạng Thái</TableHead>
                         <TableHead>Ngày Hết Hạn</TableHead>
                         <TableHead>Giá</TableHead>
-                        <TableHead>Thao Tác</TableHead>
+                        <TableHead className="w-fit">Thao Tác</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -602,13 +602,13 @@ export default function ServicesPage() {
                               currency: 'VND',
                             }).format(vpsItem.price)}
                           </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                              <Button variant="ghost" size="sm">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm">
+                          <TableCell className="w-fit">
+                            <div className="flex gap-1">
+                              <Button variant="outline" size="sm" className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50">
                                 <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Button variant="outline" size="sm" className="w-8">
+                                <Edit className="h-4 w-4" />
                               </Button>
                             </div>
                           </TableCell>
