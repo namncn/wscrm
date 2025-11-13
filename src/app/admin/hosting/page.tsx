@@ -1218,10 +1218,7 @@ export default function HostingPage() {
                     {paginatedHostings.map((hosting) => (
                       <TableRow key={hosting.id}>
                         <TableCell>
-                          <div className="flex items-center space-x-2">
-                            {getStatusIcon(hosting.status)}
-                            <span className="font-medium">{hosting.planName}</span>
-                          </div>
+                          <span className="font-medium">{hosting.planName}</span>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-1">
