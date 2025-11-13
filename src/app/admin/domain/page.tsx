@@ -73,6 +73,7 @@ export default function domainPage() {
   const [isViewDomainDialogOpen, setIsViewDomainDialogOpen] = useState(false)
   const [isEditDomainDialogOpen, setIsEditDomainDialogOpen] = useState(false)
   const [isDeleteDomainDialogOpen, setIsDeleteDomainDialogOpen] = useState(false)
+  const [isDeletePackageDialogOpen, setIsDeletePackageDialogOpen] = useState(false)
   const [isCreatePackageDialogOpen, setIsCreatePackageDialogOpen] = useState(false)
   const [isEditPackageDialogOpen, setIsEditPackageDialogOpen] = useState(false)
   const [selectedDomain, setSelectedDomain] = useState<Domain | null>(null)
@@ -408,7 +409,7 @@ export default function domainPage() {
 
       if (response.ok) {
         await fetchDomainPackages()
-        setIsDeleteDomainDialogOpen(false)
+        setIsDeletePackageDialogOpen(false)
         setSelectedPackage(null)
         toastSuccess('Xóa gói tên miền thành công!')
       } else {
@@ -1040,7 +1041,7 @@ export default function domainPage() {
                               size="sm"
                               onClick={() => {
                                 setSelectedPackage(pkg)
-                                setIsDeleteDomainDialogOpen(true)
+                                setIsDeletePackageDialogOpen(true)
                               }}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1258,7 +1259,12 @@ export default function domainPage() {
         </Dialog>
 
         {/* Delete Domain Dialog */}
-        <Dialog open={isDeleteDomainDialogOpen} onOpenChange={setIsDeleteDomainDialogOpen}>
+        <Dialog open={isDeleteDomainDialogOpen} onOpenChange={(open) => {
+          setIsDeleteDomainDialogOpen(open)
+          if (!open) {
+            setSelectedDomain(null)
+          }
+        }}>
           <DialogContent className="sm:max-w-[400px] max-h-[90vh] flex flex-col p-0">
             <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Xác nhận xóa</DialogTitle>
@@ -1266,11 +1272,34 @@ export default function domainPage() {
                 Bạn có chắc chắn muốn xóa tên miền này? Hành động này không thể hoàn tác.
               </DialogDescription>
             </DialogHeader>
+            {selectedDomain && (
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="py-4">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="font-medium">{selectedDomain.domainName}</div>
+                    {selectedDomain.registrar && (
+                      <div className="text-sm text-gray-600">Nhà đăng ký: {selectedDomain.registrar}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
             <DialogFooter className="px-6 pt-4 pb-6 border-t">
-              <Button variant="outline" onClick={() => setIsDeleteDomainDialogOpen(false)}>
+              <Button variant="outline" onClick={() => {
+                setIsDeleteDomainDialogOpen(false)
+                setSelectedDomain(null)
+              }}>
                 Hủy
               </Button>
-              <Button variant="destructive" onClick={deleteDomain} disabled={isDeleting}>
+              <Button 
+                variant="destructive" 
+                onClick={() => {
+                  if (selectedDomain) {
+                    deleteDomain()
+                  }
+                }} 
+                disabled={isDeleting || !selectedDomain}
+              >
                 {isDeleting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1430,7 +1459,12 @@ export default function domainPage() {
         </Dialog>
 
         {/* Delete Package Dialog */}
-        <Dialog open={isDeleteDomainDialogOpen} onOpenChange={setIsDeleteDomainDialogOpen}>
+        <Dialog open={isDeletePackageDialogOpen} onOpenChange={(open) => {
+          setIsDeletePackageDialogOpen(open)
+          if (!open) {
+            setSelectedPackage(null)
+          }
+        }}>
           <DialogContent className="sm:max-w-[400px] max-h-[90vh] flex flex-col p-0">
             <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Xác nhận xóa</DialogTitle>
@@ -1438,11 +1472,34 @@ export default function domainPage() {
                 Bạn có chắc chắn muốn xóa gói tên miền này? Hành động này không thể hoàn tác.
               </DialogDescription>
             </DialogHeader>
+            {selectedPackage && (
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="py-4">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="font-medium">{selectedPackage.name}</div>
+                    {selectedPackage.description && (
+                      <div className="text-sm text-gray-600">{selectedPackage.description}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
             <DialogFooter className="px-6 pt-4 pb-6 border-t">
-              <Button variant="outline" onClick={() => setIsDeleteDomainDialogOpen(false)}>
+              <Button variant="outline" onClick={() => {
+                setIsDeletePackageDialogOpen(false)
+                setSelectedPackage(null)
+              }}>
                 Hủy
               </Button>
-              <Button variant="destructive" onClick={deleteDomainPackage} disabled={isDeleting}>
+              <Button 
+                variant="destructive" 
+                onClick={() => {
+                  if (selectedPackage) {
+                    deleteDomainPackage()
+                  }
+                }} 
+                disabled={isDeleting || !selectedPackage}
+              >
                 {isDeleting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
