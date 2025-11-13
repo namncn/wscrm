@@ -63,6 +63,36 @@ interface Order {
   totalAmount: number
 }
 
+// Helper function to calculate month-over-month change percentage
+const calculateMonthOverMonthChange = <T extends { createdAt: string }>(
+  items: T[],
+  getValue: (item: T) => number = () => 1
+): string => {
+  const now = new Date()
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+
+  const currentMonthValue = items
+    .filter(item => new Date(item.createdAt) >= currentMonthStart)
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  const lastMonthValue = items
+    .filter(item => {
+      const itemDate = new Date(item.createdAt)
+      return itemDate >= lastMonthStart && itemDate <= lastMonthEnd
+    })
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  if (lastMonthValue === 0) {
+    return currentMonthValue > 0 ? '+100%' : '—'
+  }
+
+  const changePercent = ((currentMonthValue - lastMonthValue) / lastMonthValue) * 100
+  const sign = changePercent >= 0 ? '+' : ''
+  return `${sign}${Math.round(changePercent)}%`
+}
+
 export default function ContractsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -446,7 +476,9 @@ export default function ContractsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{contracts.length}</div>
-              <p className="text-xs text-gray-600">+5% so với tháng trước</p>
+              <p className="text-xs text-gray-600">
+                {calculateMonthOverMonthChange(contracts)} so với tháng trước
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -482,7 +514,9 @@ export default function ContractsPage() {
               <div className="text-2xl font-bold">
                 {formatCurrency(contracts.reduce((sum, c) => sum + c.totalValue, 0))}
               </div>
-              <p className="text-xs text-gray-600">+15% so với tháng trước</p>
+              <p className="text-xs text-gray-600">
+                {calculateMonthOverMonthChange(contracts, (c) => c.totalValue)} so với tháng trước
+              </p>
             </CardContent>
           </Card>
         </div>

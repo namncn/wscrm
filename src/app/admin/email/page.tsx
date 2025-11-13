@@ -610,6 +610,7 @@ export default function EmailPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-fit">Thao Tác</TableHead>
                     <TableHead>Trạng Thái</TableHead>
                     <TableHead>Loại Thông Báo</TableHead>
                     <TableHead>Dịch Vụ</TableHead>
@@ -617,17 +618,66 @@ export default function EmailPage() {
                     <TableHead>Chủ Đề</TableHead>
                     <TableHead>Lên Lịch</TableHead>
                     <TableHead>Đã Gửi</TableHead>
-                    <TableHead>Thao Tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredEmails.map((email) => (
                     <TableRow key={email.id}>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          {getStatusIcon(email.status)}
-                          {getStatusBadge(email.status)}
+                      <TableCell className="w-fit">
+                        <div className="flex gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDeleteEmail(email)}
+                            title="Xóa"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-8"
+                            onClick={() => handleEditEmail(email)}
+                            title="Chỉnh sửa"
+                            disabled={email.status === 'SENT'}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          {email.status === 'PENDING' ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-8"
+                              onClick={() => handlePauseEmail(email)}
+                              title="Tạm dừng"
+                            >
+                              <Pause className="h-4 w-4" />
+                            </Button>
+                          ) : email.status === 'CANCELLED' ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-8"
+                              onClick={() => handleResumeEmail(email)}
+                              title="Tiếp tục"
+                            >
+                              <Send className="h-4 w-4" />
+                            </Button>
+                          ) : null}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-8"
+                            onClick={() => handleViewEmail(email)}
+                            title="Xem chi tiết"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {getStatusBadge(email.status)}
                       </TableCell>
                       <TableCell>
                         <span className="text-sm">{getNotificationTypeLabel(email.notificationType)}</span>
@@ -657,55 +707,6 @@ export default function EmailPage() {
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewEmail(email)}
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditEmail(email)}
-                            title="Chỉnh sửa"
-                            disabled={email.status === 'SENT'}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          {email.status === 'PENDING' ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handlePauseEmail(email)}
-                              title="Tạm dừng"
-                            >
-                              <Pause className="h-4 w-4" />
-                            </Button>
-                          ) : email.status === 'CANCELLED' ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleResumeEmail(email)}
-                              title="Tiếp tục"
-                            >
-                              <Send className="h-4 w-4" />
-                            </Button>
-                          ) : null}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteEmail(email)}
-                            title="Xóa"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

@@ -628,7 +628,7 @@ export default function EditInvoicePage() {
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="customer">Khách hàng</Label>
+                    <Label htmlFor="customer">Khách hàng <span className="text-red-500">*</span></Label>
                     <CustomerCombobox
                       customers={customers.map((customer) => ({
                         id: customer.id,
@@ -642,7 +642,7 @@ export default function EditInvoicePage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="invoiceNumber">Số hoá đơn</Label>
+                    <Label htmlFor="invoiceNumber">Số hoá đơn <span className="text-red-500">*</span></Label>
                     <Input
                       id="invoiceNumber"
                       value={invoiceForm.invoiceNumber}
@@ -658,7 +658,7 @@ export default function EditInvoicePage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="dueDate">Ngày đến hạn</Label>
+                    <Label htmlFor="dueDate">Ngày đến hạn <span className="text-red-500">*</span></Label>
                     <DatePicker
                       value={invoiceForm.dueDate ? new Date(invoiceForm.dueDate) : undefined}
                       onChange={(date) => handleDateChange('dueDate', date)}

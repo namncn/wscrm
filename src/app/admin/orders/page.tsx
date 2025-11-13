@@ -67,6 +67,36 @@ interface Customer {
   email: string
 }
 
+// Helper function to calculate month-over-month change percentage
+const calculateMonthOverMonthChange = <T extends { createdAt: string }>(
+  items: T[],
+  getValue: (item: T) => number = () => 1
+): string => {
+  const now = new Date()
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+
+  const currentMonthValue = items
+    .filter(item => new Date(item.createdAt) >= currentMonthStart)
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  const lastMonthValue = items
+    .filter(item => {
+      const itemDate = new Date(item.createdAt)
+      return itemDate >= lastMonthStart && itemDate <= lastMonthEnd
+    })
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  if (lastMonthValue === 0) {
+    return currentMonthValue > 0 ? '+100%' : '—'
+  }
+
+  const changePercent = ((currentMonthValue - lastMonthValue) / lastMonthValue) * 100
+  const sign = changePercent >= 0 ? '+' : ''
+  return `${sign}${Math.round(changePercent)}%`
+}
+
 export default function OrdersPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -654,7 +684,7 @@ export default function OrdersPage() {
                 <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="customer" className="text-right">
-                    Khách hàng
+                    Khách hàng <span className="text-red-500">*</span>
                   </Label>
                   <div className="col-span-3">
                     <CustomerCombobox
@@ -1087,7 +1117,9 @@ export default function OrdersPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{orders.length}</div>
-              <p className="text-xs text-gray-600">+8% so với tháng trước</p>
+              <p className="text-xs text-gray-600">
+                {calculateMonthOverMonthChange(orders)} so với tháng trước
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -1116,7 +1148,9 @@ export default function OrdersPage() {
               <div className="text-2xl font-bold">
                 {formatCurrency(orders.reduce((sum, o) => sum + o.totalAmount, 0))}
               </div>
-              <p className="text-xs text-gray-600">+12% so với tháng trước</p>
+              <p className="text-xs text-gray-600">
+                {calculateMonthOverMonthChange(orders, (o) => o.totalAmount)} so với tháng trước
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -1156,6 +1190,7 @@ export default function OrdersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-fit">Thao Tác</TableHead>
                   <TableHead>Mã Đơn Hàng</TableHead>
                   <TableHead>Khách Hàng</TableHead>
                   <TableHead>Dịch Vụ</TableHead>
@@ -1164,15 +1199,45 @@ export default function OrdersPage() {
                   <TableHead>Thanh Toán</TableHead>
                   <TableHead>Phương Thức</TableHead>
                   <TableHead>Ngày Tạo</TableHead>
-                  <TableHead>Thao Tác</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedOrders.map((order) => (
                   <TableRow key={order.id}>
+                    <TableCell className="w-fit">
+                      <div className="flex gap-1">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDeleteOrder(order)}
+                          title="Xóa"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="w-8"
+                          onClick={() => handleEditOrder(order)}
+                          title="Chỉnh sửa"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="w-8"
+                          onClick={() => handleViewOrder(order)}
+                          title="Xem chi tiết"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div className="font-medium">{order.orderNumber || 'Chưa có'}</div>
-                      <div className="text-sm text-gray-500">ID: {order.id}</div>
+                      <div className="text-xs text-gray-500">ID: {order.id}</div>
                     </TableCell>
                     <TableCell>
                       <div>
@@ -1227,35 +1292,6 @@ export default function OrdersPage() {
                     <TableCell>{getPaymentStatusBadge(order.paymentStatus)}</TableCell>
                     <TableCell>{getPaymentMethodBadge(order.paymentMethod || 'CASH')}</TableCell>
                     <TableCell>{new Date(order.createdAt).toLocaleDateString('vi-VN')}</TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleViewOrder(order)}
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleEditOrder(order)}
-                          title="Chỉnh sửa"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleDeleteOrder(order)}
-                          title="Xóa"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

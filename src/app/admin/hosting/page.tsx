@@ -32,7 +32,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { Pagination } from '@/components/ui/pagination'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
 import { DomainCombobox } from '@/components/ui/domain-combobox'
-import { Server, Plus, Search, Eye, RefreshCw, CheckCircle, XCircle, HardDrive, Cpu, Edit, Trash2, Loader2 } from 'lucide-react'
+import { Server, Plus, Search, Eye, RefreshCw, CheckCircle, XCircle, HardDrive, Cpu, Edit, Trash2, Loader2, DollarSign } from 'lucide-react'
 import { toastSuccess, toastError } from '@/lib/toast'
 
 interface Hosting {
@@ -64,6 +64,36 @@ const formatDateToLocalString = (date: Date): string => {
   return `${year}-${month}-${day}`
 }
 
+// Helper function to calculate month-over-month change percentage
+const calculateMonthOverMonthChange = <T extends { createdAt: string }>(
+  items: T[],
+  getValue: (item: T) => number = () => 1
+): string => {
+  const now = new Date()
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+
+  const currentMonthValue = items
+    .filter(item => new Date(item.createdAt) >= currentMonthStart)
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  const lastMonthValue = items
+    .filter(item => {
+      const itemDate = new Date(item.createdAt)
+      return itemDate >= lastMonthStart && itemDate <= lastMonthEnd
+    })
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  if (lastMonthValue === 0) {
+    return currentMonthValue > 0 ? '+100%' : '—'
+  }
+
+  const changePercent = ((currentMonthValue - lastMonthValue) / lastMonthValue) * 100
+  const sign = changePercent >= 0 ? '+' : ''
+  return `${sign}${Math.round(changePercent)}%`
+}
+
 export default function HostingPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -91,22 +121,29 @@ export default function HostingPage() {
   const [isRegisterHostingDialogOpen, setIsRegisterHostingDialogOpen] = useState(false)
   const createInitialRegisterHostingState = () => ({
     planName: '',
-    storage: 0,
-    bandwidth: 0,
+    storage: '',
+    bandwidth: '',
     price: 0,
-    status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
+    status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED',
     customerId: null as number | null,
     registrationDate: undefined as Date | undefined,
     expiryDate: undefined as Date | undefined,
     serverLocation: '',
+    domain: '',
+    addonDomain: 'Unlimited',
+    subDomain: 'Unlimited',
+    ftpAccounts: 'Unlimited',
+    databases: 'Unlimited',
+    hostingType: 'VPS Hosting',
+    operatingSystem: 'Linux',
   })
   const [registerHosting, setRegisterHosting] = useState(createInitialRegisterHostingState)
 
   // Form state for new hosting
   const [newHosting, setNewHosting] = useState({
     planName: '',
-    storage: 0,
-    bandwidth: 0,
+    storage: '',
+    bandwidth: '',
     price: 0,
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
     addonDomain: 'Unlimited',
@@ -114,7 +151,8 @@ export default function HostingPage() {
     ftpAccounts: 'Unlimited',
     databases: 'Unlimited',
     hostingType: 'VPS Hosting',
-    operatingSystem: 'Linux'
+    operatingSystem: 'Linux',
+    serverLocation: '',
   })
 
   // Form state for edit hosting
@@ -183,12 +221,32 @@ export default function HostingPage() {
   const createHosting = async () => {
     setIsCreating(true)
     try {
+      // Convert storage and bandwidth from MB (string) to GB (number)
+      const storageGB = newHosting.storage === '' || newHosting.storage.toLowerCase() === 'unlimited'
+        ? 0
+        : (() => {
+            const parsed = parseFloat(newHosting.storage)
+            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+          })()
+      
+      const bandwidthGB = newHosting.bandwidth === '' || newHosting.bandwidth.toLowerCase() === 'unlimited'
+        ? 0
+        : (() => {
+            const parsed = parseFloat(newHosting.bandwidth)
+            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+          })()
+      
       const response = await fetch('/api/hosting', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(newHosting),
+        body: JSON.stringify({
+          ...newHosting,
+          storage: storageGB,
+          bandwidth: bandwidthGB,
+          serverLocation: newHosting.serverLocation || null,
+        }),
       })
 
       if (response.ok) {
@@ -196,8 +254,8 @@ export default function HostingPage() {
         setIsCreateHostingDialogOpen(false)
         setNewHosting({
           planName: '',
-          storage: 0,
-          bandwidth: 0,
+          storage: '',
+          bandwidth: '',
           price: 0,
           status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
           addonDomain: 'Unlimited',
@@ -205,7 +263,8 @@ export default function HostingPage() {
           ftpAccounts: 'Unlimited',
           databases: 'Unlimited',
           hostingType: 'VPS Hosting',
-          operatingSystem: 'Linux'
+          operatingSystem: 'Linux',
+          serverLocation: '',
         })
         toastSuccess('Tạo gói hosting thành công!')
       } else {
@@ -289,8 +348,8 @@ export default function HostingPage() {
       operatingSystem: hosting.operatingSystem || 'Linux',
       domain: hasCustomerId ? ((hosting as any).domain || '') : '',
       registrationDate: hasCustomerId ? (hosting.createdAt || '') : '',
-      expiryDate: hasCustomerId ? ((hosting as any).expiryDate || '') : '',
-      serverLocation: hasCustomerId ? ((hosting as any).serverLocation || '') : '',
+      expiryDate: (hosting as any).expiryDate || '',
+      serverLocation: (hosting as any).serverLocation || '',
       customerId: customerId
     })
     // Fetch domains for this customer
@@ -351,14 +410,16 @@ export default function HostingPage() {
         operatingSystem: editHosting.operatingSystem,
       }
       
-      // Only include customerId and related fields if this is a purchased hosting
-      // For packages, never send customerId to keep them as packages
+      // ServerLocation can be set for both packages and purchased hosting
+      updateData.serverLocation = editHosting.serverLocation || null
+      
+      // Only include customerId, domain, expiryDate and related fields if this is a purchased hosting
+      // For packages, never send customerId, domain or expiryDate to keep them as packages
       if (!isPackage) {
         updateData.customerId = editHosting.customerId ? parseInt(String(editHosting.customerId)) : null
         updateData.domain = editHosting.domain || null
-        updateData.createdAt = editHosting.registrationDate || null
         updateData.expiryDate = editHosting.expiryDate || null
-        updateData.serverLocation = editHosting.serverLocation || null
+        updateData.createdAt = editHosting.registrationDate || null
       }
       
       const response = await fetch('/api/hosting', {
@@ -545,7 +606,7 @@ export default function HostingPage() {
                   <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="planName" className="text-right">
-                      Tên gói
+                      Tên gói <span className="text-red-500">*</span>
                     </Label>
                     <div className="col-span-3">
                       <Input 
@@ -558,29 +619,29 @@ export default function HostingPage() {
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="storage" className="text-right">
-                      Dung lượng (GB)
+                      Dung lượng (MB)
                     </Label>
                     <div className="col-span-3">
                       <Input 
                         id="storage" 
-                        type="number"
-                        placeholder="10"
+                        type="text"
+                        placeholder="Unlimited"
                         value={newHosting.storage}
-                        onChange={(e) => setNewHosting({...newHosting, storage: parseInt(e.target.value) || 0})}
+                        onChange={(e) => setNewHosting({...newHosting, storage: e.target.value})}
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="bandwidth" className="text-right">
-                      Băng thông (GB)
+                      Băng thông (MB)
                     </Label>
                     <div className="col-span-3">
                       <Input 
                         id="bandwidth" 
-                        type="number"
-                        placeholder="100"
+                        type="text"
+                        placeholder="Unlimited"
                         value={newHosting.bandwidth}
-                        onChange={(e) => setNewHosting({...newHosting, bandwidth: parseInt(e.target.value) || 0})}
+                        onChange={(e) => setNewHosting({...newHosting, bandwidth: e.target.value})}
                       />
                     </div>
                   </div>
@@ -676,12 +737,23 @@ export default function HostingPage() {
                       Loại hosting
                     </Label>
                     <div className="col-span-3">
-                      <Input 
-                        id="hostingType" 
-                        placeholder="VPS Hosting"
-                        value={newHosting.hostingType}
-                        onChange={(e) => setNewHosting({...newHosting, hostingType: e.target.value})}
-                      />
+                      <Select 
+                        value={newHosting.hostingType} 
+                        onValueChange={(value) =>
+                          setNewHosting({...newHosting, hostingType: value})
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn loại hosting" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Shared Hosting">Shared Hosting</SelectItem>
+                          <SelectItem value="VPS Hosting">VPS Hosting</SelectItem>
+                          <SelectItem value="Cloud Hosting">Cloud Hosting</SelectItem>
+                          <SelectItem value="Dedicated Server">Dedicated Server</SelectItem>
+                          <SelectItem value="WordPress Hosting">WordPress Hosting</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -694,6 +766,19 @@ export default function HostingPage() {
                         placeholder="Linux"
                         value={newHosting.operatingSystem}
                         onChange={(e) => setNewHosting({...newHosting, operatingSystem: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="serverLocation" className="text-right">
+                      Vị trí máy chủ
+                    </Label>
+                    <div className="col-span-3">
+                      <Input 
+                        id="serverLocation" 
+                        placeholder="Hanoi"
+                        value={newHosting.serverLocation}
+                        onChange={(e) => setNewHosting({...newHosting, serverLocation: e.target.value})}
                       />
                     </div>
                   </div>
@@ -753,15 +838,15 @@ export default function HostingPage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-storage" className="text-right">Dung lượng (GB)</Label>
+                    <Label htmlFor="reg-storage" className="text-right">Dung lượng (MB)</Label>
                     <div className="col-span-3">
-                      <Input id="reg-storage" type="number" value={registerHosting.storage} onChange={(e) => setRegisterHosting({...registerHosting, storage: parseInt(e.target.value) || 0})} placeholder="10" />
+                      <Input id="reg-storage" type="text" value={registerHosting.storage} onChange={(e) => setRegisterHosting({...registerHosting, storage: e.target.value})} placeholder="Unlimited" />
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-bandwidth" className="text-right">Băng thông (GB)</Label>
+                    <Label htmlFor="reg-bandwidth" className="text-right">Băng thông (MB)</Label>
                     <div className="col-span-3">
-                      <Input id="reg-bandwidth" type="number" value={registerHosting.bandwidth} onChange={(e) => setRegisterHosting({...registerHosting, bandwidth: parseInt(e.target.value) || 0})} placeholder="100" />
+                      <Input id="reg-bandwidth" type="text" value={registerHosting.bandwidth} onChange={(e) => setRegisterHosting({...registerHosting, bandwidth: e.target.value})} placeholder="Unlimited" />
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -771,22 +856,45 @@ export default function HostingPage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">Khách hàng</Label>
+                    <Label htmlFor="reg-status" className="text-right">Trạng thái</Label>
+                    <div className="col-span-3">
+                      <Select 
+                        value={registerHosting.status} 
+                        onValueChange={(value: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED') =>
+                          setRegisterHosting({...registerHosting, status: value})
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ACTIVE">Hoạt động</SelectItem>
+                          <SelectItem value="INACTIVE">Không hoạt động</SelectItem>
+                          <SelectItem value="SUSPENDED">Tạm ngừng</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label className="text-right">Khách hàng <span className="text-red-500">*</span></Label>
                     <div className="col-span-3">
                       <CustomerCombobox
                         customers={customers}
                         value={registerHosting.customerId}
-                        onValueChange={(val) =>
+                        onValueChange={(val) => {
+                          const customerIdNum = typeof val === 'number' ? val : val ? parseInt(String(val), 10) : null
                           setRegisterHosting({
                             ...registerHosting,
-                            customerId:
-                              typeof val === 'number'
-                                ? val
-                                : val
-                                ? parseInt(String(val), 10)
-                                : null,
+                            customerId: customerIdNum,
+                            domain: ''
                           })
-                        }
+                          // Fetch domains when customer changes
+                          if (customerIdNum) {
+                            fetchDomains(customerIdNum)
+                          } else {
+                            setDomains([])
+                          }
+                        }}
                         placeholder="Chọn khách hàng"
                       />
                     </div>
@@ -820,6 +928,69 @@ export default function HostingPage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-domain" className="text-right">Domain</Label>
+                    <div className="col-span-3">
+                      <DomainCombobox
+                        domains={domains}
+                        value={registerHosting.domain || null}
+                        onValueChange={(val) => setRegisterHosting({...registerHosting, domain: val || ''})}
+                        placeholder="Chọn domain"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-addonDomain" className="text-right">Addon Domain</Label>
+                    <div className="col-span-3">
+                      <Input id="reg-addonDomain" placeholder="Unlimited" value={registerHosting.addonDomain} onChange={(e) => setRegisterHosting({...registerHosting, addonDomain: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-subDomain" className="text-right">Sub Domain</Label>
+                    <div className="col-span-3">
+                      <Input id="reg-subDomain" placeholder="Unlimited" value={registerHosting.subDomain} onChange={(e) => setRegisterHosting({...registerHosting, subDomain: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-ftpAccounts" className="text-right">Tài khoản FTP</Label>
+                    <div className="col-span-3">
+                      <Input id="reg-ftpAccounts" placeholder="Unlimited" value={registerHosting.ftpAccounts} onChange={(e) => setRegisterHosting({...registerHosting, ftpAccounts: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-databases" className="text-right">Database</Label>
+                    <div className="col-span-3">
+                      <Input id="reg-databases" placeholder="Unlimited" value={registerHosting.databases} onChange={(e) => setRegisterHosting({...registerHosting, databases: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-hostingType" className="text-right">Loại hosting</Label>
+                    <div className="col-span-3">
+                      <Select 
+                        value={registerHosting.hostingType} 
+                        onValueChange={(value) =>
+                          setRegisterHosting({...registerHosting, hostingType: value})
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn loại hosting" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Shared Hosting">Shared Hosting</SelectItem>
+                          <SelectItem value="VPS Hosting">VPS Hosting</SelectItem>
+                          <SelectItem value="Cloud Hosting">Cloud Hosting</SelectItem>
+                          <SelectItem value="Dedicated Server">Dedicated Server</SelectItem>
+                          <SelectItem value="WordPress Hosting">WordPress Hosting</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-operatingSystem" className="text-right">Hệ điều hành</Label>
+                    <div className="col-span-3">
+                      <Input id="reg-operatingSystem" placeholder="Linux" value={registerHosting.operatingSystem} onChange={(e) => setRegisterHosting({...registerHosting, operatingSystem: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="reg-location" className="text-right">Vị trí máy chủ</Label>
                     <div className="col-span-3">
                       <Input id="reg-location" value={registerHosting.serverLocation} onChange={(e) => setRegisterHosting({...registerHosting, serverLocation: e.target.value})} placeholder="Hanoi" />
@@ -839,16 +1010,41 @@ export default function HostingPage() {
                   </Button>
                   <Button onClick={async () => {
                     try {
+                      // Validate required fields
+                      if (!registerHosting.customerId) {
+                        toastError('Vui lòng chọn khách hàng')
+                        return
+                      }
+                      
+                      // Convert storage and bandwidth from MB string to GB number
+                      const storageStr = registerHosting.storage.trim()
+                      const bandwidthStr = registerHosting.bandwidth.trim()
+                      
+                      const storageGB = storageStr === '' || storageStr.toLowerCase() === 'unlimited'
+                        ? 0 
+                        : (() => {
+                            const parsed = parseFloat(storageStr)
+                            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+                          })()
+                      
+                      const bandwidthGB = bandwidthStr === '' || bandwidthStr.toLowerCase() === 'unlimited'
+                        ? 0
+                        : (() => {
+                            const parsed = parseFloat(bandwidthStr)
+                            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+                          })()
+                      
                       const res = await fetch('/api/hosting', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                           planName: registerHosting.planName,
-                          storage: registerHosting.storage,
-                          bandwidth: registerHosting.bandwidth,
-                          price: registerHosting.price,
+                          storage: storageGB,
+                          bandwidth: bandwidthGB,
+                          price: registerHosting.price || 0,
                           status: registerHosting.status,
                           customerId: registerHosting.customerId || null,
+                          domain: registerHosting.domain || null,
                           createdAt: registerHosting.registrationDate
                             ? format(registerHosting.registrationDate, 'yyyy-MM-dd')
                             : null,
@@ -856,6 +1052,12 @@ export default function HostingPage() {
                             ? format(registerHosting.expiryDate, 'yyyy-MM-dd')
                             : null,
                           serverLocation: registerHosting.serverLocation || null,
+                          addonDomain: registerHosting.addonDomain || 'Unlimited',
+                          subDomain: registerHosting.subDomain || 'Unlimited',
+                          ftpAccounts: registerHosting.ftpAccounts || 'Unlimited',
+                          databases: registerHosting.databases || 'Unlimited',
+                          hostingType: registerHosting.hostingType || 'VPS Hosting',
+                          operatingSystem: registerHosting.operatingSystem || 'Linux',
                         })
                       })
                       if (!res.ok) {
@@ -875,50 +1077,6 @@ export default function HostingPage() {
               </DialogContent>
             </Dialog>
           )}
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tổng Gói Hosting</CardTitle>
-              <Server className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{hostings.length}</div>
-              <p className="text-xs text-gray-600">+8% so với tháng trước</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{hostings.filter(h => h.status === 'ACTIVE').length}</div>
-              <p className="text-xs text-gray-600">Đang hoạt động</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Không Hoạt Động</CardTitle>
-              <XCircle className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{hostings.filter(h => h.status === 'INACTIVE').length}</div>
-              <p className="text-xs text-gray-600">Tạm dừng</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tổng Dung Lượng</CardTitle>
-              <HardDrive className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatStorage(hostings.reduce((sum, h) => sum + h.storage, 0))}</div>
-              <p className="text-xs text-gray-600">Tổng dung lượng</p>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Tabs (styled like admin/domain) */}
@@ -946,6 +1104,104 @@ export default function HostingPage() {
             </button>
           </nav>
         </div>
+
+        {/* Stats Cards for Purchased Hostings */}
+        {activeTab === 'purchased' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Hosting Đã Đăng Ký</CardTitle>
+                <Server className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{purchasedHostings.length}</div>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(purchasedHostings)} so với tháng trước
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{purchasedHostings.filter(h => h.status === 'ACTIVE').length}</div>
+                <p className="text-xs text-gray-600">Đang hoạt động</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Dung Lượng</CardTitle>
+                <HardDrive className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatStorage(purchasedHostings.reduce((sum, h) => sum + h.storage, 0))}</div>
+                <p className="text-xs text-gray-600">Tổng dung lượng</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Giá Trị</CardTitle>
+                <DollarSign className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatCurrency(purchasedHostings.reduce((sum, h) => sum + parseFloat(h.price), 0).toString())}</div>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(purchasedHostings, (h) => parseFloat(h.price))} so với tháng trước
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Stats Cards for Packages */}
+        {activeTab === 'packages' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Gói Hosting</CardTitle>
+                <Server className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{hostings.length}</div>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(hostings)} so với tháng trước
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{hostings.filter(h => h.status === 'ACTIVE').length}</div>
+                <p className="text-xs text-gray-600">Đang hoạt động</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Không Hoạt Động</CardTitle>
+                <XCircle className="h-4 w-4 text-red-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{hostings.filter(h => h.status === 'INACTIVE').length}</div>
+                <p className="text-xs text-gray-600">Tạm dừng</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Dung Lượng</CardTitle>
+                <HardDrive className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatStorage(hostings.reduce((sum, h) => sum + h.storage, 0))}</div>
+                <p className="text-xs text-gray-600">Tổng dung lượng</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Search */}
         <Card>
@@ -980,22 +1236,38 @@ export default function HostingPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-fit">Thao Tác</TableHead>
                       <TableHead>Tên Gói</TableHead>
                       <TableHead>Dung Lượng</TableHead>
                       <TableHead>Băng Thông</TableHead>
+                      <TableHead>Addon Domain</TableHead>
+                      <TableHead>Sub Domain</TableHead>
+                      <TableHead>Tài Khoản FTP</TableHead>
+                      <TableHead>Database</TableHead>
                       <TableHead>Giá</TableHead>
+                      <TableHead>Ngày Tạo</TableHead>
+                      <TableHead>Ngày Cập Nhật</TableHead>
                       <TableHead>Trạng Thái</TableHead>
-                      <TableHead>Thao Tác</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedHostings.map((hosting) => (
                       <TableRow key={hosting.id}>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            {getStatusIcon(hosting.status)}
-                            <span className="font-medium">{hosting.planName}</span>
+                        <TableCell className="w-fit">
+                          <div className="flex gap-1">
+                            <Button variant="outline" size="sm" className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteHosting(hosting)} title="Xóa">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" className="w-8" onClick={() => handleEditHosting(hosting)} title="Chỉnh sửa">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" className="w-8" onClick={() => handleViewHosting(hosting)} title="Xem chi tiết">
+                              <Eye className="h-4 w-4" />
+                            </Button>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-medium">{hosting.planName}</span>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-1">
@@ -1009,21 +1281,30 @@ export default function HostingPage() {
                             <span>{formatBandwidth(hosting.bandwidth)}</span>
                           </div>
                         </TableCell>
-                        <TableCell>{formatCurrency(hosting.price)}</TableCell>
-                        <TableCell>{getStatusBadge(hosting.status)}</TableCell>
                         <TableCell>
-                          <div className="flex space-x-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleViewHosting(hosting)} title="Xem chi tiết">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleEditHosting(hosting)} title="Chỉnh sửa">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDeleteHosting(hosting)} title="Xóa" className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          <span className="text-sm">{hosting.addonDomain || '—'}</span>
                         </TableCell>
+                        <TableCell>
+                          <span className="text-sm">{hosting.subDomain || '—'}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm">{hosting.ftpAccounts || '—'}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm">{hosting.databases || '—'}</span>
+                        </TableCell>
+                        <TableCell>{formatCurrency(hosting.price)}</TableCell>
+                        <TableCell>
+                          <span className="text-sm text-gray-600">
+                            {new Date(hosting.createdAt).toLocaleDateString('vi-VN')}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-gray-600">
+                            {new Date(hosting.updatedAt).toLocaleDateString('vi-VN')}
+                          </span>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(hosting.status)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1040,7 +1321,7 @@ export default function HostingPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID</TableHead>
+                      <TableHead className="w-fit">Thao Tác</TableHead>
                       <TableHead>Tên Gói</TableHead>
                       <TableHead>Dung Lượng</TableHead>
                       <TableHead>Băng Thông</TableHead>
@@ -1049,7 +1330,6 @@ export default function HostingPage() {
                       <TableHead>Ngày Hết Hạn</TableHead>
                       <TableHead>Giá</TableHead>
                       <TableHead>Trạng Thái</TableHead>
-                      <TableHead>Thao Tác</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1060,8 +1340,23 @@ export default function HostingPage() {
                       const label = customer ? `${customer.name} (${customer.email})` : '—'
                       return (
                         <TableRow key={hosting.id}>
-                          <TableCell className="font-mono text-gray-600">{hosting.id}</TableCell>
-                          <TableCell className="font-medium">{hosting.planName}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button variant="outline" size="sm" className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteHosting(hosting)} title="Xóa">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Button variant="outline" size="sm" className="w-8" onClick={() => handleEditHosting(hosting)} title="Chỉnh sửa">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button variant="outline" size="sm" className="w-8" onClick={() => handleViewHosting(hosting)} title="Xem chi tiết">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium">{hosting.planName}</div>
+                            <div className="text-xs text-gray-500 font-mono">ID: {hosting.id}</div>
+                          </TableCell>
                           <TableCell>{formatStorage(hosting.storage)}</TableCell>
                           <TableCell>{formatBandwidth(hosting.bandwidth)}</TableCell>
                           <TableCell>{label}</TableCell>
@@ -1069,19 +1364,6 @@ export default function HostingPage() {
                           <TableCell>{(hosting as any).expiryDate ? new Date((hosting as any).expiryDate as any).toLocaleDateString('vi-VN') : '—'}</TableCell>
                           <TableCell>{formatCurrency(hosting.price)}</TableCell>
                           <TableCell>{getStatusBadge(hosting.status)}</TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                              <Button variant="ghost" size="sm" onClick={() => handleViewHosting(hosting)} title="Xem chi tiết">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleEditHosting(hosting)} title="Chỉnh sửa">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleDeleteHosting(hosting)} title="Xóa" className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
                         </TableRow>
                       )
                     })}
@@ -1102,11 +1384,17 @@ export default function HostingPage() {
 
         {/* View Hosting Dialog */}
         <Dialog open={isViewHostingDialogOpen} onOpenChange={setIsViewHostingDialogOpen}>
-          <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
             <DialogHeader className="px-6 pt-6 pb-4">
-              <DialogTitle>Chi Tiết Gói Hosting</DialogTitle>
+              <DialogTitle>
+                {selectedHosting && (selectedHosting as any).customerId 
+                  ? 'Chi Tiết Gói Hosting Đã Đăng Ký'
+                  : 'Chi Tiết Gói Hosting'}
+              </DialogTitle>
               <DialogDescription>
-                Thông tin chi tiết của gói hosting
+                {selectedHosting && (selectedHosting as any).customerId
+                  ? 'Thông tin chi tiết của gói hosting đã đăng ký cho khách hàng'
+                  : 'Thông tin chi tiết của gói hosting'}
               </DialogDescription>
             </DialogHeader>
             {selectedHosting && (
@@ -1122,10 +1410,35 @@ export default function HostingPage() {
                     <div>{getStatusBadge(selectedHosting.status)}</div>
                   </div>
                 </div>
-                {(selectedHosting as any).domain && (
-                  <div>
-                    <Label className="font-medium mb-2 block">Domain</Label>
-                    <div className="text-sm text-gray-600">{(selectedHosting as any).domain}</div>
+                {(selectedHosting as any).customerId && (() => {
+                  const customerId = (selectedHosting as any).customerId
+                  const customerIdNum = typeof customerId === 'string' ? parseInt(customerId, 10) : customerId
+                  const customer = customers.find(c => c.id === customerIdNum)
+                  return (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="font-medium mb-2 block">Khách hàng</Label>
+                        <div className="text-sm text-gray-600">
+                          {customer ? `${customer.name} (${customer.email})` : '—'}
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="font-medium mb-2 block">Giá</Label>
+                        <div className="text-sm text-gray-600">{formatCurrency(selectedHosting.price)}</div>
+                      </div>
+                    </div>
+                  )
+                })()}
+                {(selectedHosting as any).customerId && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="font-medium mb-2 block">Domain</Label>
+                      <div className="text-sm text-gray-600">{(selectedHosting as any).domain || '—'}</div>
+                    </div>
+                    <div>
+                      <Label className="font-medium mb-2 block">Vị trí máy chủ</Label>
+                      <div className="text-sm text-gray-600">{(selectedHosting as any).serverLocation || '—'}</div>
+                    </div>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-4">
@@ -1138,68 +1451,100 @@ export default function HostingPage() {
                     <div className="text-sm text-gray-600">{formatBandwidth(selectedHosting.bandwidth)}</div>
                   </div>
                 </div>
-                {selectedHosting.addonDomain && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="font-medium mb-2 block">Addon Domain</Label>
-                      <div className="text-sm text-gray-600">{selectedHosting.addonDomain}</div>
-                    </div>
-                    <div>
-                      <Label className="font-medium mb-2 block">Sub Domain</Label>
-                      <div className="text-sm text-gray-600">{selectedHosting.subDomain}</div>
-                    </div>
-                  </div>
-                )}
-                {(selectedHosting.ftpAccounts || selectedHosting.databases) && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="font-medium mb-2 block">Tài khoản FTP</Label>
-                      <div className="text-sm text-gray-600">{selectedHosting.ftpAccounts}</div>
-                    </div>
-                    <div>
-                      <Label className="font-medium mb-2 block">Database</Label>
-                      <div className="text-sm text-gray-600">{selectedHosting.databases}</div>
-                    </div>
-                  </div>
-                )}
-                {(selectedHosting.hostingType || selectedHosting.operatingSystem) && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="font-medium mb-2 block">Loại hosting</Label>
-                      <div className="text-sm text-gray-600">{selectedHosting.hostingType}</div>
-                    </div>
-                    <div>
-                      <Label className="font-medium mb-2 block">Hệ điều hành</Label>
-                      <div className="text-sm text-gray-600">{selectedHosting.operatingSystem}</div>
-                    </div>
-                  </div>
-                )}
-                {(selectedHosting as any).expiryDate && (
-                  <div>
-                    <Label className="font-medium mb-2 block">Ngày hết hạn</Label>
-                    <div className="text-sm text-gray-600">
-                      {new Date((selectedHosting as any).expiryDate).toLocaleDateString('vi-VN')}
-                    </div>
-                  </div>
-                )}
-                {(selectedHosting as any).serverLocation && (
-                  <div>
-                    <Label className="font-medium mb-2 block">Server Location</Label>
-                    <div className="text-sm text-gray-600">{(selectedHosting as any).serverLocation}</div>
-                  </div>
-                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="font-medium mb-2 block">Giá</Label>
-                    <div className="text-sm text-gray-600">{formatCurrency(selectedHosting.price)}</div>
+                    <Label className="font-medium mb-2 block">Addon Domain</Label>
+                    <div className="text-sm text-gray-600">{selectedHosting.addonDomain || '—'}</div>
                   </div>
                   <div>
-                    <Label className="font-medium mb-2 block">Ngày tạo</Label>
-                    <div className="text-sm text-gray-600">
-                      {new Date(selectedHosting.createdAt).toLocaleDateString('vi-VN')}
-                    </div>
+                    <Label className="font-medium mb-2 block">Sub Domain</Label>
+                    <div className="text-sm text-gray-600">{selectedHosting.subDomain || '—'}</div>
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="font-medium mb-2 block">Tài khoản FTP</Label>
+                    <div className="text-sm text-gray-600">{selectedHosting.ftpAccounts || '—'}</div>
+                  </div>
+                  <div>
+                    <Label className="font-medium mb-2 block">Database</Label>
+                    <div className="text-sm text-gray-600">{selectedHosting.databases || '—'}</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="font-medium mb-2 block">Loại hosting</Label>
+                    <div className="text-sm text-gray-600">{selectedHosting.hostingType || '—'}</div>
+                  </div>
+                  <div>
+                    <Label className="font-medium mb-2 block">Hệ điều hành</Label>
+                    <div className="text-sm text-gray-600">{selectedHosting.operatingSystem || '—'}</div>
+                  </div>
+                </div>
+                {!(selectedHosting as any).customerId && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="font-medium mb-2 block">Giá</Label>
+                      <div className="text-sm text-gray-600">{formatCurrency(selectedHosting.price)}</div>
+                    </div>
+                    <div>
+                      <Label className="font-medium mb-2 block">ID</Label>
+                      <div className="text-sm text-gray-600">{selectedHosting.id}</div>
+                    </div>
+                  </div>
+                )}
+                {(selectedHosting as any).customerId && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="font-medium mb-2 block">Ngày đăng ký</Label>
+                        <div className="text-sm text-gray-600">
+                          {new Date(selectedHosting.createdAt).toLocaleDateString('vi-VN')}
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="font-medium mb-2 block">Ngày hết hạn</Label>
+                        <div className="text-sm text-gray-600">
+                          {(selectedHosting as any).expiryDate 
+                            ? new Date((selectedHosting as any).expiryDate).toLocaleDateString('vi-VN')
+                            : '—'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="font-medium mb-2 block">Ngày cập nhật</Label>
+                        <div className="text-sm text-gray-600">
+                          {new Date(selectedHosting.updatedAt).toLocaleDateString('vi-VN')}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+                {!(selectedHosting as any).customerId && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="font-medium mb-2 block">Ngày tạo</Label>
+                      <div className="text-sm text-gray-600">
+                        {new Date(selectedHosting.createdAt).toLocaleDateString('vi-VN')}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="font-medium mb-2 block">Ngày cập nhật</Label>
+                      <div className="text-sm text-gray-600">
+                        {new Date(selectedHosting.updatedAt).toLocaleDateString('vi-VN')}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {!(selectedHosting as any).customerId && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="font-medium mb-2 block">Vị trí máy chủ</Label>
+                      <div className="text-sm text-gray-600">{(selectedHosting as any).serverLocation || '—'}</div>
+                    </div>
+                  </div>
+                )}
                 </div>
               </div>
             )}
@@ -1230,7 +1575,7 @@ export default function HostingPage() {
               <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-planName" className="text-right">
-                  Tên gói
+                  Tên gói <span className="text-red-500">*</span>
                 </Label>
                 <div className="col-span-3">
                   <Input 
@@ -1462,21 +1807,21 @@ export default function HostingPage() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="edit-serverLocation" className="text-right">
-                      Server Location
-                    </Label>
-                    <div className="col-span-3">
-                      <Input 
-                        id="edit-serverLocation" 
-                        placeholder="Ho Chi Minh City"
-                        value={editHosting.serverLocation}
-                        onChange={(e) => setEditHosting({...editHosting, serverLocation: e.target.value})}
-                      />
-                    </div>
-                  </div>
                 </>
               )}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-serverLocation" className="text-right">
+                  Vị trí máy chủ
+                </Label>
+                <div className="col-span-3">
+                  <Input 
+                    id="edit-serverLocation" 
+                    placeholder="Ho Chi Minh City"
+                    value={editHosting.serverLocation}
+                    onChange={(e) => setEditHosting({...editHosting, serverLocation: e.target.value})}
+                  />
+                </div>
+              </div>
               </div>
             </div>
             <DialogFooter className="px-6 pt-4 pb-6 border-t">

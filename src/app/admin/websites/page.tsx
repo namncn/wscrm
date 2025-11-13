@@ -718,6 +718,7 @@ export default function WebsitesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-fit">Thao Tác</TableHead>
                     <TableHead>Tên Website</TableHead>
                     <TableHead>Khách Hàng</TableHead>
                     <TableHead>Tên Miền</TableHead>
@@ -725,15 +726,45 @@ export default function WebsitesPage() {
                     <TableHead>VPS</TableHead>
                     <TableHead>Trạng Thái</TableHead>
                     <TableHead>Ngày Tạo</TableHead>
-                    <TableHead>Thao Tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedWebsites.map((website) => (
                     <TableRow key={website.id}>
+                      <TableCell className="w-fit">
+                        <div className="flex gap-1">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDeleteWebsite(website)}
+                            title="Xóa"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="w-8"
+                            onClick={() => handleEditWebsite(website)}
+                            title="Chỉnh sửa"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="w-8"
+                            onClick={() => handleViewWebsite(website)}
+                            title="Xem chi tiết"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="font-medium">{website.name}</div>
-                        <div className="text-sm text-gray-500">ID: {website.id}</div>
+                        <div className="text-xs text-gray-500">ID: {website.id}</div>
                       </TableCell>
                       <TableCell>
                         <div>
@@ -773,35 +804,6 @@ export default function WebsitesPage() {
                       </TableCell>
                       <TableCell>{getStatusBadge(website.status)}</TableCell>
                       <TableCell>{new Date(website.createdAt).toLocaleDateString('vi-VN')}</TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleViewWebsite(website)}
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleEditWebsite(website)}
-                            title="Chỉnh sửa"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleDeleteWebsite(website)}
-                            title="Xóa"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

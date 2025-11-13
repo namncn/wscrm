@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/table'
 import { toastError, toastSuccess } from '@/lib/toast'
 import { formatCurrency } from '@/lib/utils'
-import { Loader2, Search, Plus, Mail, Clock, ExternalLink, Trash2, PenSquare } from 'lucide-react'
+import { Loader2, Search, Plus, Mail, Clock, ExternalLink, Trash2, PenSquare, Eye } from 'lucide-react'
 
 type InvoiceStatus = 'DRAFT' | 'SENT' | 'PARTIAL' | 'OVERDUE' | 'PAID'
 
@@ -341,6 +341,7 @@ export default function AdminInvoicesPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-fit">Thao tác</TableHead>
                       <TableHead className="min-w-[160px]">Hoá đơn</TableHead>
                       <TableHead className="min-w-[180px]">Khách hàng</TableHead>
                       <TableHead>Phát hành</TableHead>
@@ -348,15 +349,79 @@ export default function AdminInvoicesPage() {
                       <TableHead className="text-right">Tổng tiền</TableHead>
                       <TableHead className="text-right">Còn lại</TableHead>
                       <TableHead className="text-center">Trạng thái</TableHead>
-                      <TableHead className="min-w-[160px] text-right">Thao tác</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredInvoices.map((invoice) => (
                       <TableRow key={invoice.id} className="hover:bg-slate-50">
+                        <TableCell className="w-fit">
+                          <div className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              className="w-8 h-8 p-0 border-red-200 text-red-600 hover:bg-red-600 hover:border-red-600 hover:text-white"
+                              onClick={() => openDeleteDialog(invoice)}
+                              disabled={!isAdmin || deletingId === invoice.id}
+                              title="Xoá hoá đơn"
+                            >
+                              {deletingId === invoice.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="w-8 h-8 p-0 border-blue-200 text-blue-600 hover:bg-blue-600 hover:border-blue-600 hover:text-white"
+                              onClick={() => {
+                                if (!isAdmin) {
+                                  toastError('Bạn không có quyền chỉnh sửa hoá đơn')
+                                  return
+                                }
+                                router.push(`/admin/invoice/${invoice.id}/edit`)
+                              }}
+                              title="Chỉnh sửa hoá đơn"
+                            >
+                              <PenSquare className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="w-8 h-8 p-0 border-green-200 text-green-600 hover:bg-green-600 hover:border-green-600 hover:text-white"
+                              onClick={() => handleSendInvoice(invoice.id, 'send')}
+                              disabled={isSending(invoice.id, 'send')}
+                              title="Gửi hoá đơn"
+                            >
+                              {isSending(invoice.id, 'send') ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Mail className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="w-8 h-8 p-0 border-amber-200 text-amber-600 hover:bg-amber-600 hover:border-amber-600 hover:text-white"
+                              onClick={() => handleSendInvoice(invoice.id, 'reminder')}
+                              disabled={isSending(invoice.id, 'reminder')}
+                              title="Gửi nhắc nhở"
+                            >
+                              {isSending(invoice.id, 'reminder') ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Clock className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="w-8 h-8 p-0 border-purple-200 text-purple-600 hover:bg-purple-600 hover:border-purple-600 hover:text-white"
+                              onClick={() => router.push(`/admin/invoice/${invoice.id}`)}
+                              title="Xem chi tiết"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <div className="font-semibold text-slate-900">{invoice.invoiceNumber}</div>
-                          <div className="text-xs text-muted-foreground">#{invoice.id}</div>
+                          <div className="text-xs text-muted-foreground font-mono">#{invoice.id}</div>
                         </TableCell>
                         <TableCell>
                           <div className="font-medium text-slate-800">{invoice.customerName}</div>
@@ -372,81 +437,6 @@ export default function AdminInvoicesPage() {
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge className={statusConfig[invoice.status].variant}>{statusConfig[invoice.status].label}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-9 w-9 border border-blue-200 text-blue-600 transition-colors duration-200 hover:border-blue-500 hover:bg-blue-500 hover:text-white focus-visible:ring-blue-500"
-                              onClick={() => router.push(`/admin/invoice/${invoice.id}`)}
-                              title="Xem chi tiết"
-                            >
-                              <span className="sr-only">Xem chi tiết</span>
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-9 w-9 border border-purple-200 text-purple-600 transition-colors duration-200 hover:border-purple-500 hover:bg-purple-500 hover:text-white focus-visible:ring-purple-500"
-                              onClick={() => {
-                                if (!isAdmin) {
-                                  toastError('Bạn không có quyền chỉnh sửa hoá đơn')
-                                  return
-                                }
-                                router.push(`/admin/invoice/${invoice.id}/edit`)
-                              }}
-                              title="Chỉnh sửa hoá đơn"
-                            >
-                              <span className="sr-only">Chỉnh sửa hoá đơn</span>
-                              <PenSquare className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-9 w-9 border border-emerald-200 text-emerald-600 transition-colors duration-200 hover:border-emerald-500 hover:bg-emerald-500 hover:text-white focus-visible:ring-emerald-500"
-                              onClick={() => handleSendInvoice(invoice.id, 'send')}
-                              disabled={isSending(invoice.id, 'send')}
-                              title="Gửi hoá đơn"
-                            >
-                              <span className="sr-only">Gửi hoá đơn</span>
-                              {isSending(invoice.id, 'send') ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Mail className="h-4 w-4" />
-                              )}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-9 w-9 border border-amber-200 text-amber-600 transition-colors duration-200 hover:border-amber-500 hover:bg-amber-500 hover:text-white focus-visible:ring-amber-500"
-                              onClick={() => handleSendInvoice(invoice.id, 'reminder')}
-                              disabled={isSending(invoice.id, 'reminder')}
-                              title="Gửi nhắc nhở"
-                            >
-                              <span className="sr-only">Gửi nhắc nhở</span>
-                              {isSending(invoice.id, 'reminder') ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Clock className="h-4 w-4" />
-                              )}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-9 w-9 border border-red-200 text-red-600 transition-colors duration-200 hover:border-red-500 hover:bg-red-500 hover:text-white focus-visible:ring-red-500"
-                              onClick={() => openDeleteDialog(invoice)}
-                              disabled={!isAdmin || deletingId === invoice.id}
-                              title="Xoá hoá đơn"
-                            >
-                              <span className="sr-only">Xoá hoá đơn</span>
-                              {deletingId === invoice.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

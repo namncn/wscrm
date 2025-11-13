@@ -32,7 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DatePicker } from '@/components/ui/date-picker'
 import { Pagination } from '@/components/ui/pagination'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
-import { Monitor, Plus, Search, Eye, CheckCircle, XCircle, HardDrive, Cpu, MemoryStick, Loader2, Edit, Trash2 } from 'lucide-react'
+import { Monitor, Plus, Search, Eye, CheckCircle, XCircle, HardDrive, Cpu, MemoryStick, Loader2, Edit, Trash2, DollarSign } from 'lucide-react'
 import { toastError, toastSuccess } from '@/lib/toast'
 
 interface VPS {
@@ -48,8 +48,39 @@ interface VPS {
   customerId: number | null
   expiryDate: string | null
   os: string | null
+  serverLocation: string | null
   createdAt: string
   updatedAt: string
+}
+
+// Helper function to calculate month-over-month change percentage
+const calculateMonthOverMonthChange = <T extends { createdAt: string }>(
+  items: T[],
+  getValue: (item: T) => number = () => 1
+): string => {
+  const now = new Date()
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+
+  const currentMonthValue = items
+    .filter(item => new Date(item.createdAt) >= currentMonthStart)
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  const lastMonthValue = items
+    .filter(item => {
+      const itemDate = new Date(item.createdAt)
+      return itemDate >= lastMonthStart && itemDate <= lastMonthEnd
+    })
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  if (lastMonthValue === 0) {
+    return currentMonthValue > 0 ? '+100%' : '—'
+  }
+
+  const changePercent = ((currentMonthValue - lastMonthValue) / lastMonthValue) * 100
+  const sign = changePercent >= 0 ? '+' : ''
+  return `${sign}${Math.round(changePercent)}%`
 }
 
 export default function VPSPage() {
@@ -81,8 +112,9 @@ export default function VPSPage() {
     bandwidth: 0,
     price: 0,
     os: '',
+    serverLocation: '',
+    status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED',
     customerId: null as number | null,
-    expiryDate: undefined as Date | undefined,
   })
 
   const [editVPS, setEditVPS] = useState<VPS | null>(null)
@@ -96,6 +128,8 @@ export default function VPSPage() {
     bandwidth: 0,
     price: 0,
     os: '',
+    serverLocation: '',
+    status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED',
     customerId: null as number | null,
     registrationDate: undefined as Date | undefined,
     expiryDate: undefined as Date | undefined,
@@ -172,10 +206,9 @@ export default function VPSPage() {
           bandwidth: newVPS.bandwidth,
           price: newVPS.price,
           os: newVPS.os,
+          serverLocation: newVPS.serverLocation || null,
+          status: newVPS.status,
           customerId: newVPS.customerId,
-          expiryDate: newVPS.expiryDate
-            ? format(newVPS.expiryDate, 'yyyy-MM-dd')
-            : null,
         }),
       })
 
@@ -190,8 +223,9 @@ export default function VPSPage() {
           bandwidth: 0,
           price: 0,
           os: '',
+          serverLocation: '',
+          status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED',
           customerId: null,
-          expiryDate: undefined,
         })
         toastSuccess('Tạo VPS thành công!')
       } else {
@@ -227,19 +261,18 @@ export default function VPSPage() {
           price: editVPS.price,
           status: editVPS.status,
           os: editVPS.os,
+          serverLocation: editVPS.serverLocation || null,
           customerId: editVPS.customerId,
-          ...(editVPS.customerId && {
-            createdAt: editVPS.createdAt
-              ? editVPS.createdAt.includes('T')
-                ? format(new Date(editVPS.createdAt), 'yyyy-MM-dd')
-                : editVPS.createdAt
-              : null,
-            expiryDate: editVPS.expiryDate
-              ? editVPS.expiryDate.includes('T')
-                ? format(new Date(editVPS.expiryDate), 'yyyy-MM-dd')
-                : editVPS.expiryDate
-              : null,
-          }),
+          createdAt: editVPS.customerId && editVPS.createdAt
+            ? editVPS.createdAt.includes('T')
+              ? format(new Date(editVPS.createdAt), 'yyyy-MM-dd')
+              : editVPS.createdAt
+            : null,
+          expiryDate: editVPS.customerId && editVPS.expiryDate
+            ? editVPS.expiryDate.includes('T')
+              ? format(new Date(editVPS.expiryDate), 'yyyy-MM-dd')
+              : editVPS.expiryDate
+            : null,
         }),
       })
 
@@ -353,6 +386,16 @@ export default function VPSPage() {
     }).format(amount)
   }
 
+  const formatStorage = (storage: number) => {
+    if (storage === 0 || storage === null || storage === undefined) {
+      return 'Unlimited'
+    }
+    if (storage >= 1024) {
+      return `${(storage / 1024).toFixed(1)}TB`
+    }
+    return `${storage}GB`
+  }
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Chưa có'
     return new Date(dateString).toLocaleDateString('vi-VN')
@@ -402,7 +445,7 @@ export default function VPSPage() {
                 <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="planName" className="text-right">
-                    Tên Gói
+                    Tên Gói <span className="text-red-500">*</span>
                   </Label>
                   <div className="col-span-3">
                     <Input
@@ -415,7 +458,7 @@ export default function VPSPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="cpu" className="text-right">
-                    CPU (cores)
+                    CPU (cores) <span className="text-red-500">*</span>
                   </Label>
                   <div className="col-span-3">
                     <Input
@@ -429,7 +472,7 @@ export default function VPSPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="ram" className="text-right">
-                    RAM (GB)
+                    RAM (GB) <span className="text-red-500">*</span>
                   </Label>
                   <div className="col-span-3">
                     <Input
@@ -443,7 +486,7 @@ export default function VPSPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="storage" className="text-right">
-                    Storage (GB)
+                    Storage (GB) <span className="text-red-500">*</span>
                   </Label>
                   <div className="col-span-3">
                     <Input
@@ -457,7 +500,7 @@ export default function VPSPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="bandwidth" className="text-right">
-                    Bandwidth (GB)
+                    Bandwidth (GB) <span className="text-red-500">*</span>
                   </Label>
                   <div className="col-span-3">
                     <Input
@@ -484,7 +527,7 @@ export default function VPSPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="price" className="text-right">
-                    Giá
+                    Giá <span className="text-red-500">*</span>
                   </Label>
                   <div className="col-span-3">
                     <Input
@@ -497,19 +540,38 @@ export default function VPSPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="expiryDate" className="text-right">
-                    Ngày Hết Hạn
+                  <Label htmlFor="serverLocation" className="text-right">
+                    Vị trí máy chủ
                   </Label>
                   <div className="col-span-3">
-                    <DatePicker
-                      value={newVPS.expiryDate}
-                      onChange={(date) =>
-                        setNewVPS({
-                          ...newVPS,
-                          expiryDate: date ?? undefined,
-                        })
-                      }
+                    <Input
+                      id="serverLocation"
+                      placeholder="Ho Chi Minh City"
+                      value={newVPS.serverLocation}
+                      onChange={(e) => setNewVPS({...newVPS, serverLocation: e.target.value})}
                     />
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="status" className="text-right">
+                    Trạng thái
+                  </Label>
+                  <div className="col-span-3">
+                    <Select 
+                      value={newVPS.status} 
+                      onValueChange={(value: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED') =>
+                        setNewVPS({...newVPS, status: value})
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ACTIVE">Hoạt động</SelectItem>
+                        <SelectItem value="INACTIVE">Không hoạt động</SelectItem>
+                        <SelectItem value="SUSPENDED">Tạm ngừng</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 </div>
@@ -618,7 +680,13 @@ export default function VPSPage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">Khách hàng</Label>
+                    <Label htmlFor="reg-vps-serverLocation" className="text-right">Vị trí máy chủ</Label>
+                    <div className="col-span-3">
+                      <Input id="reg-vps-serverLocation" value={registerVPS.serverLocation} onChange={(e) => setRegisterVPS({...registerVPS, serverLocation: e.target.value})} placeholder="Ho Chi Minh City" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label className="text-right">Khách hàng <span className="text-red-500">*</span></Label>
                     <div className="col-span-3">
                       <CustomerCombobox
                         customers={customers}
@@ -656,6 +724,26 @@ export default function VPSPage() {
                       />
                     </div>
                   </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="reg-vps-status" className="text-right">Trạng thái</Label>
+                    <div className="col-span-3">
+                      <Select 
+                        value={registerVPS.status} 
+                        onValueChange={(value: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED') =>
+                          setRegisterVPS({...registerVPS, status: value})
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ACTIVE">Hoạt động</SelectItem>
+                          <SelectItem value="INACTIVE">Không hoạt động</SelectItem>
+                          <SelectItem value="SUSPENDED">Tạm ngừng</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                   </div>
                 </div>
                 <DialogFooter className="px-6 pt-4 pb-6 border-t">
@@ -669,6 +757,10 @@ export default function VPSPage() {
                     Hủy
                   </Button>
                   <Button onClick={async () => {
+                    if (!registerVPS.customerId) {
+                      toastError('Vui lòng chọn khách hàng')
+                      return
+                    }
                     try {
                       const res = await fetch('/api/vps', {
                         method: 'POST',
@@ -681,7 +773,7 @@ export default function VPSPage() {
                           storage: registerVPS.storage,
                           bandwidth: registerVPS.bandwidth,
                           price: registerVPS.price,
-                          status: 'ACTIVE',
+                          status: registerVPS.status,
                           customerId: registerVPS.customerId || null,
                           createdAt: registerVPS.registrationDate
                             ? format(registerVPS.registrationDate, 'yyyy-MM-dd')
@@ -690,6 +782,7 @@ export default function VPSPage() {
                             ? format(registerVPS.expiryDate, 'yyyy-MM-dd')
                             : null,
                           os: registerVPS.os || null,
+                          serverLocation: registerVPS.serverLocation || null,
                         })
                       })
                       if (!res.ok) {
@@ -768,20 +861,45 @@ export default function VPSPage() {
                       <p className="text-sm text-gray-600">{selectedVPS.os || 'Chưa có'}</p>
                     </div>
                     <div>
-                      <Label className="font-medium mb-2 block">Trạng Thái</Label>
-                      <div className="mt-1">{getStatusBadge(selectedVPS.status)}</div>
+                      <Label className="font-medium mb-2 block">Vị trí máy chủ</Label>
+                      <p className="text-sm text-gray-600">{selectedVPS.serverLocation || 'Chưa có'}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
+                      <Label className="font-medium mb-2 block">Trạng Thái</Label>
+                      <div className="mt-1">{getStatusBadge(selectedVPS.status)}</div>
+                    </div>
+                    <div>
                       <Label className="font-medium mb-2 block">Giá</Label>
                       <p className="text-sm text-gray-600">{formatCurrency(selectedVPS.price)}</p>
                     </div>
-                    <div>
-                      <Label className="font-medium mb-2 block">Ngày Hết Hạn</Label>
-                      <p className="text-sm text-gray-600">{formatDate(selectedVPS.expiryDate)}</p>
-                    </div>
                   </div>
+                  {selectedVPS.customerId && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="font-medium mb-2 block">Khách hàng</Label>
+                          <p className="text-sm text-gray-600">
+                            {(() => {
+                              const customer = customers.find(c => c.id === selectedVPS.customerId)
+                              return customer ? `${customer.name} (${customer.email})` : '—'
+                            })()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="font-medium mb-2 block">Ngày Đăng Ký</Label>
+                          <p className="text-sm text-gray-600">{formatDate(selectedVPS.createdAt)}</p>
+                        </div>
+                        <div>
+                          <Label className="font-medium mb-2 block">Ngày Hết Hạn</Label>
+                          <p className="text-sm text-gray-600">{formatDate(selectedVPS.expiryDate)}</p>
+                        </div>
+                      </div>
+                    </>
+                  )}
                   </div>
                 </div>
               )}
@@ -808,7 +926,7 @@ export default function VPSPage() {
                   <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="edit-planName" className="text-right">
-                      Tên Gói
+                      Tên Gói <span className="text-red-500">*</span>
                     </Label>
                     <div className="col-span-3">
                       <Input
@@ -834,7 +952,7 @@ export default function VPSPage() {
                   )}
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="edit-cpu" className="text-right">
-                      CPU (cores)
+                      CPU (cores) <span className="text-red-500">*</span>
                     </Label>
                     <div className="col-span-3">
                       <Input
@@ -847,7 +965,7 @@ export default function VPSPage() {
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="edit-ram" className="text-right">
-                      RAM (GB)
+                      RAM (GB) <span className="text-red-500">*</span>
                     </Label>
                     <div className="col-span-3">
                       <Input
@@ -860,7 +978,7 @@ export default function VPSPage() {
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="edit-storage" className="text-right">
-                      Storage (GB)
+                      Storage (GB) <span className="text-red-500">*</span>
                     </Label>
                     <div className="col-span-3">
                       <Input
@@ -873,7 +991,7 @@ export default function VPSPage() {
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="edit-bandwidth" className="text-right">
-                      Bandwidth (GB)
+                      Bandwidth (GB) <span className="text-red-500">*</span>
                     </Label>
                     <div className="col-span-3">
                       <Input
@@ -893,6 +1011,19 @@ export default function VPSPage() {
                         id="edit-os"
                         value={editVPS.os || ''}
                         onChange={(e) => setEditVPS({...editVPS, os: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-serverLocation" className="text-right">
+                      Vị trí máy chủ
+                    </Label>
+                    <div className="col-span-3">
+                      <Input
+                        id="edit-serverLocation"
+                        value={editVPS.serverLocation || ''}
+                        onChange={(e) => setEditVPS({...editVPS, serverLocation: e.target.value})}
+                        placeholder="Ho Chi Minh City"
                       />
                     </div>
                   </div>
@@ -931,21 +1062,21 @@ export default function VPSPage() {
                       </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="edit-customerId" className="text-right">
-                      Khách hàng
-                    </Label>
-                    <div className="col-span-3">
-                      <CustomerCombobox
-                        customers={customers}
-                        value={editVPS.customerId?.toString() || null}
-                        onValueChange={(val) => setEditVPS({...editVPS, customerId: val ? parseInt(String(val)) : null})}
-                        placeholder="Chọn khách hàng"
-                      />
-                    </div>
-                  </div>
                   {editVPS.customerId && (
                     <>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-customerId" className="text-right">
+                          Khách hàng
+                        </Label>
+                        <div className="col-span-3">
+                          <CustomerCombobox
+                            customers={customers}
+                            value={editVPS.customerId?.toString() || null}
+                            onValueChange={(val) => setEditVPS({...editVPS, customerId: val ? parseInt(String(val)) : null})}
+                            placeholder="Chọn khách hàng"
+                          />
+                        </div>
+                      </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="edit-createdAt" className="text-right">
                           Ngày Đăng Ký
@@ -1046,56 +1177,6 @@ export default function VPSPage() {
               </DialogContent>
             </Dialog>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tổng VPS</CardTitle>
-              <Monitor className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{vps.length}</div>
-              <p className="text-xs text-muted-foreground">Tất cả máy chủ ảo</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {vps.filter(v => v.status === 'ACTIVE').length}
-              </div>
-              <p className="text-xs text-muted-foreground">Đang hoạt động</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Không Hoạt Động</CardTitle>
-              <XCircle className="h-4 w-4 text-gray-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {vps.filter(v => v.status === 'INACTIVE').length}
-              </div>
-              <p className="text-xs text-muted-foreground">Không hoạt động</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tổng Giá Trị</CardTitle>
-              <MemoryStick className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatCurrency(vps.reduce((sum, v) => sum + v.price, 0))}
-              </div>
-              <p className="text-xs text-muted-foreground">Tổng giá trị</p>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Tabs (styled like admin/domain) */}
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8">
@@ -1121,6 +1202,106 @@ export default function VPSPage() {
             </button>
           </nav>
         </div>
+
+        {/* Stats Cards for Purchased VPS */}
+        {activeTab === 'purchased' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng VPS Đã Đăng Ký</CardTitle>
+                <Monitor className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{purchasedVps.length}</div>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(purchasedVps)} so với tháng trước
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{purchasedVps.filter(v => v.status === 'ACTIVE').length}</div>
+                <p className="text-xs text-gray-600">Đang hoạt động</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Dung Lượng</CardTitle>
+                <HardDrive className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatStorage(purchasedVps.reduce((sum, v) => sum + v.storage, 0))}</div>
+                <p className="text-xs text-gray-600">Tổng dung lượng</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Giá Trị</CardTitle>
+                <DollarSign className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatCurrency(purchasedVps.reduce((sum, v) => sum + v.price, 0))}</div>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(purchasedVps, (v) => v.price)} so với tháng trước
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Stats Cards for VPS Packages */}
+        {activeTab === 'packages' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Gói VPS</CardTitle>
+                <Monitor className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{vps.length}</div>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(vps)} so với tháng trước
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{vps.filter(v => v.status === 'ACTIVE').length}</div>
+                <p className="text-xs text-gray-600">Đang hoạt động</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Dung Lượng</CardTitle>
+                <HardDrive className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatStorage(vps.reduce((sum, v) => sum + v.storage, 0))}</div>
+                <p className="text-xs text-gray-600">Tổng dung lượng</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Giá Trị</CardTitle>
+                <DollarSign className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatCurrency(vps.reduce((sum, v) => sum + v.price, 0))}</div>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(vps, (v) => v.price)} so với tháng trước
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Search and Filters */}
         <Card>
@@ -1161,33 +1342,35 @@ export default function VPSPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-fit">Thao Tác</TableHead>
                         <TableHead>Tên Gói</TableHead>
                         <TableHead>CPU</TableHead>
                         <TableHead>RAM</TableHead>
                         <TableHead>Storage</TableHead>
                         <TableHead>Bandwidth</TableHead>
+                        <TableHead>Vị trí máy chủ</TableHead>
                         <TableHead>Trạng Thái</TableHead>
                         <TableHead>Giá</TableHead>
-                        <TableHead>Thao Tác</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {paginatedVPS.map((v) => (
                         <TableRow key={v.id}>
+                          <TableCell className="w-fit">
+                            <div className="flex gap-1">
+                              <Button variant="outline" size="sm" className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteVPS(v)} title="Xóa"><Trash2 className="h-4 w-4" /></Button>
+                              <Button variant="outline" size="sm" className="w-8" onClick={() => handleEditVPS(v)} title="Chỉnh sửa"><Edit className="h-4 w-4" /></Button>
+                              <Button variant="outline" size="sm" className="w-8" onClick={() => handleViewVPS(v)} title="Xem chi tiết"><Eye className="h-4 w-4" /></Button>
+                            </div>
+                          </TableCell>
                           <TableCell className="font-medium">{v.planName}</TableCell>
                           <TableCell><div className="flex items-center space-x-1"><Cpu className="h-4 w-4 text-gray-500" /><span>{v.cpu} cores</span></div></TableCell>
                           <TableCell><div className="flex items-center space-x-1"><MemoryStick className="h-4 w-4 text-gray-500" /><span>{v.ram} GB</span></div></TableCell>
                           <TableCell><div className="flex items-center space-x-1"><HardDrive className="h-4 w-4 text-gray-500" /><span>{v.storage} GB</span></div></TableCell>
                           <TableCell><span>{v.bandwidth} GB</span></TableCell>
-                          <TableCell><div className="flex items-center space-x-2">{getStatusIcon(v.status)}{getStatusBadge(v.status)}</div></TableCell>
+                          <TableCell><span className="text-sm">{v.serverLocation || '—'}</span></TableCell>
+                          <TableCell>{getStatusBadge(v.status)}</TableCell>
                           <TableCell>{formatCurrency(v.price)}</TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                              <Button variant="ghost" size="sm" onClick={() => handleViewVPS(v)}><Eye className="h-4 w-4" /></Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleEditVPS(v)}><Edit className="h-4 w-4" /></Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleDeleteVPS(v)}><Trash2 className="text-red-600 hover:text-red-700 hover:bg-red-50" /></Button>
-                            </div>
-                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1204,20 +1387,20 @@ export default function VPSPage() {
               <CardContent>
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>ID</TableHead>
+                      <TableRow>
+                      <TableHead>Thao Tác</TableHead>
                       <TableHead>Tên Gói</TableHead>
                       <TableHead>IP Address</TableHead>
                       <TableHead>CPU</TableHead>
                       <TableHead>RAM</TableHead>
                       <TableHead>Storage</TableHead>
                       <TableHead>Bandwidth</TableHead>
+                      <TableHead>Vị trí máy chủ</TableHead>
                       <TableHead>Khách Hàng</TableHead>
                       <TableHead>Ngày Đăng Ký</TableHead>
                       <TableHead>Ngày Hết Hạn</TableHead>
                       <TableHead>Trạng Thái</TableHead>
                       <TableHead>Giá</TableHead>
-                      <TableHead>Thao Tác</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1226,31 +1409,34 @@ export default function VPSPage() {
                       const label = customer ? `${customer.name} (${customer.email})` : '—'
                       return (
                         <TableRow key={v.id}>
-                          <TableCell className="font-mono text-gray-600">{v.id}</TableCell>
-                          <TableCell className="font-medium">{v.planName}</TableCell>
+                          <TableCell className="w-fit">
+                            <div className="flex gap-1">
+                              <Button variant="outline" size="sm" className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteVPS(v)} title="Xóa">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Button variant="outline" size="sm" className="w-8" onClick={() => handleEditVPS(v)} title="Chỉnh sửa">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button variant="outline" size="sm" className="w-8" onClick={() => handleViewVPS(v)} title="Xem chi tiết">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium">{v.planName}</div>
+                            <div className="text-xs text-gray-500 font-mono">ID: {v.id}</div>
+                          </TableCell>
                           <TableCell>{v.ipAddress || 'Chưa có'}</TableCell>
                           <TableCell>{v.cpu} cores</TableCell>
                           <TableCell>{v.ram} GB</TableCell>
                           <TableCell>{v.storage} GB</TableCell>
                           <TableCell>{v.bandwidth} GB</TableCell>
+                          <TableCell><span className="text-sm">{v.serverLocation || '—'}</span></TableCell>
                           <TableCell>{label}</TableCell>
                           <TableCell>{new Date(v.createdAt).toLocaleDateString('vi-VN')}</TableCell>
                           <TableCell>{v.expiryDate ? formatDate(v.expiryDate) : '—'}</TableCell>
                           <TableCell>{getStatusBadge(v.status)}</TableCell>
                           <TableCell>{formatCurrency(v.price)}</TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                              <Button variant="ghost" size="sm" onClick={() => handleViewVPS(v)} title="Xem chi tiết">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleEditVPS(v)} title="Chỉnh sửa">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleDeleteVPS(v)} title="Xóa" className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
                         </TableRow>
                       )
                     })}

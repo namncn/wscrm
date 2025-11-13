@@ -417,8 +417,11 @@ export default function WebsiteEditPage() {
                 <Label htmlFor="domainId">Tên miền</Label>
                 <DomainCombobox
                   domains={domains}
-                  value={formData.domainId}
-                  onValueChange={(value) => setFormData({...formData, domainId: value})}
+                  value={formData.domainId ? domains.find(d => d.id === formData.domainId)?.domainName || null : null}
+                  onValueChange={(value) => {
+                    const selectedDomain = domains.find(d => d.domainName === value)
+                    setFormData({...formData, domainId: selectedDomain ? selectedDomain.id : null})
+                  }}
                 />
               </div>
               <div className="space-y-2">

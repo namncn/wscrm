@@ -390,7 +390,7 @@ export default function CustomersPage() {
                   <div className="grid gap-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="name" className="text-right">
-                        Tên *
+                        Tên <span className="text-red-500">*</span>
                       </Label>
                       <Input 
                         id="name" 
@@ -402,7 +402,7 @@ export default function CustomersPage() {
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="email" className="text-right">
-                        Email *
+                        Email <span className="text-red-500">*</span>
                       </Label>
                       <Input 
                         id="email" 
@@ -686,7 +686,7 @@ export default function CustomersPage() {
                   <div className="grid gap-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="edit-name" className="text-right">
-                        Tên
+                        Tên <span className="text-red-500">*</span>
                       </Label>
                       <Input 
                         id="edit-name" 
@@ -698,7 +698,7 @@ export default function CustomersPage() {
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="edit-email" className="text-right">
-                        Email
+                        Email <span className="text-red-500">*</span>
                       </Label>
                       <Input 
                         id="edit-email" 
@@ -991,6 +991,7 @@ export default function CustomersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-fit">Thao Tác</TableHead>
                   <TableHead>Khách Hàng</TableHead>
                   <TableHead>Liên Hệ</TableHead>
                   <TableHead>Công Ty</TableHead>
@@ -998,7 +999,6 @@ export default function CustomersPage() {
                   <TableHead>Xác Thực</TableHead>
                   <TableHead>Ngày Tạo</TableHead>
                   <TableHead>Mã Số Thuế</TableHead>
-                  <TableHead>Thao Tác</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1011,6 +1011,37 @@ export default function CustomersPage() {
                 ) : (
                   paginatedCustomers.map((customer) => (
                     <TableRow key={customer.id}>
+                      <TableCell className="w-fit">
+                        <div className="flex gap-1">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDeleteCustomer(customer)}
+                            title="Xóa"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="w-8"
+                            onClick={() => handleEditCustomer(customer)}
+                            title="Chỉnh sửa"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="w-8"
+                            onClick={() => handleViewCustomer(customer)}
+                            title="Xem chi tiết"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-3">
                           <Avatar className="h-8 w-8">
@@ -1023,7 +1054,7 @@ export default function CustomersPage() {
                           </Avatar>
                           <div>
                             <div className="font-medium">{customer.name}</div>
-                            <div className="text-sm text-gray-500">ID: {customer.id}</div>
+                            <div className="text-xs text-gray-500">ID: {customer.id}</div>
                           </div>
                         </div>
                       </TableCell>
@@ -1057,35 +1088,6 @@ export default function CustomersPage() {
                         {new Date(customer.createdAt).toLocaleDateString('vi-VN')}
                       </TableCell>
                       <TableCell>{customer.taxCode || 'Chưa có'}</TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleViewCustomer(customer)}
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleEditCustomer(customer)}
-                            title="Chỉnh sửa"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleDeleteCustomer(customer)}
-                            title="Xóa"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
                     </TableRow>
                   ))
                 )}

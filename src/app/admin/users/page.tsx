@@ -428,7 +428,7 @@ export default function MembersPage() {
                 <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="name" className="text-right">
-                    Tên
+                    Tên <span className="text-red-500">*</span>
                   </Label>
                   <Input 
                     id="name" 
@@ -440,7 +440,7 @@ export default function MembersPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="email" className="text-right">
-                    Email
+                    Email <span className="text-red-500">*</span>
                   </Label>
                   <Input 
                     id="email" 
@@ -453,7 +453,7 @@ export default function MembersPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="password" className="text-right">
-                    Mật khẩu
+                    Mật khẩu <span className="text-red-500">*</span>
                   </Label>
                   <Input 
                     id="password" 
@@ -590,12 +590,12 @@ export default function MembersPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-fit">Thao Tác</TableHead>
                     <TableHead>Thành Viên</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Vai Trò</TableHead>
                     <TableHead>Xác Thực</TableHead>
                     <TableHead>Ngày Tham Gia</TableHead>
-                    <TableHead>Thao Tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -613,6 +613,80 @@ export default function MembersPage() {
                         key={member.id}
                         className={isCurrentUser ? 'bg-blue-50 hover:bg-blue-100' : ''}
                       >
+                        <TableCell className="w-fit">
+                          <div className="flex gap-1">
+                            {isAdmin && !isCurrentUser && (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => handleDeleteMember(member)}
+                                title="Xóa"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {isAdmin && (
+                              <>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  className="w-8"
+                                  onClick={() => handleEditMember(member)}
+                                  title="Chỉnh sửa"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                {member.emailVerified !== 'YES' && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handleVerifyMember(member)}
+                                    title="Xác thực tài khoản"
+                                    className="flex items-center gap-1 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                    disabled={isLoading}
+                                  >
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Xác thực
+                                  </Button>
+                                )}
+                                {!isCurrentUser && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handleRoleChange(member)}
+                                    title="Thay đổi quyền"
+                                    className="flex items-center gap-1"
+                                  >
+                                    <Shield className="h-3 w-3" />
+                                    Quyền
+                                  </Button>
+                                )}
+                              </>
+                            )}
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="w-8"
+                              onClick={() => handleViewMember(member)}
+                              title="Xem chi tiết"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            {isCurrentUser && (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => router.push('/admin/profile')}
+                                title="Xem hồ sơ của bạn"
+                                className="flex items-center gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              >
+                                <Eye className="h-3 w-3" />
+                                Hồ sơ
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-3">
                             <Avatar className="h-8 w-8">
@@ -633,7 +707,7 @@ export default function MembersPage() {
                                   </Badge>
                                 )}
                               </div>
-                              <div className="text-sm text-gray-500">ID: {member.id}</div>
+                              <div className="text-xs text-gray-500">ID: {member.id}</div>
                             </div>
                           </div>
                         </TableCell>
@@ -642,78 +716,6 @@ export default function MembersPage() {
                         <TableCell>{getVerificationBadge(member.emailVerified)}</TableCell>
                         <TableCell>
                           {new Date(member.createdAt).toLocaleDateString('vi-VN')}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex space-x-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleViewMember(member)}
-                              title="Xem chi tiết"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            {isAdmin && (
-                              <>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={() => handleEditMember(member)}
-                                  title="Chỉnh sửa"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                {member.emailVerified !== 'YES' && (
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => handleVerifyMember(member)}
-                                    title="Xác thực tài khoản"
-                                    className="flex items-center gap-1 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                    disabled={isLoading}
-                                  >
-                                    <CheckCircle2 className="h-3 w-3" />
-                                    Xác thực
-                                  </Button>
-                                )}
-                                {!isCurrentUser && (
-                                  <>
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm"
-                                      onClick={() => handleRoleChange(member)}
-                                      title="Thay đổi quyền"
-                                      className="flex items-center gap-1"
-                                    >
-                                      <Shield className="h-3 w-3" />
-                                      Quyền
-                                    </Button>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm"
-                                      onClick={() => handleDeleteMember(member)}
-                                      title="Xóa"
-                                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </>
-                                )}
-                              </>
-                            )}
-                            {isCurrentUser && (
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => router.push('/admin/profile')}
-                                title="Xem hồ sơ của bạn"
-                                className="flex items-center gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              >
-                                <Eye className="h-3 w-3" />
-                                Hồ sơ
-                              </Button>
-                            )}
-                          </div>
                         </TableCell>
                       </TableRow>
                       )
@@ -844,7 +846,7 @@ export default function MembersPage() {
               <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-name" className="text-right">
-                  Tên
+                  Tên <span className="text-red-500">*</span>
                 </Label>
                 <Input 
                   id="edit-name" 
@@ -856,7 +858,7 @@ export default function MembersPage() {
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-email" className="text-right">
-                  Email
+                  Email <span className="text-red-500">*</span>
                 </Label>
                 <Input 
                   id="edit-email" 

@@ -75,6 +75,36 @@ interface Order {
   totalAmount: number
 }
 
+// Helper function to calculate month-over-month change percentage
+const calculateMonthOverMonthChange = <T extends { createdAt: string }>(
+  items: T[],
+  getValue: (item: T) => number = () => 1
+): string => {
+  const now = new Date()
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+
+  const currentMonthValue = items
+    .filter(item => new Date(item.createdAt) >= currentMonthStart)
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  const lastMonthValue = items
+    .filter(item => {
+      const itemDate = new Date(item.createdAt)
+      return itemDate >= lastMonthStart && itemDate <= lastMonthEnd
+    })
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  if (lastMonthValue === 0) {
+    return currentMonthValue > 0 ? '+100%' : '—'
+  }
+
+  const changePercent = ((currentMonthValue - lastMonthValue) / lastMonthValue) * 100
+  const sign = changePercent >= 0 ? '+' : ''
+  return `${sign}${Math.round(changePercent)}%`
+}
+
 export default function ContractsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -530,7 +560,7 @@ export default function ContractsPage() {
                 <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="order" className="text-right">
-                    Đơn hàng
+                    Đơn hàng <span className="text-red-500">*</span>
                   </Label>
                   <div className="col-span-3">
                     <OrderCombobox
@@ -646,7 +676,9 @@ export default function ContractsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{contracts.length}</div>
-              <p className="text-xs text-gray-600">+5% so với tháng trước</p>
+              <p className="text-xs text-gray-600">
+                {calculateMonthOverMonthChange(contracts)} so với tháng trước
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -682,7 +714,9 @@ export default function ContractsPage() {
               <div className="text-2xl font-bold">
                 {formatCurrency(contracts.reduce((sum, c) => sum + c.totalValue, 0))}
               </div>
-              <p className="text-xs text-gray-600">+15% so với tháng trước</p>
+              <p className="text-xs text-gray-600">
+                {calculateMonthOverMonthChange(contracts, (c) => c.totalValue)} so với tháng trước
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -733,6 +767,7 @@ export default function ContractsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-fit">Thao Tác</TableHead>
                     <TableHead>Số Hợp Đồng</TableHead>
                     <TableHead>Khách Hàng</TableHead>
                     <TableHead>Đơn Hàng</TableHead>
@@ -740,15 +775,54 @@ export default function ContractsPage() {
                     <TableHead>Trạng Thái</TableHead>
                     <TableHead>Thời Hạn</TableHead>
                     <TableHead>Ngày Tạo</TableHead>
-                    <TableHead>Thao Tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedContracts.map((contract) => (
                     <TableRow key={contract.id}>
+                      <TableCell className="w-fit">
+                        <div className="flex gap-1">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDeleteContract(contract)}
+                            title="Xóa"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="w-8"
+                            onClick={() => handleEditContract(contract)}
+                            title="Chỉnh sửa"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                            onClick={() => handleSendEmail(contract)}
+                            title="Gửi email"
+                          >
+                            <Mail className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="w-8"
+                            onClick={() => handleViewContract(contract)}
+                            title="Xem chi tiết"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="font-medium">{contract.contractNumber}</div>
-                        <div className="text-sm text-gray-500">ID: {contract.id}</div>
+                        <div className="text-xs text-gray-500">ID: {contract.id}</div>
                       </TableCell>
                       <TableCell>
                         <div>
@@ -770,44 +844,6 @@ export default function ContractsPage() {
                         </div>
                       </TableCell>
                       <TableCell>{new Date(contract.createdAt).toLocaleDateString('vi-VN')}</TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleViewContract(contract)}
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleEditContract(contract)}
-                            title="Chỉnh sửa"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleSendEmail(contract)}
-                            title="Gửi email"
-                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                          >
-                            <Mail className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleDeleteContract(contract)}
-                            title="Xóa"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
