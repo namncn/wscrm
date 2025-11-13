@@ -32,7 +32,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { Pagination } from '@/components/ui/pagination'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
 import { DomainCombobox } from '@/components/ui/domain-combobox'
-import { Server, Plus, Search, Eye, RefreshCw, CheckCircle, XCircle, HardDrive, Cpu, Edit, Trash2, Loader2 } from 'lucide-react'
+import { Server, Plus, Search, Eye, RefreshCw, CheckCircle, XCircle, HardDrive, Cpu, Edit, Trash2, Loader2, DollarSign } from 'lucide-react'
 import { toastSuccess, toastError } from '@/lib/toast'
 
 interface Hosting {
@@ -1001,50 +1001,6 @@ export default function HostingPage() {
           )}
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tổng Gói Hosting</CardTitle>
-              <Server className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{hostings.length}</div>
-              <p className="text-xs text-gray-600">+8% so với tháng trước</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{hostings.filter(h => h.status === 'ACTIVE').length}</div>
-              <p className="text-xs text-gray-600">Đang hoạt động</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Không Hoạt Động</CardTitle>
-              <XCircle className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{hostings.filter(h => h.status === 'INACTIVE').length}</div>
-              <p className="text-xs text-gray-600">Tạm dừng</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tổng Dung Lượng</CardTitle>
-              <HardDrive className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatStorage(hostings.reduce((sum, h) => sum + h.storage, 0))}</div>
-              <p className="text-xs text-gray-600">Tổng dung lượng</p>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Tabs (styled like admin/domain) */}
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8">
@@ -1070,6 +1026,98 @@ export default function HostingPage() {
             </button>
           </nav>
         </div>
+
+        {/* Stats Cards for Purchased Hostings */}
+        {activeTab === 'purchased' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Hosting Đã Đăng Ký</CardTitle>
+                <Server className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{purchasedHostings.length}</div>
+                <p className="text-xs text-gray-600">+8% so với tháng trước</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{purchasedHostings.filter(h => h.status === 'ACTIVE').length}</div>
+                <p className="text-xs text-gray-600">Đang hoạt động</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Dung Lượng</CardTitle>
+                <HardDrive className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatStorage(purchasedHostings.reduce((sum, h) => sum + h.storage, 0))}</div>
+                <p className="text-xs text-gray-600">Tổng dung lượng</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Giá Trị</CardTitle>
+                <DollarSign className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatCurrency(purchasedHostings.reduce((sum, h) => sum + parseFloat(h.price), 0).toString())}</div>
+                <p className="text-xs text-gray-600">Tổng giá trị hosting</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Stats Cards for Packages */}
+        {activeTab === 'packages' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Gói Hosting</CardTitle>
+                <Server className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{hostings.length}</div>
+                <p className="text-xs text-gray-600">+8% so với tháng trước</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{hostings.filter(h => h.status === 'ACTIVE').length}</div>
+                <p className="text-xs text-gray-600">Đang hoạt động</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Không Hoạt Động</CardTitle>
+                <XCircle className="h-4 w-4 text-red-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{hostings.filter(h => h.status === 'INACTIVE').length}</div>
+                <p className="text-xs text-gray-600">Tạm dừng</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Dung Lượng</CardTitle>
+                <HardDrive className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatStorage(hostings.reduce((sum, h) => sum + h.storage, 0))}</div>
+                <p className="text-xs text-gray-600">Tổng dung lượng</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Search */}
         <Card>
