@@ -172,14 +172,20 @@ export async function POST(req: Request) {
       addonDomain, subDomain, ftpAccounts, databases, hostingType, operatingSystem
     } = body
 
-    // Validate required fields
-    if (!planName || !storage || !bandwidth || !price) {
-      return createErrorResponse('Tên gói, dung lượng, băng thông và giá là bắt buộc', 400)
+    // Validate required fields - only planName is required
+    if (!planName) {
+      return createErrorResponse('Tên gói là bắt buộc', 400)
     }
 
-    // Validate data types
-    if (typeof storage !== 'number' || typeof bandwidth !== 'number' || typeof price !== 'number') {
-      return createErrorResponse('Dung lượng, băng thông và giá phải là số', 400)
+    // Validate data types - allow undefined/null, but if provided must be numbers
+    if (storage !== undefined && storage !== null && typeof storage !== 'number') {
+      return createErrorResponse('Dung lượng phải là số', 400)
+    }
+    if (bandwidth !== undefined && bandwidth !== null && typeof bandwidth !== 'number') {
+      return createErrorResponse('Băng thông phải là số', 400)
+    }
+    if (price !== undefined && price !== null && typeof price !== 'number') {
+      return createErrorResponse('Giá phải là số', 400)
     }
 
     // Create hosting plan
@@ -188,9 +194,9 @@ export async function POST(req: Request) {
       .values({
         planName,
         domain: domain || null,
-        storage,
-        bandwidth,
-        price: price.toString(),
+        storage: storage !== undefined && storage !== null ? storage : 0,
+        bandwidth: bandwidth !== undefined && bandwidth !== null ? bandwidth : 0,
+        price: price !== undefined && price !== null ? price.toString() : '0',
         status: status || 'ACTIVE',
         customerId: customerId || null,
         expiryDate: expiryDate ? expiryDate.split('T')[0] : null,
