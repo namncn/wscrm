@@ -390,7 +390,7 @@ export default function CustomersPage() {
                   <div className="grid gap-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="name" className="text-right">
-                        Tên *
+                        Tên <span className="text-red-500">*</span>
                       </Label>
                       <Input 
                         id="name" 
@@ -402,7 +402,7 @@ export default function CustomersPage() {
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="email" className="text-right">
-                        Email *
+                        Email <span className="text-red-500">*</span>
                       </Label>
                       <Input 
                         id="email" 
@@ -686,7 +686,7 @@ export default function CustomersPage() {
                   <div className="grid gap-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="edit-name" className="text-right">
-                        Tên
+                        Tên <span className="text-red-500">*</span>
                       </Label>
                       <Input 
                         id="edit-name" 
@@ -698,7 +698,7 @@ export default function CustomersPage() {
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="edit-email" className="text-right">
-                        Email
+                        Email <span className="text-red-500">*</span>
                       </Label>
                       <Input 
                         id="edit-email" 

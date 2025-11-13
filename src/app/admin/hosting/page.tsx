@@ -112,8 +112,8 @@ export default function HostingPage() {
   // Form state for new hosting
   const [newHosting, setNewHosting] = useState({
     planName: '',
-    storage: 0,
-    bandwidth: 0,
+    storage: '',
+    bandwidth: '',
     price: 0,
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
     addonDomain: 'Unlimited',
@@ -121,7 +121,8 @@ export default function HostingPage() {
     ftpAccounts: 'Unlimited',
     databases: 'Unlimited',
     hostingType: 'VPS Hosting',
-    operatingSystem: 'Linux'
+    operatingSystem: 'Linux',
+    serverLocation: '',
   })
 
   // Form state for edit hosting
@@ -190,12 +191,32 @@ export default function HostingPage() {
   const createHosting = async () => {
     setIsCreating(true)
     try {
+      // Convert storage and bandwidth from MB (string) to GB (number)
+      const storageGB = newHosting.storage === '' || newHosting.storage.toLowerCase() === 'unlimited'
+        ? 0
+        : (() => {
+            const parsed = parseFloat(newHosting.storage)
+            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+          })()
+      
+      const bandwidthGB = newHosting.bandwidth === '' || newHosting.bandwidth.toLowerCase() === 'unlimited'
+        ? 0
+        : (() => {
+            const parsed = parseFloat(newHosting.bandwidth)
+            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+          })()
+      
       const response = await fetch('/api/hosting', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(newHosting),
+        body: JSON.stringify({
+          ...newHosting,
+          storage: storageGB,
+          bandwidth: bandwidthGB,
+          serverLocation: newHosting.serverLocation || null,
+        }),
       })
 
       if (response.ok) {
@@ -203,8 +224,8 @@ export default function HostingPage() {
         setIsCreateHostingDialogOpen(false)
         setNewHosting({
           planName: '',
-          storage: 0,
-          bandwidth: 0,
+          storage: '',
+          bandwidth: '',
           price: 0,
           status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
           addonDomain: 'Unlimited',
@@ -212,7 +233,8 @@ export default function HostingPage() {
           ftpAccounts: 'Unlimited',
           databases: 'Unlimited',
           hostingType: 'VPS Hosting',
-          operatingSystem: 'Linux'
+          operatingSystem: 'Linux',
+          serverLocation: '',
         })
         toastSuccess('Tạo gói hosting thành công!')
       } else {
@@ -296,8 +318,8 @@ export default function HostingPage() {
       operatingSystem: hosting.operatingSystem || 'Linux',
       domain: hasCustomerId ? ((hosting as any).domain || '') : '',
       registrationDate: hasCustomerId ? (hosting.createdAt || '') : '',
-      expiryDate: hasCustomerId ? ((hosting as any).expiryDate || '') : '',
-      serverLocation: hasCustomerId ? ((hosting as any).serverLocation || '') : '',
+      expiryDate: (hosting as any).expiryDate || '',
+      serverLocation: (hosting as any).serverLocation || '',
       customerId: customerId
     })
     // Fetch domains for this customer
@@ -358,14 +380,16 @@ export default function HostingPage() {
         operatingSystem: editHosting.operatingSystem,
       }
       
-      // Only include customerId and related fields if this is a purchased hosting
-      // For packages, never send customerId to keep them as packages
+      // ServerLocation can be set for both packages and purchased hosting
+      updateData.serverLocation = editHosting.serverLocation || null
+      
+      // Only include customerId, domain, expiryDate and related fields if this is a purchased hosting
+      // For packages, never send customerId, domain or expiryDate to keep them as packages
       if (!isPackage) {
         updateData.customerId = editHosting.customerId ? parseInt(String(editHosting.customerId)) : null
         updateData.domain = editHosting.domain || null
-        updateData.createdAt = editHosting.registrationDate || null
         updateData.expiryDate = editHosting.expiryDate || null
-        updateData.serverLocation = editHosting.serverLocation || null
+        updateData.createdAt = editHosting.registrationDate || null
       }
       
       const response = await fetch('/api/hosting', {
@@ -552,7 +576,7 @@ export default function HostingPage() {
                   <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="planName" className="text-right">
-                      Tên gói
+                      Tên gói <span className="text-red-500">*</span>
                     </Label>
                     <div className="col-span-3">
                       <Input 
@@ -565,29 +589,29 @@ export default function HostingPage() {
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="storage" className="text-right">
-                      Dung lượng (GB)
+                      Dung lượng (MB)
                     </Label>
                     <div className="col-span-3">
                       <Input 
                         id="storage" 
-                        type="number"
-                        placeholder="10"
+                        type="text"
+                        placeholder="Unlimited"
                         value={newHosting.storage}
-                        onChange={(e) => setNewHosting({...newHosting, storage: parseInt(e.target.value) || 0})}
+                        onChange={(e) => setNewHosting({...newHosting, storage: e.target.value})}
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="bandwidth" className="text-right">
-                      Băng thông (GB)
+                      Băng thông (MB)
                     </Label>
                     <div className="col-span-3">
                       <Input 
                         id="bandwidth" 
-                        type="number"
-                        placeholder="100"
+                        type="text"
+                        placeholder="Unlimited"
                         value={newHosting.bandwidth}
-                        onChange={(e) => setNewHosting({...newHosting, bandwidth: parseInt(e.target.value) || 0})}
+                        onChange={(e) => setNewHosting({...newHosting, bandwidth: e.target.value})}
                       />
                     </div>
                   </div>
@@ -683,12 +707,23 @@ export default function HostingPage() {
                       Loại hosting
                     </Label>
                     <div className="col-span-3">
-                      <Input 
-                        id="hostingType" 
-                        placeholder="VPS Hosting"
-                        value={newHosting.hostingType}
-                        onChange={(e) => setNewHosting({...newHosting, hostingType: e.target.value})}
-                      />
+                      <Select 
+                        value={newHosting.hostingType} 
+                        onValueChange={(value) =>
+                          setNewHosting({...newHosting, hostingType: value})
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn loại hosting" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Shared Hosting">Shared Hosting</SelectItem>
+                          <SelectItem value="VPS Hosting">VPS Hosting</SelectItem>
+                          <SelectItem value="Cloud Hosting">Cloud Hosting</SelectItem>
+                          <SelectItem value="Dedicated Server">Dedicated Server</SelectItem>
+                          <SelectItem value="WordPress Hosting">WordPress Hosting</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -701,6 +736,19 @@ export default function HostingPage() {
                         placeholder="Linux"
                         value={newHosting.operatingSystem}
                         onChange={(e) => setNewHosting({...newHosting, operatingSystem: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="serverLocation" className="text-right">
+                      Vị trí máy chủ
+                    </Label>
+                    <div className="col-span-3">
+                      <Input 
+                        id="serverLocation" 
+                        placeholder="Hanoi"
+                        value={newHosting.serverLocation}
+                        onChange={(e) => setNewHosting({...newHosting, serverLocation: e.target.value})}
                       />
                     </div>
                   </div>
@@ -798,7 +846,7 @@ export default function HostingPage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">Khách hàng</Label>
+                    <Label className="text-right">Khách hàng <span className="text-red-500">*</span></Label>
                     <div className="col-span-3">
                       <CustomerCombobox
                         customers={customers}
@@ -1333,24 +1381,40 @@ export default function HostingPage() {
                   const customerIdNum = typeof customerId === 'string' ? parseInt(customerId, 10) : customerId
                   const customer = customers.find(c => c.id === customerIdNum)
                   return (
-                    <div>
-                      <Label className="font-medium mb-2 block">Khách hàng</Label>
-                      <div className="text-sm text-gray-600">
-                        {customer ? `${customer.name} (${customer.email})` : '—'}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="font-medium mb-2 block">Khách hàng</Label>
+                        <div className="text-sm text-gray-600">
+                          {customer ? `${customer.name} (${customer.email})` : '—'}
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="font-medium mb-2 block">Giá</Label>
+                        <div className="text-sm text-gray-600">{formatCurrency(selectedHosting.price)}</div>
                       </div>
                     </div>
                   )
                 })()}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="font-medium mb-2 block">Domain</Label>
-                    <div className="text-sm text-gray-600">{(selectedHosting as any).domain || '—'}</div>
+                {(selectedHosting as any).customerId && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="font-medium mb-2 block">Domain</Label>
+                      <div className="text-sm text-gray-600">{(selectedHosting as any).domain || '—'}</div>
+                    </div>
+                    <div>
+                      <Label className="font-medium mb-2 block">Vị trí máy chủ</Label>
+                      <div className="text-sm text-gray-600">{(selectedHosting as any).serverLocation || '—'}</div>
+                    </div>
                   </div>
-                  <div>
-                    <Label className="font-medium mb-2 block">Vị trí Server</Label>
-                    <div className="text-sm text-gray-600">{(selectedHosting as any).serverLocation || '—'}</div>
+                )}
+                {!(selectedHosting as any).customerId && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="font-medium mb-2 block">Vị trí máy chủ</Label>
+                      <div className="text-sm text-gray-600">{(selectedHosting as any).serverLocation || '—'}</div>
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="font-medium mb-2 block">Dung lượng</Label>
@@ -1391,49 +1455,56 @@ export default function HostingPage() {
                     <div className="text-sm text-gray-600">{selectedHosting.operatingSystem || '—'}</div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="font-medium mb-2 block">Giá</Label>
-                    <div className="text-sm text-gray-600">{formatCurrency(selectedHosting.price)}</div>
-                  </div>
-                  {(selectedHosting as any).customerId ? (
+                {!(selectedHosting as any).customerId && (
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="font-medium mb-2 block">Ngày đăng ký</Label>
-                      <div className="text-sm text-gray-600">
-                        {new Date(selectedHosting.createdAt).toLocaleDateString('vi-VN')}
-                      </div>
+                      <Label className="font-medium mb-2 block">Giá</Label>
+                      <div className="text-sm text-gray-600">{formatCurrency(selectedHosting.price)}</div>
                     </div>
-                  ) : (
                     <div>
                       <Label className="font-medium mb-2 block">ID</Label>
                       <div className="text-sm text-gray-600">{selectedHosting.id}</div>
                     </div>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="font-medium mb-2 block">Ngày tạo</Label>
-                    <div className="text-sm text-gray-600">
-                      {new Date(selectedHosting.createdAt).toLocaleDateString('vi-VN')}
+                  </div>
+                )}
+                {(selectedHosting as any).customerId && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="font-medium mb-2 block">Ngày đăng ký</Label>
+                        <div className="text-sm text-gray-600">
+                          {new Date(selectedHosting.createdAt).toLocaleDateString('vi-VN')}
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="font-medium mb-2 block">Ngày hết hạn</Label>
+                        <div className="text-sm text-gray-600">
+                          {(selectedHosting as any).expiryDate 
+                            ? new Date((selectedHosting as any).expiryDate).toLocaleDateString('vi-VN')
+                            : '—'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="font-medium mb-2 block">Ngày cập nhật</Label>
+                        <div className="text-sm text-gray-600">
+                          {new Date(selectedHosting.updatedAt).toLocaleDateString('vi-VN')}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+                {!(selectedHosting as any).customerId && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="font-medium mb-2 block">Ngày cập nhật</Label>
+                      <div className="text-sm text-gray-600">
+                        {new Date(selectedHosting.updatedAt).toLocaleDateString('vi-VN')}
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <Label className="font-medium mb-2 block">Ngày cập nhật</Label>
-                    <div className="text-sm text-gray-600">
-                      {new Date(selectedHosting.updatedAt).toLocaleDateString('vi-VN')}
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="font-medium mb-2 block">Ngày hết hạn</Label>
-                    <div className="text-sm text-gray-600">
-                      {(selectedHosting as any).expiryDate 
-                        ? new Date((selectedHosting as any).expiryDate).toLocaleDateString('vi-VN')
-                        : '—'}
-                    </div>
-                  </div>
-                </div>
+                )}
                 </div>
               </div>
             )}
@@ -1464,7 +1535,7 @@ export default function HostingPage() {
               <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-planName" className="text-right">
-                  Tên gói
+                  Tên gói <span className="text-red-500">*</span>
                 </Label>
                 <div className="col-span-3">
                   <Input 
@@ -1696,21 +1767,21 @@ export default function HostingPage() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="edit-serverLocation" className="text-right">
-                      Server Location
-                    </Label>
-                    <div className="col-span-3">
-                      <Input 
-                        id="edit-serverLocation" 
-                        placeholder="Ho Chi Minh City"
-                        value={editHosting.serverLocation}
-                        onChange={(e) => setEditHosting({...editHosting, serverLocation: e.target.value})}
-                      />
-                    </div>
-                  </div>
                 </>
               )}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-serverLocation" className="text-right">
+                  Vị trí máy chủ
+                </Label>
+                <div className="col-span-3">
+                  <Input 
+                    id="edit-serverLocation" 
+                    placeholder="Ho Chi Minh City"
+                    value={editHosting.serverLocation}
+                    onChange={(e) => setEditHosting({...editHosting, serverLocation: e.target.value})}
+                  />
+                </div>
+              </div>
               </div>
             </div>
             <DialogFooter className="px-6 pt-4 pb-6 border-t">
