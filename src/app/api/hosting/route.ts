@@ -252,8 +252,8 @@ export async function PUT(req: Request) {
       .set({
         planName: planName || existingHosting[0].planName,
         domain: domain !== undefined ? (domain || null) : existingHosting[0].domain,
-        storage: storage || existingHosting[0].storage,
-        bandwidth: bandwidth || existingHosting[0].bandwidth,
+        storage: storage !== undefined ? storage : existingHosting[0].storage,
+        bandwidth: bandwidth !== undefined ? bandwidth : existingHosting[0].bandwidth,
         price: price ? price.toString() : existingHosting[0].price,
         status: status || existingHosting[0].status,
         customerId: customerId !== undefined ? (customerId || null) : existingHosting[0].customerId,
