@@ -53,6 +53,36 @@ interface VPS {
   updatedAt: string
 }
 
+// Helper function to calculate month-over-month change percentage
+const calculateMonthOverMonthChange = <T extends { createdAt: string }>(
+  items: T[],
+  getValue: (item: T) => number = () => 1
+): string => {
+  const now = new Date()
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+
+  const currentMonthValue = items
+    .filter(item => new Date(item.createdAt) >= currentMonthStart)
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  const lastMonthValue = items
+    .filter(item => {
+      const itemDate = new Date(item.createdAt)
+      return itemDate >= lastMonthStart && itemDate <= lastMonthEnd
+    })
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  if (lastMonthValue === 0) {
+    return currentMonthValue > 0 ? '+100%' : '—'
+  }
+
+  const changePercent = ((currentMonthValue - lastMonthValue) / lastMonthValue) * 100
+  const sign = changePercent >= 0 ? '+' : ''
+  return `${sign}${Math.round(changePercent)}%`
+}
+
 export default function VPSPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -1183,7 +1213,9 @@ export default function VPSPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{purchasedVps.length}</div>
-                <p className="text-xs text-gray-600">+8% so với tháng trước</p>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(purchasedVps)} so với tháng trước
+                </p>
               </CardContent>
             </Card>
             <Card>
@@ -1213,7 +1245,9 @@ export default function VPSPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{formatCurrency(purchasedVps.reduce((sum, v) => sum + v.price, 0))}</div>
-                <p className="text-xs text-gray-600">Tổng giá trị VPS</p>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(purchasedVps, (v) => v.price)} so với tháng trước
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -1229,7 +1263,9 @@ export default function VPSPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{vps.length}</div>
-                <p className="text-xs text-gray-600">+8% so với tháng trước</p>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(vps)} so với tháng trước
+                </p>
               </CardContent>
             </Card>
             <Card>
@@ -1259,7 +1295,9 @@ export default function VPSPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{formatCurrency(vps.reduce((sum, v) => sum + v.price, 0))}</div>
-                <p className="text-xs text-gray-600">Tổng giá trị gói</p>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(vps, (v) => v.price)} so với tháng trước
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -1304,6 +1342,7 @@ export default function VPSPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-fit">Thao Tác</TableHead>
                         <TableHead>Tên Gói</TableHead>
                         <TableHead>CPU</TableHead>
                         <TableHead>RAM</TableHead>
@@ -1312,12 +1351,18 @@ export default function VPSPage() {
                         <TableHead>Vị trí máy chủ</TableHead>
                         <TableHead>Trạng Thái</TableHead>
                         <TableHead>Giá</TableHead>
-                        <TableHead className="text-right">Thao Tác</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {paginatedVPS.map((v) => (
                         <TableRow key={v.id}>
+                          <TableCell className="w-fit">
+                            <div className="flex gap-1">
+                              <Button variant="outline" size="sm" className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteVPS(v)} title="Xóa"><Trash2 className="h-4 w-4" /></Button>
+                              <Button variant="outline" size="sm" className="w-8" onClick={() => handleEditVPS(v)} title="Chỉnh sửa"><Edit className="h-4 w-4" /></Button>
+                              <Button variant="outline" size="sm" className="w-8" onClick={() => handleViewVPS(v)} title="Xem chi tiết"><Eye className="h-4 w-4" /></Button>
+                            </div>
+                          </TableCell>
                           <TableCell className="font-medium">{v.planName}</TableCell>
                           <TableCell><div className="flex items-center space-x-1"><Cpu className="h-4 w-4 text-gray-500" /><span>{v.cpu} cores</span></div></TableCell>
                           <TableCell><div className="flex items-center space-x-1"><MemoryStick className="h-4 w-4 text-gray-500" /><span>{v.ram} GB</span></div></TableCell>
@@ -1326,13 +1371,6 @@ export default function VPSPage() {
                           <TableCell><span className="text-sm">{v.serverLocation || '—'}</span></TableCell>
                           <TableCell>{getStatusBadge(v.status)}</TableCell>
                           <TableCell>{formatCurrency(v.price)}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end space-x-2">
-                              <Button variant="ghost" size="sm" onClick={() => handleViewVPS(v)}><Eye className="h-4 w-4" /></Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleEditVPS(v)}><Edit className="h-4 w-4" /></Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleDeleteVPS(v)}><Trash2 className="text-red-600 hover:text-red-700 hover:bg-red-50" /></Button>
-                            </div>
-                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1350,7 +1388,7 @@ export default function VPSPage() {
                 <Table>
                   <TableHeader>
                       <TableRow>
-                      <TableHead>ID</TableHead>
+                      <TableHead>Thao Tác</TableHead>
                       <TableHead>Tên Gói</TableHead>
                       <TableHead>IP Address</TableHead>
                       <TableHead>CPU</TableHead>
@@ -1363,7 +1401,6 @@ export default function VPSPage() {
                       <TableHead>Ngày Hết Hạn</TableHead>
                       <TableHead>Trạng Thái</TableHead>
                       <TableHead>Giá</TableHead>
-                      <TableHead className="text-right">Thao Tác</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1372,8 +1409,23 @@ export default function VPSPage() {
                       const label = customer ? `${customer.name} (${customer.email})` : '—'
                       return (
                         <TableRow key={v.id}>
-                          <TableCell className="font-mono text-gray-600">{v.id}</TableCell>
-                          <TableCell className="font-medium">{v.planName}</TableCell>
+                          <TableCell className="w-fit">
+                            <div className="flex gap-1">
+                              <Button variant="outline" size="sm" className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteVPS(v)} title="Xóa">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Button variant="outline" size="sm" className="w-8" onClick={() => handleEditVPS(v)} title="Chỉnh sửa">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button variant="outline" size="sm" className="w-8" onClick={() => handleViewVPS(v)} title="Xem chi tiết">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium">{v.planName}</div>
+                            <div className="text-xs text-gray-500 font-mono">ID: {v.id}</div>
+                          </TableCell>
                           <TableCell>{v.ipAddress || 'Chưa có'}</TableCell>
                           <TableCell>{v.cpu} cores</TableCell>
                           <TableCell>{v.ram} GB</TableCell>
@@ -1385,19 +1437,6 @@ export default function VPSPage() {
                           <TableCell>{v.expiryDate ? formatDate(v.expiryDate) : '—'}</TableCell>
                           <TableCell>{getStatusBadge(v.status)}</TableCell>
                           <TableCell>{formatCurrency(v.price)}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end space-x-2">
-                              <Button variant="ghost" size="sm" onClick={() => handleViewVPS(v)} title="Xem chi tiết">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleEditVPS(v)} title="Chỉnh sửa">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleDeleteVPS(v)} title="Xóa" className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
                         </TableRow>
                       )
                     })}

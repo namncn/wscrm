@@ -60,6 +60,36 @@ interface DomainPackage {
   status: 'ACTIVE' | 'INACTIVE'
 }
 
+// Helper function to calculate month-over-month change percentage
+const calculateMonthOverMonthChange = <T extends { createdAt: string }>(
+  items: T[],
+  getValue: (item: T) => number = () => 1
+): string => {
+  const now = new Date()
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+
+  const currentMonthValue = items
+    .filter(item => new Date(item.createdAt) >= currentMonthStart)
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  const lastMonthValue = items
+    .filter(item => {
+      const itemDate = new Date(item.createdAt)
+      return itemDate >= lastMonthStart && itemDate <= lastMonthEnd
+    })
+    .reduce((sum, item) => sum + getValue(item), 0)
+
+  if (lastMonthValue === 0) {
+    return currentMonthValue > 0 ? '+100%' : '—'
+  }
+
+  const changePercent = ((currentMonthValue - lastMonthValue) / lastMonthValue) * 100
+  const sign = changePercent >= 0 ? '+' : ''
+  return `${sign}${Math.round(changePercent)}%`
+}
+
 export default function domainPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -820,7 +850,9 @@ export default function domainPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{domain.length}</div>
-                <p className="text-xs text-gray-600">+12% so với tháng trước</p>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(domain)} so với tháng trước
+                </p>
               </CardContent>
             </Card>
             <Card>
@@ -852,7 +884,9 @@ export default function domainPage() {
                 <div className="text-2xl font-bold">
                   {formatCurrency(domain.reduce((sum, d) => sum + (d.price ? parseFloat(d.price) : 0), 0).toString())}
                 </div>
-                <p className="text-xs text-gray-600">Tổng giá trị tên miền</p>
+                <p className="text-xs text-gray-600">
+                  {calculateMonthOverMonthChange(domain, (d) => d.price ? parseFloat(d.price) : 0)} so với tháng trước
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -868,7 +902,7 @@ export default function domainPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{domainPackages.length}</div>
-                <p className="text-xs text-gray-600">+5% so với tháng trước</p>
+                <p className="text-xs text-gray-600">—</p>
               </CardContent>
             </Card>
             <Card>
@@ -954,7 +988,7 @@ export default function domainPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID</TableHead>
+                      <TableHead className="w-fit">Thao Tác</TableHead>
                       <TableHead>Tên Miền</TableHead>
                       <TableHead>Nhà Đăng Ký</TableHead>
                       <TableHead>Khách Hàng</TableHead>
@@ -962,35 +996,28 @@ export default function domainPage() {
                       <TableHead>Ngày Hết Hạn</TableHead>
                       <TableHead>Trạng Thái</TableHead>
                       <TableHead>Giá</TableHead>
-                      <TableHead>Thao Tác</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedDomain.map((domain) => (
                       <TableRow key={domain.id}>
-                        <TableCell className="font-mono text-gray-600">{domain.id}</TableCell>
-                        <TableCell className="font-medium">{domain.domainName}</TableCell>
-                        <TableCell>{domain.registrar || 'Chưa có'}</TableCell>
-                        <TableCell>{domain.customerName ? `${domain.customerName} (${domain.customerEmail || ''})` : '—'}</TableCell>
-                        <TableCell>{formatDate(domain.registrationDate)}</TableCell>
-                        <TableCell>{formatDate(domain.expiryDate)}</TableCell>
-                        <TableCell>{getStatusBadge(domain.status)}</TableCell>
-                        <TableCell>{formatCurrency(domain.price)}</TableCell>
-                        <TableCell>
-                          <div className="flex space-x-2">
+                        <TableCell className="w-fit">
+                          <div className="flex gap-1">
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
+                              className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
                               onClick={() => {
                                 setSelectedDomain(domain)
-                                setIsViewDomainDialogOpen(true)
+                                setIsDeleteDomainDialogOpen(true)
                               }}
                             >
-                              <Eye className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
+                              className="w-8"
                               onClick={() => {
                                 setEditDomain({
                                   domainName: domain.domainName,
@@ -1008,18 +1035,28 @@ export default function domainPage() {
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              className="w-8"
                               onClick={() => {
                                 setSelectedDomain(domain)
-                                setIsDeleteDomainDialogOpen(true)
+                                setIsViewDomainDialogOpen(true)
                               }}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Eye className="h-4 w-4" />
                             </Button>
                           </div>
                         </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{domain.domainName}</div>
+                          <div className="text-xs text-gray-500 font-mono">ID: {domain.id}</div>
+                        </TableCell>
+                        <TableCell>{domain.registrar || 'Chưa có'}</TableCell>
+                        <TableCell>{domain.customerName ? `${domain.customerName} (${domain.customerEmail || ''})` : '—'}</TableCell>
+                        <TableCell>{formatDate(domain.registrationDate)}</TableCell>
+                        <TableCell>{formatDate(domain.expiryDate)}</TableCell>
+                        <TableCell>{getStatusBadge(domain.status)}</TableCell>
+                        <TableCell>{formatCurrency(domain.price)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1051,18 +1088,44 @@ export default function domainPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-fit">Thao Tác</TableHead>
                       <TableHead>Tên Gói</TableHead>
                       <TableHead>Giá</TableHead>
                       <TableHead>Mô Tả</TableHead>
                       <TableHead>Danh Mục</TableHead>
                       <TableHead>Phổ Biến</TableHead>
                       <TableHead>Trạng Thái</TableHead>
-                      <TableHead>Thao Tác</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedPackages.map((pkg) => (
                       <TableRow key={pkg.id}>
+                        <TableCell className="w-fit">
+                          <div className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedPackage(pkg)
+                                setIsDeletePackageDialogOpen(true)
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-8"
+                              onClick={() => {
+                                setSelectedPackage(pkg)
+                                setIsEditPackageDialogOpen(true)
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                         <TableCell className="font-medium">{pkg.name}</TableCell>
                         <TableCell>{formatCurrency(pkg.price.toString())}</TableCell>
                         <TableCell className="max-w-xs truncate">{pkg.description}</TableCell>
@@ -1075,31 +1138,6 @@ export default function domainPage() {
                           )}
                         </TableCell>
                         <TableCell>{getStatusBadge(pkg.status)}</TableCell>
-                        <TableCell>
-                          <div className="flex space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedPackage(pkg)
-                                setIsEditPackageDialogOpen(true)
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedPackage(pkg)
-                                setIsDeletePackageDialogOpen(true)
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

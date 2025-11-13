@@ -30,6 +30,10 @@ interface DashboardStats {
   vpsCount: number
   recentOrders: any[]
   alerts: any[]
+  customerChange?: { value: string; type: 'positive' | 'negative' }
+  ordersChange?: { value: string; type: 'positive' | 'negative' }
+  contractsChange?: { value: string; type: 'positive' | 'negative' }
+  revenueChange?: { value: string; type: 'positive' | 'negative' }
 }
 
 export default function HomePage() {
@@ -44,7 +48,11 @@ export default function HomePage() {
     hostingCount: 0,
     vpsCount: 0,
     recentOrders: [],
-    alerts: []
+    alerts: [],
+    customerChange: { value: '—', type: 'positive' },
+    ordersChange: { value: '—', type: 'positive' },
+    contractsChange: { value: '—', type: 'positive' },
+    revenueChange: { value: '—', type: 'positive' }
   })
   const [isLoading, setIsLoading] = useState(true)
   const brandName = getBrandName()
@@ -112,6 +120,52 @@ export default function HomePage() {
         const amount = parseFloat(order.totalAmount) || 0
         return sum + amount
       }, 0)
+
+      const lastMonthRevenue = lastMonthOrders.reduce((sum: number, order: any) => {
+        const amount = parseFloat(order.totalAmount) || 0
+        return sum + amount
+      }, 0)
+
+      // Calculate month-over-month changes
+      const calculateChange = (current: number, last: number): { value: string; type: 'positive' | 'negative' } => {
+        if (last === 0) {
+          return { value: current > 0 ? '+100%' : '—', type: 'positive' }
+        }
+        const changePercent = ((current - last) / last) * 100
+        const sign = changePercent >= 0 ? '+' : ''
+        return {
+          value: `${sign}${Math.round(changePercent)}%`,
+          type: changePercent >= 0 ? 'positive' : 'negative'
+        }
+      }
+
+      // Calculate customer change
+      const lastMonthCustomers = customers.filter((c: any) => {
+        const customerDate = new Date(c.createdAt)
+        return customerDate >= startOfLastMonth && customerDate <= endOfLastMonth
+      })
+      const currentMonthCustomers = customers.filter((c: any) => {
+        const customerDate = new Date(c.createdAt)
+        return customerDate >= startOfMonth
+      })
+      const customerChange = calculateChange(currentMonthCustomers.length, lastMonthCustomers.length)
+
+      // Calculate orders change
+      const ordersChange = calculateChange(monthlyOrders.length, lastMonthOrders.length)
+
+      // Calculate contracts change
+      const lastMonthContracts = contracts.filter((c: any) => {
+        const contractDate = new Date(c.createdAt)
+        return contractDate >= startOfLastMonth && contractDate <= endOfLastMonth
+      })
+      const currentMonthContracts = contracts.filter((c: any) => {
+        const contractDate = new Date(c.createdAt)
+        return contractDate >= startOfMonth
+      })
+      const contractsChange = calculateChange(currentMonthContracts.length, lastMonthContracts.length)
+
+      // Calculate revenue change
+      const revenueChange = calculateChange(monthlyRevenue, lastMonthRevenue)
 
       // Active contracts
       const activeContracts = contracts.filter((c: any) => c.status === 'ACTIVE')
@@ -183,11 +237,6 @@ export default function HomePage() {
         })
       }
 
-      // Calculate percentage changes (simple comparison)
-      const ordersChange = lastMonthOrders.length > 0 
-        ? Math.round(((monthlyOrders.length - lastMonthOrders.length) / lastMonthOrders.length) * 100)
-        : monthlyOrders.length > 0 ? 100 : 0
-
       setStats({
         totalCustomers: customers.length,
         monthlyOrders: monthlyOrders.length,
@@ -197,7 +246,11 @@ export default function HomePage() {
         hostingCount: hostings.length,
         vpsCount: vpsList.length,
         recentOrders,
-        alerts
+        alerts,
+        customerChange,
+        ordersChange,
+        contractsChange,
+        revenueChange
       })
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
@@ -227,29 +280,29 @@ export default function HomePage() {
     {
       title: 'Tổng Khách Hàng',
       value: stats.totalCustomers.toLocaleString('vi-VN'),
-      change: '+0%', // Can calculate from previous month if needed
-      changeType: 'positive' as const,
+      change: stats.customerChange?.value || '—',
+      changeType: (stats.customerChange?.type || 'positive') as 'positive' | 'negative',
       icon: Users,
     },
     {
       title: 'Đơn Hàng Tháng',
       value: stats.monthlyOrders.toString(),
-      change: '+0%', // Will calculate from last month data if available
-      changeType: 'positive' as const,
+      change: stats.ordersChange?.value || '—',
+      changeType: (stats.ordersChange?.type || 'positive') as 'positive' | 'negative',
       icon: ShoppingCart,
     },
     {
       title: 'Hợp Đồng Hoạt Động',
       value: stats.activeContracts.toString(),
-      change: '+0%',
-      changeType: 'positive' as const,
+      change: stats.contractsChange?.value || '—',
+      changeType: (stats.contractsChange?.type || 'positive') as 'positive' | 'negative',
       icon: FileText,
     },
     {
       title: 'Doanh Thu Tháng',
       value: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(stats.monthlyRevenue),
-      change: '+0%',
-      changeType: 'positive' as const,
+      change: stats.revenueChange?.value || '—',
+      changeType: (stats.revenueChange?.type || 'positive') as 'positive' | 'negative',
       icon: TrendingUp,
     },
   ]
