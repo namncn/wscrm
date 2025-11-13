@@ -32,7 +32,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { Pagination } from '@/components/ui/pagination'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
 import { DomainCombobox } from '@/components/ui/domain-combobox'
-import { Server, Plus, Search, Eye, RefreshCw, CheckCircle, XCircle, HardDrive, Cpu, Edit, Trash2, Loader2 } from 'lucide-react'
+import { Server, Plus, Search, Eye, RefreshCw, CheckCircle, XCircle, HardDrive, Cpu, Edit, Trash2, Loader2, DollarSign } from 'lucide-react'
 import { toastSuccess, toastError } from '@/lib/toast'
 
 interface Hosting {
@@ -1001,50 +1001,6 @@ export default function HostingPage() {
           )}
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tổng Gói Hosting</CardTitle>
-              <Server className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{hostings.length}</div>
-              <p className="text-xs text-gray-600">+8% so với tháng trước</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{hostings.filter(h => h.status === 'ACTIVE').length}</div>
-              <p className="text-xs text-gray-600">Đang hoạt động</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Không Hoạt Động</CardTitle>
-              <XCircle className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{hostings.filter(h => h.status === 'INACTIVE').length}</div>
-              <p className="text-xs text-gray-600">Tạm dừng</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tổng Dung Lượng</CardTitle>
-              <HardDrive className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatStorage(hostings.reduce((sum, h) => sum + h.storage, 0))}</div>
-              <p className="text-xs text-gray-600">Tổng dung lượng</p>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Tabs (styled like admin/domain) */}
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8">
@@ -1070,6 +1026,98 @@ export default function HostingPage() {
             </button>
           </nav>
         </div>
+
+        {/* Stats Cards for Purchased Hostings */}
+        {activeTab === 'purchased' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Hosting Đã Đăng Ký</CardTitle>
+                <Server className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{purchasedHostings.length}</div>
+                <p className="text-xs text-gray-600">+8% so với tháng trước</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{purchasedHostings.filter(h => h.status === 'ACTIVE').length}</div>
+                <p className="text-xs text-gray-600">Đang hoạt động</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Dung Lượng</CardTitle>
+                <HardDrive className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatStorage(purchasedHostings.reduce((sum, h) => sum + h.storage, 0))}</div>
+                <p className="text-xs text-gray-600">Tổng dung lượng</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Giá Trị</CardTitle>
+                <DollarSign className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatCurrency(purchasedHostings.reduce((sum, h) => sum + parseFloat(h.price), 0).toString())}</div>
+                <p className="text-xs text-gray-600">Tổng giá trị hosting</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Stats Cards for Packages */}
+        {activeTab === 'packages' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Gói Hosting</CardTitle>
+                <Server className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{hostings.length}</div>
+                <p className="text-xs text-gray-600">+8% so với tháng trước</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{hostings.filter(h => h.status === 'ACTIVE').length}</div>
+                <p className="text-xs text-gray-600">Đang hoạt động</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Không Hoạt Động</CardTitle>
+                <XCircle className="h-4 w-4 text-red-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{hostings.filter(h => h.status === 'INACTIVE').length}</div>
+                <p className="text-xs text-gray-600">Tạm dừng</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Dung Lượng</CardTitle>
+                <HardDrive className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatStorage(hostings.reduce((sum, h) => sum + h.storage, 0))}</div>
+                <p className="text-xs text-gray-600">Tổng dung lượng</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Search */}
         <Card>
@@ -1107,9 +1155,15 @@ export default function HostingPage() {
                       <TableHead>Tên Gói</TableHead>
                       <TableHead>Dung Lượng</TableHead>
                       <TableHead>Băng Thông</TableHead>
+                      <TableHead>Addon Domain</TableHead>
+                      <TableHead>Sub Domain</TableHead>
+                      <TableHead>Tài Khoản FTP</TableHead>
+                      <TableHead>Database</TableHead>
                       <TableHead>Giá</TableHead>
+                      <TableHead>Ngày Tạo</TableHead>
+                      <TableHead>Ngày Cập Nhật</TableHead>
                       <TableHead>Trạng Thái</TableHead>
-                      <TableHead>Thao Tác</TableHead>
+                      <TableHead className="text-right">Thao Tác</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1133,10 +1187,32 @@ export default function HostingPage() {
                             <span>{formatBandwidth(hosting.bandwidth)}</span>
                           </div>
                         </TableCell>
-                        <TableCell>{formatCurrency(hosting.price)}</TableCell>
-                        <TableCell>{getStatusBadge(hosting.status)}</TableCell>
                         <TableCell>
-                          <div className="flex space-x-2">
+                          <span className="text-sm">{hosting.addonDomain || '—'}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm">{hosting.subDomain || '—'}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm">{hosting.ftpAccounts || '—'}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm">{hosting.databases || '—'}</span>
+                        </TableCell>
+                        <TableCell>{formatCurrency(hosting.price)}</TableCell>
+                        <TableCell>
+                          <span className="text-sm text-gray-600">
+                            {new Date(hosting.createdAt).toLocaleDateString('vi-VN')}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-gray-600">
+                            {new Date(hosting.updatedAt).toLocaleDateString('vi-VN')}
+                          </span>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(hosting.status)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end space-x-2">
                             <Button variant="ghost" size="sm" onClick={() => handleViewHosting(hosting)} title="Xem chi tiết">
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -1173,7 +1249,7 @@ export default function HostingPage() {
                       <TableHead>Ngày Hết Hạn</TableHead>
                       <TableHead>Giá</TableHead>
                       <TableHead>Trạng Thái</TableHead>
-                      <TableHead>Thao Tác</TableHead>
+                      <TableHead className="text-right">Thao Tác</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1193,8 +1269,8 @@ export default function HostingPage() {
                           <TableCell>{(hosting as any).expiryDate ? new Date((hosting as any).expiryDate as any).toLocaleDateString('vi-VN') : '—'}</TableCell>
                           <TableCell>{formatCurrency(hosting.price)}</TableCell>
                           <TableCell>{getStatusBadge(hosting.status)}</TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
+                          <TableCell className="text-right">
+                            <div className="flex justify-end space-x-2">
                               <Button variant="ghost" size="sm" onClick={() => handleViewHosting(hosting)} title="Xem chi tiết">
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -1226,11 +1302,17 @@ export default function HostingPage() {
 
         {/* View Hosting Dialog */}
         <Dialog open={isViewHostingDialogOpen} onOpenChange={setIsViewHostingDialogOpen}>
-          <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
             <DialogHeader className="px-6 pt-6 pb-4">
-              <DialogTitle>Chi Tiết Gói Hosting</DialogTitle>
+              <DialogTitle>
+                {selectedHosting && (selectedHosting as any).customerId 
+                  ? 'Chi Tiết Gói Hosting Đã Đăng Ký'
+                  : 'Chi Tiết Gói Hosting'}
+              </DialogTitle>
               <DialogDescription>
-                Thông tin chi tiết của gói hosting
+                {selectedHosting && (selectedHosting as any).customerId
+                  ? 'Thông tin chi tiết của gói hosting đã đăng ký cho khách hàng'
+                  : 'Thông tin chi tiết của gói hosting'}
               </DialogDescription>
             </DialogHeader>
             {selectedHosting && (
@@ -1246,12 +1328,29 @@ export default function HostingPage() {
                     <div>{getStatusBadge(selectedHosting.status)}</div>
                   </div>
                 </div>
-                {(selectedHosting as any).domain && (
+                {(selectedHosting as any).customerId && (() => {
+                  const customerId = (selectedHosting as any).customerId
+                  const customerIdNum = typeof customerId === 'string' ? parseInt(customerId, 10) : customerId
+                  const customer = customers.find(c => c.id === customerIdNum)
+                  return (
+                    <div>
+                      <Label className="font-medium mb-2 block">Khách hàng</Label>
+                      <div className="text-sm text-gray-600">
+                        {customer ? `${customer.name} (${customer.email})` : '—'}
+                      </div>
+                    </div>
+                  )
+                })()}
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="font-medium mb-2 block">Domain</Label>
-                    <div className="text-sm text-gray-600">{(selectedHosting as any).domain}</div>
+                    <div className="text-sm text-gray-600">{(selectedHosting as any).domain || '—'}</div>
                   </div>
-                )}
+                  <div>
+                    <Label className="font-medium mb-2 block">Vị trí Server</Label>
+                    <div className="text-sm text-gray-600">{(selectedHosting as any).serverLocation || '—'}</div>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="font-medium mb-2 block">Dung lượng</Label>
@@ -1262,65 +1361,76 @@ export default function HostingPage() {
                     <div className="text-sm text-gray-600">{formatBandwidth(selectedHosting.bandwidth)}</div>
                   </div>
                 </div>
-                {selectedHosting.addonDomain && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="font-medium mb-2 block">Addon Domain</Label>
-                      <div className="text-sm text-gray-600">{selectedHosting.addonDomain}</div>
-                    </div>
-                    <div>
-                      <Label className="font-medium mb-2 block">Sub Domain</Label>
-                      <div className="text-sm text-gray-600">{selectedHosting.subDomain}</div>
-                    </div>
-                  </div>
-                )}
-                {(selectedHosting.ftpAccounts || selectedHosting.databases) && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="font-medium mb-2 block">Tài khoản FTP</Label>
-                      <div className="text-sm text-gray-600">{selectedHosting.ftpAccounts}</div>
-                    </div>
-                    <div>
-                      <Label className="font-medium mb-2 block">Database</Label>
-                      <div className="text-sm text-gray-600">{selectedHosting.databases}</div>
-                    </div>
-                  </div>
-                )}
-                {(selectedHosting.hostingType || selectedHosting.operatingSystem) && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="font-medium mb-2 block">Loại hosting</Label>
-                      <div className="text-sm text-gray-600">{selectedHosting.hostingType}</div>
-                    </div>
-                    <div>
-                      <Label className="font-medium mb-2 block">Hệ điều hành</Label>
-                      <div className="text-sm text-gray-600">{selectedHosting.operatingSystem}</div>
-                    </div>
-                  </div>
-                )}
-                {(selectedHosting as any).expiryDate && (
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="font-medium mb-2 block">Ngày hết hạn</Label>
-                    <div className="text-sm text-gray-600">
-                      {new Date((selectedHosting as any).expiryDate).toLocaleDateString('vi-VN')}
-                    </div>
+                    <Label className="font-medium mb-2 block">Addon Domain</Label>
+                    <div className="text-sm text-gray-600">{selectedHosting.addonDomain || '—'}</div>
                   </div>
-                )}
-                {(selectedHosting as any).serverLocation && (
                   <div>
-                    <Label className="font-medium mb-2 block">Server Location</Label>
-                    <div className="text-sm text-gray-600">{(selectedHosting as any).serverLocation}</div>
+                    <Label className="font-medium mb-2 block">Sub Domain</Label>
+                    <div className="text-sm text-gray-600">{selectedHosting.subDomain || '—'}</div>
                   </div>
-                )}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="font-medium mb-2 block">Tài khoản FTP</Label>
+                    <div className="text-sm text-gray-600">{selectedHosting.ftpAccounts || '—'}</div>
+                  </div>
+                  <div>
+                    <Label className="font-medium mb-2 block">Database</Label>
+                    <div className="text-sm text-gray-600">{selectedHosting.databases || '—'}</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="font-medium mb-2 block">Loại hosting</Label>
+                    <div className="text-sm text-gray-600">{selectedHosting.hostingType || '—'}</div>
+                  </div>
+                  <div>
+                    <Label className="font-medium mb-2 block">Hệ điều hành</Label>
+                    <div className="text-sm text-gray-600">{selectedHosting.operatingSystem || '—'}</div>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="font-medium mb-2 block">Giá</Label>
                     <div className="text-sm text-gray-600">{formatCurrency(selectedHosting.price)}</div>
                   </div>
+                  {(selectedHosting as any).customerId ? (
+                    <div>
+                      <Label className="font-medium mb-2 block">Ngày đăng ký</Label>
+                      <div className="text-sm text-gray-600">
+                        {new Date(selectedHosting.createdAt).toLocaleDateString('vi-VN')}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <Label className="font-medium mb-2 block">ID</Label>
+                      <div className="text-sm text-gray-600">{selectedHosting.id}</div>
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="font-medium mb-2 block">Ngày tạo</Label>
                     <div className="text-sm text-gray-600">
                       {new Date(selectedHosting.createdAt).toLocaleDateString('vi-VN')}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="font-medium mb-2 block">Ngày cập nhật</Label>
+                    <div className="text-sm text-gray-600">
+                      {new Date(selectedHosting.updatedAt).toLocaleDateString('vi-VN')}
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="font-medium mb-2 block">Ngày hết hạn</Label>
+                    <div className="text-sm text-gray-600">
+                      {(selectedHosting as any).expiryDate 
+                        ? new Date((selectedHosting as any).expiryDate).toLocaleDateString('vi-VN')
+                        : '—'}
                     </div>
                   </div>
                 </div>

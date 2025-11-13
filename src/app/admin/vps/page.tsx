@@ -32,7 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DatePicker } from '@/components/ui/date-picker'
 import { Pagination } from '@/components/ui/pagination'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
-import { Monitor, Plus, Search, Eye, CheckCircle, XCircle, HardDrive, Cpu, MemoryStick, Loader2, Edit, Trash2 } from 'lucide-react'
+import { Monitor, Plus, Search, Eye, CheckCircle, XCircle, HardDrive, Cpu, MemoryStick, Loader2, Edit, Trash2, DollarSign } from 'lucide-react'
 import { toastError, toastSuccess } from '@/lib/toast'
 
 interface VPS {
@@ -351,6 +351,16 @@ export default function VPSPage() {
       style: 'currency',
       currency: 'VND',
     }).format(amount)
+  }
+
+  const formatStorage = (storage: number) => {
+    if (storage === 0 || storage === null || storage === undefined) {
+      return 'Unlimited'
+    }
+    if (storage >= 1024) {
+      return `${(storage / 1024).toFixed(1)}TB`
+    }
+    return `${storage}GB`
   }
 
   const formatDate = (dateString: string | null) => {
@@ -1046,56 +1056,6 @@ export default function VPSPage() {
               </DialogContent>
             </Dialog>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tổng VPS</CardTitle>
-              <Monitor className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{vps.length}</div>
-              <p className="text-xs text-muted-foreground">Tất cả máy chủ ảo</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {vps.filter(v => v.status === 'ACTIVE').length}
-              </div>
-              <p className="text-xs text-muted-foreground">Đang hoạt động</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Không Hoạt Động</CardTitle>
-              <XCircle className="h-4 w-4 text-gray-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {vps.filter(v => v.status === 'INACTIVE').length}
-              </div>
-              <p className="text-xs text-muted-foreground">Không hoạt động</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tổng Giá Trị</CardTitle>
-              <MemoryStick className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatCurrency(vps.reduce((sum, v) => sum + v.price, 0))}
-              </div>
-              <p className="text-xs text-muted-foreground">Tổng giá trị</p>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Tabs (styled like admin/domain) */}
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8">
@@ -1121,6 +1081,98 @@ export default function VPSPage() {
             </button>
           </nav>
         </div>
+
+        {/* Stats Cards for Purchased VPS */}
+        {activeTab === 'purchased' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng VPS Đã Đăng Ký</CardTitle>
+                <Monitor className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{purchasedVps.length}</div>
+                <p className="text-xs text-gray-600">+8% so với tháng trước</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{purchasedVps.filter(v => v.status === 'ACTIVE').length}</div>
+                <p className="text-xs text-gray-600">Đang hoạt động</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Dung Lượng</CardTitle>
+                <HardDrive className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatStorage(purchasedVps.reduce((sum, v) => sum + v.storage, 0))}</div>
+                <p className="text-xs text-gray-600">Tổng dung lượng</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Giá Trị</CardTitle>
+                <DollarSign className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatCurrency(purchasedVps.reduce((sum, v) => sum + v.price, 0))}</div>
+                <p className="text-xs text-gray-600">Tổng giá trị VPS</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Stats Cards for VPS Packages */}
+        {activeTab === 'packages' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Gói VPS</CardTitle>
+                <Monitor className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{vps.length}</div>
+                <p className="text-xs text-gray-600">+8% so với tháng trước</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Hoạt Động</CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{vps.filter(v => v.status === 'ACTIVE').length}</div>
+                <p className="text-xs text-gray-600">Đang hoạt động</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Dung Lượng</CardTitle>
+                <HardDrive className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatStorage(vps.reduce((sum, v) => sum + v.storage, 0))}</div>
+                <p className="text-xs text-gray-600">Tổng dung lượng</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng Giá Trị</CardTitle>
+                <DollarSign className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatCurrency(vps.reduce((sum, v) => sum + v.price, 0))}</div>
+                <p className="text-xs text-gray-600">Tổng giá trị gói</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Search and Filters */}
         <Card>
