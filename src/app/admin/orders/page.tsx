@@ -654,7 +654,7 @@ export default function OrdersPage() {
                 <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="customer" className="text-right">
-                    Khách hàng
+                    Khách hàng <span className="text-red-500">*</span>
                   </Label>
                   <div className="col-span-3">
                     <CustomerCombobox

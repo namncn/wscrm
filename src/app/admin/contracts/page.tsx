@@ -530,7 +530,7 @@ export default function ContractsPage() {
                 <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="order" className="text-right">
-                    Đơn hàng
+                    Đơn hàng <span className="text-red-500">*</span>
                   </Label>
                   <div className="col-span-3">
                     <OrderCombobox

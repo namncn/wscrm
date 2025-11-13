@@ -100,6 +100,7 @@ export const vps = mysqlTable('vps', {
   customerId: int('customerId'),
   expiryDate: date('expiryDate'),
   os: varchar('os', { length: 255 }),
+  serverLocation: varchar('serverLocation', { length: 255 }),
   createdAt: timestamp('createdAt').defaultNow(),
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
 })

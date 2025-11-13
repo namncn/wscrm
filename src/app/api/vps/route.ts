@@ -167,7 +167,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
-    const { planName, ipAddress, cpu, ram, storage, bandwidth, price, status, customerId, expiryDate, os } = body
+    const { planName, ipAddress, cpu, ram, storage, bandwidth, price, status, customerId, expiryDate, os, createdAt, serverLocation } = body
 
     // Validate required fields
     if (!planName || !cpu || !ram || !storage || !bandwidth || !price) {
@@ -194,6 +194,8 @@ export async function POST(req: Request) {
         customerId: customerId || null,
         expiryDate: expiryDate ? expiryDate.split('T')[0] : null,
         os: os || null,
+        serverLocation: serverLocation || null,
+        createdAt: createdAt ? new Date(createdAt) : undefined,
       })
 
     // Get the created VPS plan
@@ -219,7 +221,7 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json()
-    const { id, planName, ipAddress, cpu, ram, storage, bandwidth, price, status, customerId, expiryDate, os } = body
+    const { id, planName, ipAddress, cpu, ram, storage, bandwidth, price, status, customerId, expiryDate, os, createdAt, serverLocation } = body
 
     if (!id) {
       return createErrorResponse('ID gói VPS là bắt buộc', 400)
@@ -251,6 +253,8 @@ export async function PUT(req: Request) {
         customerId: customerId !== undefined ? (customerId || null) : existingVps[0].customerId,
         expiryDate: expiryDate !== undefined ? (expiryDate ? expiryDate.split('T')[0] : null) : existingVps[0].expiryDate,
         os: os !== undefined ? (os || null) : existingVps[0].os,
+        serverLocation: serverLocation !== undefined ? (serverLocation || null) : existingVps[0].serverLocation,
+        createdAt: createdAt !== undefined ? (createdAt ? new Date(createdAt) : existingVps[0].createdAt) : existingVps[0].createdAt,
         updatedAt: new Date(),
       })
       .where(eq(vps.id, id))

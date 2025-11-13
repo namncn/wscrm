@@ -534,7 +534,7 @@ export default function domainPage() {
                     <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="domainName" className="text-right">
-                        Tên miền
+                        Tên miền <span className="text-red-500">*</span>
                       </Label>
                       <div className="col-span-3">
                         <Input 
@@ -668,7 +668,7 @@ export default function domainPage() {
                     <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="packageName" className="text-right">
-                        Tên gói
+                        Tên gói <span className="text-red-500">*</span>
                       </Label>
                       <div className="col-span-3">
                         <Input 
@@ -681,7 +681,7 @@ export default function domainPage() {
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="packagePrice" className="text-right">
-                        Giá
+                        Giá <span className="text-red-500">*</span>
                       </Label>
                       <div className="col-span-3">
                         <Input 
@@ -696,7 +696,7 @@ export default function domainPage() {
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="packageDescription" className="text-right">
-                        Mô tả
+                        Mô tả <span className="text-red-500">*</span>
                       </Label>
                       <div className="col-span-3">
                         <Textarea 
@@ -722,7 +722,7 @@ export default function domainPage() {
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="packageCategory" className="text-right">
-                        Danh mục
+                        Danh mục <span className="text-red-500">*</span>
                       </Label>
                       <div className="col-span-3">
                         <Select 
@@ -1197,7 +1197,7 @@ export default function domainPage() {
               <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="editDomainName" className="text-right">
-                  Tên miền
+                  Tên miền <span className="text-red-500">*</span>
                 </Label>
                 <div className="col-span-3">
                   <Input 
@@ -1379,7 +1379,7 @@ export default function domainPage() {
                 <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="editPackageName" className="text-right">
-                    Tên gói
+                    Tên gói <span className="text-red-500">*</span>
                   </Label>
                   <div className="col-span-3">
                     <Input 
@@ -1391,7 +1391,7 @@ export default function domainPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="editPackagePrice" className="text-right">
-                    Giá
+                    Giá <span className="text-red-500">*</span>
                   </Label>
                   <div className="col-span-3">
                     <Input 
@@ -1405,7 +1405,7 @@ export default function domainPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="editPackageDescription" className="text-right">
-                    Mô tả
+                    Mô tả <span className="text-red-500">*</span>
                   </Label>
                   <div className="col-span-3">
                     <Textarea 
@@ -1433,7 +1433,7 @@ export default function domainPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="editPackageCategory" className="text-right">
-                    Danh mục
+                    Danh mục <span className="text-red-500">*</span>
                   </Label>
                   <div className="col-span-3">
                     <Select 
