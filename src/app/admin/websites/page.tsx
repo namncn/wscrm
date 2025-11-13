@@ -514,8 +514,11 @@ export default function WebsitesPage() {
                   <div className="col-span-3">
                     <DomainCombobox
                       domains={domains}
-                      value={newWebsite.domainId}
-                      onValueChange={(value) => setNewWebsite({...newWebsite, domainId: value})}
+                      value={newWebsite.domainId ? domains.find(d => d.id === newWebsite.domainId)?.domainName || null : null}
+                      onValueChange={(value) => {
+                        const selectedDomain = domains.find(d => d.domainName === value)
+                        setNewWebsite({...newWebsite, domainId: selectedDomain ? selectedDomain.id : null})
+                      }}
                     />
                   </div>
                 </div>
