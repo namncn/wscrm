@@ -168,7 +168,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
     const { 
-      planName, domain, storage, bandwidth, price, status, customerId, expiryDate, serverLocation,
+      planName, domain, storage, bandwidth, price, status, customerId, expiryDate, createdAt, serverLocation,
       addonDomain, subDomain, ftpAccounts, databases, hostingType, operatingSystem
     } = body
 
@@ -200,6 +200,7 @@ export async function POST(req: Request) {
         status: status || 'ACTIVE',
         customerId: customerId || null,
         expiryDate: expiryDate ? expiryDate.split('T')[0] : null,
+        createdAt: createdAt ? new Date(createdAt.split('T')[0]) : new Date(),
         serverLocation: serverLocation || null,
         addonDomain: addonDomain || 'Unlimited',
         subDomain: subDomain || 'Unlimited',
@@ -233,7 +234,7 @@ export async function PUT(req: Request) {
   try {
     const body = await req.json()
     const { 
-      id, planName, domain, storage, bandwidth, price, status, customerId, expiryDate, serverLocation,
+      id, planName, domain, storage, bandwidth, price, status, customerId, expiryDate, createdAt, serverLocation,
       addonDomain, subDomain, ftpAccounts, databases, hostingType, operatingSystem
     } = body
 
@@ -264,6 +265,7 @@ export async function PUT(req: Request) {
         status: status || existingHosting[0].status,
         customerId: customerId !== undefined ? (customerId || null) : existingHosting[0].customerId,
         expiryDate: expiryDate !== undefined ? (expiryDate ? expiryDate.split('T')[0] : null) : existingHosting[0].expiryDate,
+        createdAt: createdAt !== undefined ? (createdAt ? new Date(createdAt.split('T')[0]) : existingHosting[0].createdAt) : existingHosting[0].createdAt,
         serverLocation: serverLocation !== undefined ? (serverLocation || null) : existingHosting[0].serverLocation,
         addonDomain: addonDomain !== undefined ? addonDomain : existingHosting[0].addonDomain,
         subDomain: subDomain !== undefined ? subDomain : existingHosting[0].subDomain,

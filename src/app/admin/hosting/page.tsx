@@ -64,6 +64,14 @@ const formatDateToLocalString = (date: Date): string => {
   return `${year}-${month}-${day}`
 }
 
+// Helper function to format Date to YYYY-MM-DD string, ensuring local timezone
+const formatDateForAPI = (date: Date | undefined): string | null => {
+  if (!date) return null
+  // Ensure we use local date components to avoid timezone issues
+  const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return formatDateToLocalString(localDate)
+}
+
 // Helper function to calculate month-over-month change percentage
 const calculateMonthOverMonthChange = <T extends { createdAt: string }>(
   items: T[],
@@ -336,13 +344,42 @@ export default function HostingPage() {
     const storageMB = hosting.storage > 0 ? String(hosting.storage * 1024) : ''
     const bandwidthMB = hosting.bandwidth > 0 ? String(hosting.bandwidth * 1024) : ''
     
-    // Convert date strings to Date objects for DatePicker
-    const registrationDate = hasCustomerId && hosting.createdAt 
-      ? new Date(hosting.createdAt) 
-      : undefined
-    const expiryDate = (hosting as any).expiryDate 
-      ? new Date((hosting as any).expiryDate) 
-      : undefined
+    // For DatePicker, pass date strings directly - DatePicker will parse them correctly
+    // This avoids timezone issues when converting ISO strings to Date objects
+    let registrationDate: Date | undefined = undefined
+    let expiryDate: Date | undefined = undefined
+    
+    if (hasCustomerId && hosting.createdAt) {
+      // Extract date part from ISO string if needed (e.g., "2024-01-15T00:00:00.000Z" -> "2024-01-15")
+      const dateStr = hosting.createdAt.includes('T') 
+        ? hosting.createdAt.split('T')[0] 
+        : hosting.createdAt
+      // Parse using local timezone to avoid timezone issues
+      const parts = dateStr.split('-')
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10)
+        const month = parseInt(parts[1], 10) - 1 // month is 0-indexed
+        const day = parseInt(parts[2], 10)
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          registrationDate = new Date(year, month, day)
+        }
+      }
+    }
+    
+    if ((hosting as any).expiryDate) {
+      const dateStr = (hosting as any).expiryDate.includes('T')
+        ? (hosting as any).expiryDate.split('T')[0]
+        : (hosting as any).expiryDate
+      const parts = dateStr.split('-')
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10)
+        const month = parseInt(parts[1], 10) - 1 // month is 0-indexed
+        const day = parseInt(parts[2], 10)
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          expiryDate = new Date(year, month, day)
+        }
+      }
+    }
     
     setEditHosting({
       planName: hosting.planName,
@@ -428,8 +465,8 @@ export default function HostingPage() {
       if (!isPackage) {
         updateData.customerId = editHosting.customerId ? parseInt(String(editHosting.customerId)) : null
         updateData.domain = editHosting.domain || null
-        updateData.expiryDate = editHosting.expiryDate ? format(editHosting.expiryDate, 'yyyy-MM-dd') : null
-        updateData.createdAt = editHosting.registrationDate ? format(editHosting.registrationDate, 'yyyy-MM-dd') : null
+        updateData.expiryDate = formatDateForAPI(editHosting.expiryDate)
+        updateData.createdAt = formatDateForAPI(editHosting.registrationDate)
       }
       
       const response = await fetch('/api/hosting', {
@@ -1097,12 +1134,8 @@ export default function HostingPage() {
                           status: registerHosting.status,
                           customerId: registerHosting.customerId || null,
                           domain: registerHosting.domain || null,
-                          createdAt: registerHosting.registrationDate
-                            ? format(registerHosting.registrationDate, 'yyyy-MM-dd')
-                            : null,
-                          expiryDate: registerHosting.expiryDate
-                            ? format(registerHosting.expiryDate, 'yyyy-MM-dd')
-                            : null,
+                          createdAt: formatDateForAPI(registerHosting.registrationDate),
+                          expiryDate: formatDateForAPI(registerHosting.expiryDate),
                           serverLocation: registerHosting.serverLocation || null,
                           addonDomain: registerHosting.addonDomain || 'Unlimited',
                           subDomain: registerHosting.subDomain || 'Unlimited',
