@@ -35,6 +35,17 @@ import { CustomerCombobox } from '@/components/ui/customer-combobox'
 import { Monitor, Plus, Search, Eye, CheckCircle, XCircle, HardDrive, Cpu, MemoryStick, Loader2, Edit, Trash2, DollarSign } from 'lucide-react'
 import { toastError, toastSuccess } from '@/lib/toast'
 
+// Helper function to format Date to YYYY-MM-DD string, ensuring local timezone
+const formatDateForAPI = (date: Date | undefined): string | null => {
+  if (!date) return null
+  // Ensure we use local date components to avoid timezone issues
+  const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const year = localDate.getFullYear()
+  const month = String(localDate.getMonth() + 1).padStart(2, '0')
+  const day = String(localDate.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 interface VPS {
   id: number
   planName: string
@@ -265,14 +276,10 @@ export default function VPSPage() {
           serverLocation: editVPS.serverLocation || null,
           customerId: editVPS.customerId,
           createdAt: editVPS.customerId && editVPS.createdAt
-            ? editVPS.createdAt.includes('T')
-              ? format(new Date(editVPS.createdAt), 'yyyy-MM-dd')
-              : editVPS.createdAt
+            ? formatDateForAPI((editVPS as any).createdAt instanceof Date ? (editVPS as any).createdAt : (typeof editVPS.createdAt === 'string' ? new Date(editVPS.createdAt) : undefined))
             : null,
           expiryDate: editVPS.customerId && editVPS.expiryDate
-            ? editVPS.expiryDate.includes('T')
-              ? format(new Date(editVPS.expiryDate), 'yyyy-MM-dd')
-              : editVPS.expiryDate
+            ? formatDateForAPI((editVPS as any).expiryDate instanceof Date ? (editVPS as any).expiryDate : (typeof editVPS.expiryDate === 'string' ? new Date(editVPS.expiryDate) : undefined))
             : null,
         }),
       })
@@ -408,7 +415,33 @@ export default function VPSPage() {
   }
 
   const handleEditVPS = (v: VPS) => {
-    setEditVPS(v)
+    // Parse date strings to Date objects for DatePicker, using local timezone
+    const parsedVPS = { ...v }
+    if (v.customerId && v.createdAt) {
+      const dateStr = v.createdAt.includes('T') ? v.createdAt.split('T')[0] : v.createdAt
+      const parts = dateStr.split('-')
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10)
+        const month = parseInt(parts[1], 10) - 1
+        const day = parseInt(parts[2], 10)
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          (parsedVPS as any).createdAt = new Date(year, month, day)
+        }
+      }
+    }
+    if (v.expiryDate) {
+      const dateStr = v.expiryDate.includes('T') ? v.expiryDate.split('T')[0] : v.expiryDate
+      const parts = dateStr.split('-')
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10)
+        const month = parseInt(parts[1], 10) - 1
+        const day = parseInt(parts[2], 10)
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          (parsedVPS as any).expiryDate = new Date(year, month, day)
+        }
+      }
+    }
+    setEditVPS(parsedVPS as any)
     setIsEditVPSDialogOpen(true)
   }
 
@@ -815,12 +848,8 @@ export default function VPSPage() {
                           price: registerVPS.price,
                           status: registerVPS.status,
                           customerId: registerVPS.customerId || null,
-                          createdAt: registerVPS.registrationDate
-                            ? format(registerVPS.registrationDate, 'yyyy-MM-dd')
-                            : null,
-                          expiryDate: registerVPS.expiryDate
-                            ? format(registerVPS.expiryDate, 'yyyy-MM-dd')
-                            : null,
+                          createdAt: formatDateForAPI(registerVPS.registrationDate),
+                          expiryDate: formatDateForAPI(registerVPS.expiryDate),
                           os: registerVPS.os || null,
                           serverLocation: registerVPS.serverLocation || null,
                         })
@@ -1124,18 +1153,12 @@ export default function VPSPage() {
                         </Label>
                         <div className="col-span-3">
                           <DatePicker
-                            value={
-                              editVPS.createdAt
-                                ? editVPS.createdAt.includes('T')
-                                  ? new Date(editVPS.createdAt)
-                                  : parse(editVPS.createdAt, 'yyyy-MM-dd', new Date())
-                                : undefined
-                            }
+                            value={(editVPS as any).createdAt instanceof Date ? (editVPS as any).createdAt : undefined}
                             onChange={(date) =>
                               setEditVPS({
                                 ...editVPS,
-                                createdAt: date ? format(date, 'yyyy-MM-dd') : '',
-                              })
+                                createdAt: date ?? undefined,
+                              } as any)
                             }
                           />
                         </div>
@@ -1146,18 +1169,12 @@ export default function VPSPage() {
                         </Label>
                         <div className="col-span-3">
                           <DatePicker
-                            value={
-                              editVPS.expiryDate
-                                ? editVPS.expiryDate.includes('T')
-                                  ? new Date(editVPS.expiryDate)
-                                  : parse(editVPS.expiryDate, 'yyyy-MM-dd', new Date())
-                                : undefined
-                            }
+                            value={(editVPS as any).expiryDate instanceof Date ? (editVPS as any).expiryDate : undefined}
                             onChange={(date) =>
                               setEditVPS({
                                 ...editVPS,
-                                expiryDate: date ? format(date, 'yyyy-MM-dd') : null,
-                              })
+                                expiryDate: date ?? undefined,
+                              } as any)
                             }
                           />
                         </div>
