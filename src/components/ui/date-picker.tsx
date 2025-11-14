@@ -26,15 +26,21 @@ const isValidDate = (date: Date): boolean => {
   return date instanceof Date && !isNaN(date.getTime())
 }
 
-// Helper function to parse YYYY-MM-DD string to Date in local timezone
-const parseLocalDateString = (dateString: string): Date | undefined => {
+// Helper function to parse date string to Date in local timezone
+const parseDateString = (dateString: string): Date | undefined => {
   if (!dateString || dateString.trim() === '') return undefined
+  
+  // Extract date part from ISO string (e.g., "2024-01-15T00:00:00.000Z" -> "2024-01-15")
+  let datePart = dateString
+  if (dateString.includes('T')) {
+    datePart = dateString.split('T')[0]
+  }
   
   // Check if string matches YYYY-MM-DD format
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-  if (!dateRegex.test(dateString)) return undefined
+  if (!dateRegex.test(datePart)) return undefined
   
-  const parts = dateString.split('-')
+  const parts = datePart.split('-')
   if (parts.length !== 3) return undefined
   
   const year = Number(parts[0])
@@ -75,7 +81,7 @@ const normalizeDateValue = (value: Date | string | undefined): Date | undefined 
   
   if (typeof value === 'string') {
     // Parse string as local date
-    return parseLocalDateString(value)
+    return parseDateString(value)
   }
   
   return undefined
@@ -125,6 +131,7 @@ export function DatePicker({
           mode="single"
           selected={normalizedValue}
           onSelect={handleSelect}
+          defaultMonth={normalizedValue || new Date()}
           initialFocus
           locale={vi}
           captionLayout="dropdown"
