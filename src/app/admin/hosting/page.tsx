@@ -119,6 +119,7 @@ export default function HostingPage() {
 
   // Register purchased hosting (assign to customer)
   const [isRegisterHostingDialogOpen, setIsRegisterHostingDialogOpen] = useState(false)
+  const [selectedHostingPackageId, setSelectedHostingPackageId] = useState<number | null>(null)
   const createInitialRegisterHostingState = () => ({
     planName: '',
     storage: '',
@@ -818,23 +819,60 @@ export default function HostingPage() {
                 <div className="flex-1 overflow-y-auto px-6">
                   <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">Tên gói</Label>
+                    <Label className="text-right">Chọn gói mẫu</Label>
                     <div className="col-span-3">
                       <Select
-                        value={registerHosting.planName}
-                        onValueChange={(val) => setRegisterHosting({ ...registerHosting, planName: val })}
+                        value={selectedHostingPackageId?.toString() || undefined}
+                        onValueChange={(val) => {
+                          if (val === 'none') {
+                            setSelectedHostingPackageId(null)
+                            return
+                          }
+                          const packageId = val ? parseInt(val) : null
+                          setSelectedHostingPackageId(packageId)
+                          if (packageId) {
+                            const selectedPackage = hostings.find(h => h.id === packageId)
+                            if (selectedPackage) {
+                              setRegisterHosting({
+                                ...registerHosting,
+                                planName: selectedPackage.planName,
+                                storage: selectedPackage.storage === 0 ? '' : (selectedPackage.storage * 1024).toString(),
+                                bandwidth: selectedPackage.bandwidth === 0 ? '' : (selectedPackage.bandwidth * 1024).toString(),
+                                price: parseFloat(selectedPackage.price) || 0,
+                                hostingType: selectedPackage.hostingType || 'VPS Hosting',
+                                operatingSystem: selectedPackage.operatingSystem || 'Linux',
+                                serverLocation: selectedPackage.serverLocation || '',
+                                addonDomain: selectedPackage.addonDomain || 'Unlimited',
+                                subDomain: selectedPackage.subDomain || 'Unlimited',
+                                ftpAccounts: selectedPackage.ftpAccounts || 'Unlimited',
+                                databases: selectedPackage.databases || 'Unlimited',
+                              })
+                            }
+                          }
+                        }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Chọn gói hosting" />
+                          <SelectValue placeholder="Chọn gói hosting để điền thông tin" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="none">Không chọn</SelectItem>
                           {hostings.map((h) => (
-                            <SelectItem key={h.id} value={h.planName}>
+                            <SelectItem key={h.id} value={h.id.toString()}>
                               {h.planName} ({new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND'}).format(parseFloat(h.price))})
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label className="text-right">Tên gói <span className="text-red-500">*</span></Label>
+                    <div className="col-span-3">
+                      <Input
+                        placeholder="Nhập tên gói hosting"
+                        value={registerHosting.planName}
+                        onChange={(e) => setRegisterHosting({ ...registerHosting, planName: e.target.value })}
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -1003,6 +1041,7 @@ export default function HostingPage() {
                     variant="outline"
                     onClick={() => {
                       setRegisterHosting(createInitialRegisterHostingState())
+                      setSelectedHostingPackageId(null)
                       setIsRegisterHostingDialogOpen(false)
                     }}
                   >
@@ -1011,6 +1050,10 @@ export default function HostingPage() {
                   <Button onClick={async () => {
                     try {
                       // Validate required fields
+                      if (!registerHosting.planName.trim()) {
+                        toastError('Vui lòng nhập tên gói')
+                        return
+                      }
                       if (!registerHosting.customerId) {
                         toastError('Vui lòng chọn khách hàng')
                         return
@@ -1066,6 +1109,7 @@ export default function HostingPage() {
                         return
                       }
                       setRegisterHosting(createInitialRegisterHostingState())
+                      setSelectedHostingPackageId(null)
                       setIsRegisterHostingDialogOpen(false)
                       await fetchHostings()
                       toastSuccess('Đăng ký hosting thành công!')
