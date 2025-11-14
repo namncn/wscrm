@@ -119,6 +119,7 @@ export default function VPSPage() {
 
   const [editVPS, setEditVPS] = useState<VPS | null>(null)
   const [isRegisterVPSDialogOpen, setIsRegisterVPSDialogOpen] = useState(false)
+  const [selectedVPSPackageId, setSelectedVPSPackageId] = useState<number | null>(null)
   const createInitialRegisterVPSState = () => ({
     planName: '',
     ipAddress: '',
@@ -613,23 +614,57 @@ export default function VPSPage() {
                 <div className="flex-1 overflow-y-auto px-6">
                   <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">Tên Gói</Label>
+                    <Label className="text-right">Chọn gói mẫu</Label>
                     <div className="col-span-3">
                       <Select
-                        value={registerVPS.planName}
-                        onValueChange={(val) => setRegisterVPS({ ...registerVPS, planName: val })}
+                        value={selectedVPSPackageId?.toString() || undefined}
+                        onValueChange={(val) => {
+                          if (val === 'none') {
+                            setSelectedVPSPackageId(null)
+                            return
+                          }
+                          const packageId = val ? parseInt(val) : null
+                          setSelectedVPSPackageId(packageId)
+                          if (packageId) {
+                            const selectedPackage = vps.find(v => v.id === packageId)
+                            if (selectedPackage) {
+                              setRegisterVPS({
+                                ...registerVPS,
+                                planName: selectedPackage.planName,
+                                cpu: selectedPackage.cpu,
+                                ram: selectedPackage.ram,
+                                storage: selectedPackage.storage,
+                                bandwidth: selectedPackage.bandwidth,
+                                price: selectedPackage.price,
+                                os: selectedPackage.os || '',
+                                serverLocation: selectedPackage.serverLocation || '',
+                              })
+                            }
+                          }
+                        }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Chọn gói VPS" />
+                          <SelectValue placeholder="Chọn gói VPS để điền thông tin" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="none">Không chọn</SelectItem>
                           {vps.map((v) => (
-                            <SelectItem key={v.id} value={v.planName}>
+                            <SelectItem key={v.id} value={v.id.toString()}>
                               {v.planName} ({new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND'}).format(v.price)})
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label className="text-right">Tên Gói <span className="text-red-500">*</span></Label>
+                    <div className="col-span-3">
+                      <Input
+                        placeholder="Nhập tên gói VPS"
+                        value={registerVPS.planName}
+                        onChange={(e) => setRegisterVPS({ ...registerVPS, planName: e.target.value })}
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -751,12 +786,17 @@ export default function VPSPage() {
                     variant="outline"
                     onClick={() => {
                       setRegisterVPS(createInitialRegisterVPSState())
+                      setSelectedVPSPackageId(null)
                       setIsRegisterVPSDialogOpen(false)
                     }}
                   >
                     Hủy
                   </Button>
                   <Button onClick={async () => {
+                    if (!registerVPS.planName.trim()) {
+                      toastError('Vui lòng nhập tên gói')
+                      return
+                    }
                     if (!registerVPS.customerId) {
                       toastError('Vui lòng chọn khách hàng')
                       return
@@ -791,6 +831,7 @@ export default function VPSPage() {
                         return
                       }
                       setRegisterVPS(createInitialRegisterVPSState())
+                      setSelectedVPSPackageId(null)
                       setIsRegisterVPSDialogOpen(false)
                       await fetchVPS()
                       toastSuccess('Đăng ký VPS thành công!')
