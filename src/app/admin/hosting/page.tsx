@@ -170,8 +170,8 @@ export default function HostingPage() {
     hostingType: 'VPS Hosting',
     operatingSystem: 'Linux',
     domain: '',
-    registrationDate: '',
-    expiryDate: '',
+    registrationDate: undefined as Date | undefined,
+    expiryDate: undefined as Date | undefined,
     serverLocation: '',
     customerId: ''
   })
@@ -335,6 +335,15 @@ export default function HostingPage() {
     // Convert storage and bandwidth from GB to MB, or show as empty string if 0
     const storageMB = hosting.storage > 0 ? String(hosting.storage * 1024) : ''
     const bandwidthMB = hosting.bandwidth > 0 ? String(hosting.bandwidth * 1024) : ''
+    
+    // Convert date strings to Date objects for DatePicker
+    const registrationDate = hasCustomerId && hosting.createdAt 
+      ? new Date(hosting.createdAt) 
+      : undefined
+    const expiryDate = (hosting as any).expiryDate 
+      ? new Date((hosting as any).expiryDate) 
+      : undefined
+    
     setEditHosting({
       planName: hosting.planName,
       storage: storageMB,
@@ -348,8 +357,8 @@ export default function HostingPage() {
       hostingType: hosting.hostingType || 'VPS Hosting',
       operatingSystem: hosting.operatingSystem || 'Linux',
       domain: hasCustomerId ? ((hosting as any).domain || '') : '',
-      registrationDate: hasCustomerId ? (hosting.createdAt || '') : '',
-      expiryDate: (hosting as any).expiryDate || '',
+      registrationDate: registrationDate,
+      expiryDate: expiryDate,
       serverLocation: (hosting as any).serverLocation || '',
       customerId: customerId
     })
@@ -419,8 +428,8 @@ export default function HostingPage() {
       if (!isPackage) {
         updateData.customerId = editHosting.customerId ? parseInt(String(editHosting.customerId)) : null
         updateData.domain = editHosting.domain || null
-        updateData.expiryDate = editHosting.expiryDate || null
-        updateData.createdAt = editHosting.registrationDate || null
+        updateData.expiryDate = editHosting.expiryDate ? format(editHosting.expiryDate, 'yyyy-MM-dd') : null
+        updateData.createdAt = editHosting.registrationDate ? format(editHosting.registrationDate, 'yyyy-MM-dd') : null
       }
       
       const response = await fetch('/api/hosting', {
@@ -448,8 +457,8 @@ export default function HostingPage() {
           hostingType: 'VPS Hosting',
           operatingSystem: 'Linux',
           domain: '',
-          registrationDate: '',
-          expiryDate: '',
+          registrationDate: undefined,
+          expiryDate: undefined,
           serverLocation: '',
           customerId: ''
         })
@@ -1827,10 +1836,10 @@ export default function HostingPage() {
                     </Label>
                     <div className="col-span-3">
                       <DatePicker
-                        value={editHosting.registrationDate || undefined}
+                        value={editHosting.registrationDate}
                         onChange={(date) => setEditHosting({
                           ...editHosting,
-                          registrationDate: date ? formatDateToLocalString(date) : ''
+                          registrationDate: date ?? undefined
                         })}
                         placeholder="Chọn ngày đăng ký"
                       />
@@ -1842,10 +1851,10 @@ export default function HostingPage() {
                     </Label>
                     <div className="col-span-3">
                       <DatePicker
-                        value={editHosting.expiryDate || undefined}
+                        value={editHosting.expiryDate}
                         onChange={(date) => setEditHosting({
                           ...editHosting,
-                          expiryDate: date ? formatDateToLocalString(date) : ''
+                          expiryDate: date ?? undefined
                         })}
                         placeholder="Chọn ngày hết hạn"
                       />
