@@ -106,9 +106,9 @@ export default withAuth(
     // Product APIs - public GET, admin only for write
     const productAPIs = [
       '/api/domain',
-      '/api/domain-types',
-      '/api/hosting',
-      '/api/vps'
+      '/api/domain-packages',
+      '/api/hosting-packages',
+      '/api/vps-packages'
     ]
     
     // Member-only APIs (require authentication)
@@ -431,7 +431,7 @@ export default withAuth(
         const isRegisterAPI = pathname === '/api/auth/register'
         
         // Product APIs GET requests are public
-        const productAPIs = ['/api/domain', '/api/domain-types', '/api/hosting', '/api/vps']
+        const productAPIs = ['/api/domain', '/api/domain-packages', '/api/hosting-packages', '/api/vps-packages']
         const isProductAPI = productAPIs.some(route => pathname.startsWith(route))
         const isProductGET = isProductAPI && req.method === 'GET'
         

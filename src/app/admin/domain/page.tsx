@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/layout/dashboard-layout'
@@ -31,6 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DatePicker } from '@/components/ui/date-picker'
 import { Pagination } from '@/components/ui/pagination'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
+import { DomainPackageCombobox } from '@/components/ui/domain-package-combobox'
 import { Globe, Plus, Search, Eye, RefreshCw, CheckCircle, XCircle, Calendar, Edit, Trash2, Loader2, Package, Settings, DollarSign } from 'lucide-react'
 import { toastSuccess, toastError } from '@/lib/toast'
 
@@ -47,6 +48,8 @@ interface Domain {
   customerId?: string | null
   customerName?: string | null
   customerEmail?: string | null
+  domainTypeId?: string | null
+  packageName?: string | null
 }
 
 interface DomainPackage {
@@ -122,9 +125,9 @@ export default function domainPage() {
     registrar: '',
     registrationDate: '',
     expiryDate: '',
-    price: '',
     status: 'ACTIVE' as 'ACTIVE' | 'EXPIRED' | 'SUSPENDED',
-    customerId: null as number | null
+    customerId: null as number | null,
+    domainTypeId: null as string | null
   })
 
   // Form state for new domain package
@@ -144,9 +147,9 @@ export default function domainPage() {
     registrar: '',
     registrationDate: '',
     expiryDate: '',
-    price: '',
     status: 'ACTIVE' as 'ACTIVE' | 'EXPIRED' | 'SUSPENDED',
-    customerId: null as number | null
+    customerId: null as number | null,
+    domainTypeId: null as string | null
   })
 
   // Helper function to parse date string to Date object or undefined
@@ -180,7 +183,7 @@ export default function domainPage() {
     setCurrentPage(1)
   }, [searchTerm, activeTab])
 
-  const fetchdomain = async () => {
+  const fetchdomain = useCallback(async () => {
     try {
       const response = await fetch('/api/domain')
       if (response.ok) {
@@ -202,11 +205,24 @@ export default function domainPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+  
+  // Listen for orderUpdated event to refresh domain list
+  useEffect(() => {
+    const handleOrderUpdated = () => {
+      fetchdomain()
+    }
+    
+    window.addEventListener('orderUpdated', handleOrderUpdated)
+    
+    return () => {
+      window.removeEventListener('orderUpdated', handleOrderUpdated)
+    }
+  }, [fetchdomain]) // Include fetchdomain in dependencies
 
   const fetchDomainPackages = async () => {
     try {
-      const response = await fetch('/api/domain-types')
+      const response = await fetch('/api/domain-packages')
       if (response.ok) {
         const result = await response.json()
         if (result.success && result.data) {
@@ -259,9 +275,9 @@ export default function domainPage() {
           registrar: '',
           registrationDate: '',
           expiryDate: '',
-          price: '',
           status: 'ACTIVE',
-          customerId: null
+          customerId: null,
+          domainTypeId: null
         })
         toastSuccess('Tạo tên miền thành công!')
       } else {
@@ -345,7 +361,7 @@ export default function domainPage() {
         features: newPackage.features.split(',').map((f: string) => f.trim()).filter((f: string) => f)
       }
 
-      const response = await fetch('/api/domain-types', {
+      const response = await fetch('/api/domain-packages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -403,7 +419,7 @@ export default function domainPage() {
         status: selectedPackage.status
       }
 
-      const response = await fetch('/api/domain-types', {
+      const response = await fetch('/api/domain-packages', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -433,7 +449,7 @@ export default function domainPage() {
     
     setIsDeleting(true)
     try {
-      const response = await fetch(`/api/domain-types?id=${selectedPackage.id}`, {
+      const response = await fetch(`/api/domain-packages?id=${selectedPackage.id}`, {
         method: 'DELETE',
       })
 
@@ -611,21 +627,6 @@ export default function domainPage() {
                       </div>
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="price" className="text-right">
-                        Giá
-                      </Label>
-                      <div className="col-span-3">
-                        <Input 
-                          id="price"
-                          type="number"
-                          step="1"
-                          value={newDomain.price}
-                          onChange={(e) => setNewDomain({...newDomain, price: e.target.value})}
-                          placeholder="Giá tên miền"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
                       <Label className="text-right">
                         Khách hàng
                       </Label>
@@ -635,6 +636,19 @@ export default function domainPage() {
                           value={newDomain.customerId?.toString() || null}
                           onValueChange={(val) => setNewDomain({ ...newDomain, customerId: val ? parseInt(String(val)) : null })}
                           placeholder="Chọn khách hàng"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label className="text-right">
+                        Gói tên miền
+                      </Label>
+                      <div className="col-span-3">
+                        <DomainPackageCombobox
+                          packages={domainPackages.filter(pkg => pkg.status === 'ACTIVE')}
+                          value={newDomain.domainTypeId || null}
+                          onValueChange={(val) => setNewDomain({ ...newDomain, domainTypeId: val })}
+                          placeholder="Chọn gói tên miền"
                         />
                       </div>
                     </div>
@@ -882,7 +896,9 @@ export default function domainPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {formatCurrency(domain.reduce((sum, d) => sum + (d.price ? parseFloat(d.price) : 0), 0).toString())}
+                  {formatCurrency(domain.reduce((sum, d) => {
+                    return sum + (d.price ? parseFloat(d.price) : 0)
+                  }, 0).toString())}
                 </div>
                 <p className="text-xs text-gray-600">
                   {calculateMonthOverMonthChange(domain, (d) => d.price ? parseFloat(d.price) : 0)} so với tháng trước
@@ -990,12 +1006,12 @@ export default function domainPage() {
                     <TableRow>
                       <TableHead className="w-fit">Thao Tác</TableHead>
                       <TableHead>Tên Miền</TableHead>
+                      <TableHead>Gói Tên Miền</TableHead>
                       <TableHead>Nhà Đăng Ký</TableHead>
                       <TableHead>Khách Hàng</TableHead>
                       <TableHead>Ngày Đăng Ký</TableHead>
                       <TableHead>Ngày Hết Hạn</TableHead>
                       <TableHead>Trạng Thái</TableHead>
-                      <TableHead>Giá</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1024,9 +1040,9 @@ export default function domainPage() {
                                   registrar: domain.registrar || '',
                                   registrationDate: domain.registrationDate || '',
                                   expiryDate: domain.expiryDate || '',
-                                  price: domain.price ? Math.floor(Number(domain.price)).toString() : '',
                                   status: domain.status,
-                                  customerId: domain.customerId ? parseInt(String(domain.customerId)) : null
+                                  customerId: domain.customerId ? parseInt(String(domain.customerId)) : null,
+                                  domainTypeId: domain.domainTypeId || null
                                 })
                                 setSelectedDomain(domain)
                                 setIsEditDomainDialogOpen(true)
@@ -1051,12 +1067,16 @@ export default function domainPage() {
                           <div className="font-medium">{domain.domainName}</div>
                           <div className="text-xs text-gray-500 font-mono">ID: {domain.id}</div>
                         </TableCell>
+                        <TableCell>
+                          {domain.packageName || (domain.domainTypeId ? (
+                            domainPackages.find(pkg => String(pkg.id) === String(domain.domainTypeId))?.name || '—'
+                          ) : '—')}
+                        </TableCell>
                         <TableCell>{domain.registrar || 'Chưa có'}</TableCell>
                         <TableCell>{domain.customerName ? `${domain.customerName} (${domain.customerEmail || ''})` : '—'}</TableCell>
                         <TableCell>{formatDate(domain.registrationDate)}</TableCell>
                         <TableCell>{formatDate(domain.expiryDate)}</TableCell>
                         <TableCell>{getStatusBadge(domain.status)}</TableCell>
-                        <TableCell>{formatCurrency(domain.price)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1196,10 +1216,6 @@ export default function domainPage() {
                       {getStatusBadge(selectedDomain.status)}
                     </div>
                   </div>
-                  <div>
-                    <Label className="font-medium mb-2 block">Giá</Label>
-                    <p className="text-sm text-gray-600">{formatCurrency(selectedDomain.price)}</p>
-                  </div>
                 </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1208,6 +1224,14 @@ export default function domainPage() {
                     {selectedDomain.customerName
                       ? `${selectedDomain.customerName}${selectedDomain.customerEmail ? ` (${selectedDomain.customerEmail})` : ''}`
                       : '—'}
+                  </p>
+                </div>
+                <div>
+                  <Label className="font-medium mb-2 block">Gói tên miền</Label>
+                  <p className="text-sm text-gray-600">
+                    {selectedDomain.packageName || (selectedDomain.domainTypeId ? (
+                      domainPackages.find(pkg => String(pkg.id) === String(selectedDomain.domainTypeId))?.name || '—'
+                    ) : '—')}
                   </p>
                 </div>
               </div>
@@ -1280,20 +1304,6 @@ export default function domainPage() {
                 </div>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="editPrice" className="text-right">
-                  Giá
-                </Label>
-                <div className="col-span-3">
-                  <Input 
-                    id="editPrice"
-                    type="number"
-                    step="1"
-                    value={editDomain.price}
-                    onChange={(e) => setEditDomain({...editDomain, price: e.target.value})}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
                 <Label className="text-right">
                   Khách hàng
                 </Label>
@@ -1303,6 +1313,19 @@ export default function domainPage() {
                     value={editDomain.customerId?.toString() || null}
                     onValueChange={(val) => setEditDomain({ ...editDomain, customerId: val ? parseInt(String(val)) : null })}
                     placeholder="Chọn khách hàng"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">
+                  Gói tên miền
+                </Label>
+                <div className="col-span-3">
+                  <DomainPackageCombobox
+                    packages={domainPackages.filter(pkg => pkg.status === 'ACTIVE')}
+                    value={editDomain.domainTypeId || null}
+                    onValueChange={(val) => setEditDomain({ ...editDomain, domainTypeId: val })}
+                    placeholder="Chọn gói tên miền"
                   />
                 </div>
               </div>

@@ -38,9 +38,14 @@ export function OrderCombobox({
   )
 
   const filteredOrders = React.useMemo(() => {
-    if (!searchTerm) return orders
+    // Remove duplicates by id to ensure unique keys
+    const uniqueOrders = Array.from(
+      new Map(orders.map((o) => [o.id, o])).values()
+    )
+    
+    if (!searchTerm) return uniqueOrders
     const lowerSearch = searchTerm.toLowerCase()
-    return orders.filter(
+    return uniqueOrders.filter(
       (o) =>
         `ORD-${o.id.toString().slice(-8)}`.toLowerCase().includes(lowerSearch) ||
         o.id.toString().includes(searchTerm)

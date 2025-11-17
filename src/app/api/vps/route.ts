@@ -1,6 +1,6 @@
 import { db } from '@/lib/database'
-import { vps, customers } from '@/lib/schema'
-import { eq, desc, isNull, isNotNull } from 'drizzle-orm'
+import { vps, customers, vpsPackages } from '@/lib/schema'
+import { eq, desc, isNotNull } from 'drizzle-orm'
 import { createSuccessResponse, createErrorResponse, createCreatedResponse } from '@/lib/api-response'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -32,30 +32,32 @@ export async function GET(req: Request) {
     const purchased = searchParams.get('purchased')
     const id = searchParams.get('id')
     
-    // If id is provided, return single VPS
+    // If id is provided, return single VPS (customer-registered only)
     if (id) {
       const vpsData = await db
-        .select()
+        .select({
+          vps: vps,
+          package: vpsPackages,
+        })
         .from(vps)
+        .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
         .where(eq(vps.id, parseInt(id)))
         .limit(1)
       
-      if (vpsData.length === 0) {
+      if (vpsData.length === 0 || !vpsData[0].vps) {
         return createErrorResponse('Không tìm thấy gói VPS', 404)
       }
       
-      // Public access: allow viewing packages without customerId (public packages)
-      if (!vpsData[0].customerId) {
-        return createSuccessResponse(vpsData[0], 'Tải thông tin VPS')
-      }
-      
-      // For private VPS (with customerId), require authentication
+      // Require authentication for customer-registered VPS
       if (!session?.user) {
         return createErrorResponse('Bạn cần đăng nhập để xem VPS này', 401)
       }
       
+      const vpsRecord = vpsData[0].vps
+      const packageData = vpsData[0].package
+      
       // For customers, verify ownership
-      if (isCustomer && vpsData[0].customerId) {
+      if (isCustomer && vpsRecord.customerId) {
         if (!session.user.email) {
           return createErrorResponse('Không tìm thấy thông tin email', 400)
         }
@@ -65,17 +67,32 @@ export async function GET(req: Request) {
           .where(eq(customers.email, session.user.email))
           .limit(1)
         
-        if (!customer || customer.length === 0 || vpsData[0].customerId !== customer[0].id) {
+        if (!customer || customer.length === 0 || vpsRecord.customerId !== customer[0].id) {
           return createErrorResponse('Bạn không có quyền xem VPS này', 403)
         }
       }
       
-      // Admin and User can view all VPS
-      if (isAdmin || isUser) {
-        return createSuccessResponse(vpsData[0], 'Tải thông tin VPS')
+      // Combine VPS and package data
+      const result = {
+        ...vpsRecord,
+        ...(packageData ? {
+          planName: packageData.planName,
+          cpu: packageData.cpu,
+          ram: packageData.ram,
+          storage: packageData.storage,
+          bandwidth: packageData.bandwidth,
+          price: packageData.price,
+          os: packageData.os,
+          serverLocation: packageData.serverLocation,
+        } : {}),
       }
       
-      return createSuccessResponse(vpsData[0], 'Tải thông tin VPS')
+      // Admin and User can view all VPS
+      if (isAdmin || isUser) {
+        return createSuccessResponse(result, 'Tải thông tin VPS')
+      }
+      
+      return createSuccessResponse(result, 'Tải thông tin VPS')
     }
     
     // Determine if request should filter by customer ownership
@@ -116,20 +133,21 @@ export async function GET(req: Request) {
       }
     }
     
-    let vpsData
-    
-    // If not authenticated, only return public packages (customerId = null)
+    // Require authentication for customer-registered VPS
     if (!session?.user) {
-      vpsData = await db
-        .select()
-        .from(vps)
-        .where(isNull(vps.customerId)) // Only packages without customerId
-        .orderBy(desc(vps.createdAt))
-    } else if (finalCustomerId !== null) {
+      return createErrorResponse('Bạn cần đăng nhập để xem VPS đã đăng ký', 401)
+    }
+    
+    let vpsDataRaw
+    if (finalCustomerId !== null) {
       // Get VPS plans for specific customer (their registered VPS)
-      vpsData = await db
-        .select()
+      vpsDataRaw = await db
+        .select({
+          vps: vps,
+          package: vpsPackages,
+        })
         .from(vps)
+        .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
         .where(eq(vps.customerId, finalCustomerId))
         .orderBy(desc(vps.createdAt))
     } else if (purchased === 'all') {
@@ -137,21 +155,47 @@ export async function GET(req: Request) {
       if (!isAdmin && !isUser) {
         return createErrorResponse('Chỉ quản trị viên và nhân viên mới có thể xem tất cả VPS đã mua', 403)
       }
-      vpsData = await db
-        .select()
+      vpsDataRaw = await db
+        .select({
+          vps: vps,
+          package: vpsPackages,
+        })
         .from(vps)
+        .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
         .where(isNotNull(vps.customerId))
         .orderBy(desc(vps.createdAt))
     } else {
-      // Get all VPS plans (packages available for purchase)
-      vpsData = await db
-        .select()
+      // Default: return all customer-registered VPS (for admin/user)
+      if (!isAdmin && !isUser) {
+        return createErrorResponse('Bạn cần chỉ định customerId hoặc purchased=all', 400)
+      }
+      vpsDataRaw = await db
+        .select({
+          vps: vps,
+          package: vpsPackages,
+        })
         .from(vps)
-        .where(isNull(vps.customerId)) // Only packages without customerId
+        .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
+        .where(isNotNull(vps.customerId))
         .orderBy(desc(vps.createdAt))
     }
+    
+    // Combine VPS and package data
+    const vpsDataResult = vpsDataRaw.map(item => ({
+      ...item.vps,
+      ...(item.package ? {
+        planName: item.package.planName,
+        cpu: item.package.cpu,
+        ram: item.package.ram,
+        storage: item.package.storage,
+        bandwidth: item.package.bandwidth,
+        price: item.package.price,
+        os: item.package.os,
+        serverLocation: item.package.serverLocation,
+      } : {}),
+    }))
 
-    return createSuccessResponse(vpsData, 'Tải danh sách VPS')
+    return createSuccessResponse(vpsDataResult, 'Tải danh sách VPS')
   } catch (error) {
     console.error('Error fetching VPS:', error)
     return createErrorResponse('Không thể tải danh sách VPS')
@@ -167,45 +211,58 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
-    const { planName, ipAddress, cpu, ram, storage, bandwidth, price, status, customerId, expiryDate, os, createdAt, serverLocation } = body
+    const { vpsTypeId, customerId, status, ipAddress, expiryDate, createdAt } = body
 
     // Validate required fields
-    if (!planName || !cpu || !ram || !storage || !bandwidth || !price) {
-      return createErrorResponse('Tên gói, CPU, RAM, dung lượng, băng thông và giá là bắt buộc', 400)
+    if (!vpsTypeId) {
+      return createErrorResponse('vpsTypeId là bắt buộc', 400)
+    }
+    if (!customerId) {
+      return createErrorResponse('customerId là bắt buộc cho VPS đã đăng ký', 400)
     }
 
-    // Validate data types
-    if (typeof cpu !== 'number' || typeof ram !== 'number' || typeof storage !== 'number' || typeof bandwidth !== 'number' || typeof price !== 'number') {
-      return createErrorResponse('CPU, RAM, dung lượng, băng thông và giá phải là số', 400)
-    }
-
-    // Create VPS plan
+    // Create VPS registration
     await db
       .insert(vps)
       .values({
-        planName,
-        ipAddress: ipAddress || null,
-        cpu,
-        ram,
-        storage,
-        bandwidth,
-        price: price.toString(),
+        vpsTypeId: vpsTypeId,
+        customerId: customerId,
         status: status || 'ACTIVE',
-        customerId: customerId || null,
+        ipAddress: ipAddress || null,
         expiryDate: expiryDate ? expiryDate.split('T')[0] : null,
-        os: os || null,
-        serverLocation: serverLocation || null,
-        createdAt: createdAt ? new Date(createdAt) : undefined,
+        createdAt: createdAt ? new Date(createdAt.split('T')[0]) : new Date(),
       })
 
-    // Get the created VPS plan
-    const createdVps = await db
-      .select()
+    // Get the created VPS with package data
+    const createdVpsRaw = await db
+      .select({
+        vps: vps,
+        package: vpsPackages,
+      })
       .from(vps)
-      .where(eq(vps.planName, planName))
+      .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
+      .orderBy(desc(vps.id))
       .limit(1)
 
-    return createCreatedResponse(createdVps[0], 'Tạo gói VPS thành công')
+    if (createdVpsRaw.length === 0) {
+      return createErrorResponse('Không thể tạo VPS', 500)
+    }
+
+    const result = {
+      ...createdVpsRaw[0].vps,
+      ...(createdVpsRaw[0].package ? {
+        planName: createdVpsRaw[0].package.planName,
+        cpu: createdVpsRaw[0].package.cpu,
+        ram: createdVpsRaw[0].package.ram,
+        storage: createdVpsRaw[0].package.storage,
+        bandwidth: createdVpsRaw[0].package.bandwidth,
+        price: createdVpsRaw[0].package.price,
+        os: createdVpsRaw[0].package.os,
+        serverLocation: createdVpsRaw[0].package.serverLocation,
+      } : {}),
+    }
+
+    return createCreatedResponse(result, 'Tạo gói VPS thành công')
   } catch (error) {
     console.error('Error creating VPS:', error)
     return createErrorResponse('Không thể tạo gói VPS')
@@ -221,7 +278,7 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json()
-    const { id, planName, ipAddress, cpu, ram, storage, bandwidth, price, status, customerId, expiryDate, os, createdAt, serverLocation } = body
+    const { id, vpsTypeId, customerId, status, ipAddress, expiryDate, createdAt } = body
 
     if (!id) {
       return createErrorResponse('ID gói VPS là bắt buộc', 400)
@@ -238,35 +295,53 @@ export async function PUT(req: Request) {
       return createErrorResponse('Không tìm thấy gói VPS', 404)
     }
 
-    // Update VPS plan
+    // Update VPS registration - only update provided fields
+    const updateData: any = {
+      updatedAt: new Date(),
+    }
+    
+    if (vpsTypeId !== undefined) updateData.vpsTypeId = vpsTypeId
+    if (customerId !== undefined) updateData.customerId = customerId
+    if (status !== undefined) updateData.status = status
+    if (ipAddress !== undefined) updateData.ipAddress = ipAddress || null
+    if (expiryDate !== undefined) updateData.expiryDate = expiryDate ? expiryDate.split('T')[0] : null
+    if (createdAt !== undefined) updateData.createdAt = createdAt ? new Date(createdAt.split('T')[0]) : existingVps[0].createdAt
+
     await db
       .update(vps)
-      .set({
-        planName: planName || existingVps[0].planName,
-        ipAddress: ipAddress !== undefined ? (ipAddress || null) : existingVps[0].ipAddress,
-        cpu: cpu || existingVps[0].cpu,
-        ram: ram || existingVps[0].ram,
-        storage: storage || existingVps[0].storage,
-        bandwidth: bandwidth || existingVps[0].bandwidth,
-        price: price ? price.toString() : existingVps[0].price,
-        status: status || existingVps[0].status,
-        customerId: customerId !== undefined ? (customerId || null) : existingVps[0].customerId,
-        expiryDate: expiryDate !== undefined ? (expiryDate ? expiryDate.split('T')[0] : null) : existingVps[0].expiryDate,
-        os: os !== undefined ? (os || null) : existingVps[0].os,
-        serverLocation: serverLocation !== undefined ? (serverLocation || null) : existingVps[0].serverLocation,
-        createdAt: createdAt !== undefined ? (createdAt ? new Date(createdAt) : existingVps[0].createdAt) : existingVps[0].createdAt,
-        updatedAt: new Date(),
-      })
+      .set(updateData)
       .where(eq(vps.id, id))
 
-    // Get the updated VPS plan
-    const updatedVps = await db
-      .select()
+    // Get the updated VPS with package data
+    const updatedVpsRaw = await db
+      .select({
+        vps: vps,
+        package: vpsPackages,
+      })
       .from(vps)
+      .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
       .where(eq(vps.id, id))
       .limit(1)
 
-    return createSuccessResponse(updatedVps[0], 'Cập nhật gói VPS thành công')
+    if (updatedVpsRaw.length === 0) {
+      return createErrorResponse('Không tìm thấy gói VPS sau khi cập nhật', 404)
+    }
+
+    const result = {
+      ...updatedVpsRaw[0].vps,
+      ...(updatedVpsRaw[0].package ? {
+        planName: updatedVpsRaw[0].package.planName,
+        cpu: updatedVpsRaw[0].package.cpu,
+        ram: updatedVpsRaw[0].package.ram,
+        storage: updatedVpsRaw[0].package.storage,
+        bandwidth: updatedVpsRaw[0].package.bandwidth,
+        price: updatedVpsRaw[0].package.price,
+        os: updatedVpsRaw[0].package.os,
+        serverLocation: updatedVpsRaw[0].package.serverLocation,
+      } : {}),
+    }
+
+    return createSuccessResponse(result, 'Cập nhật gói VPS thành công')
   } catch (error) {
     console.error('Error updating VPS:', error)
     return createErrorResponse('Không thể cập nhật gói VPS')

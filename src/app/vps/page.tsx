@@ -45,7 +45,7 @@ export default function VpsPage() {
     const fetchVpsProducts = async () => {
       try {
         setIsLoadingProducts(true)
-        const response = await fetch('/api/vps')
+        const response = await fetch('/api/vps-packages')
         if (response.ok) {
           const result = await response.json()
           if (result.success && result.data) {
@@ -53,9 +53,9 @@ export default function VpsPage() {
               id: vps.id,
               name: vps.planName,
               price: parseFloat(vps.price) || 0,
-              description: `VPS ${vps.planName}`,
+              description: vps.description || `VPS ${vps.planName}`,
               specs: {
-                cpu: `${vps.cpu} CPU Core`,
+                cpu: vps.cpu || 'Unlimited',
                 ram: `${vps.ram}GB RAM`,
                 storage: `${vps.storage}GB SSD`,
                 bandwidth: `${vps.bandwidth}GB/tháng`,

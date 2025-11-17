@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/database'
-import { orders, customers, users, orderItems, hosting, vps, domain, contracts } from '@/lib/schema'
+import { orders, customers, users, orderItems, hosting, vps, domain, contracts, hostingPackages, vpsPackages } from '@/lib/schema'
 import { eq, desc, sql, and } from 'drizzle-orm'
 import { createSuccessResponse, createErrorResponse, createCreatedResponse } from '@/lib/api-response'
 import { createServicesFromOrder } from '@/lib/order-service'
@@ -112,14 +112,19 @@ export async function GET(req: Request) {
         // Lookup service name based on serviceType and serviceId
         try {
           if (item.serviceType === 'HOSTING') {
-            const hostingData = await db.select({ planName: hosting.planName }).from(hosting).where(eq(hosting.id, item.serviceId)).limit(1)
-            serviceName = hostingData[0]?.planName
+            const hostingPackageData = await db.select({ planName: hostingPackages.planName }).from(hostingPackages).where(eq(hostingPackages.id, item.serviceId)).limit(1)
+            serviceName = hostingPackageData[0]?.planName
           } else if (item.serviceType === 'VPS') {
-            const vpsData = await db.select({ planName: vps.planName }).from(vps).where(eq(vps.id, item.serviceId)).limit(1)
-            serviceName = vpsData[0]?.planName
+            const vpsPackageData = await db.select({ planName: vpsPackages.planName }).from(vpsPackages).where(eq(vpsPackages.id, item.serviceId)).limit(1)
+            serviceName = vpsPackageData[0]?.planName
           } else if (item.serviceType === 'DOMAIN') {
-            const domainData = await db.select({ domainName: domain.domainName }).from(domain).where(eq(domain.id, item.serviceId)).limit(1)
-            serviceName = domainData[0]?.domainName
+            // For domain, get domainName from serviceData or lookup from domain table
+            if (domainName) {
+              serviceName = domainName
+            } else {
+              const domainData = await db.select({ domainName: domain.domainName }).from(domain).where(eq(domain.id, item.serviceId)).limit(1)
+              serviceName = domainData[0]?.domainName
+            }
           }
         } catch (e) {
           // Ignore lookup errors
@@ -207,13 +212,22 @@ export async function PUT(req: Request) {
       await db.execute(sql`UPDATE orders SET notes = ${notes}, updatedAt = NOW() WHERE id = ${id}`)
     }
 
-    // Create service instances if status changed to COMPLETED (which means payment is PAID)
-    const shouldCreateServices = finalStatus === 'COMPLETED' && oldStatus !== 'COMPLETED'
+    // Create service instances if:
+    // 1. Status changed to COMPLETED (which means payment is PAID), OR
+    // 2. Payment status is PAID (regardless of order status change)
+    // This ensures services are created when payment is confirmed, even if admin manually sets status
+    const shouldCreateServices = 
+      (finalStatus === 'COMPLETED' && oldStatus !== 'COMPLETED') ||
+      (paymentStatus === 'PAID' && oldStatus !== 'COMPLETED')
     
     if (shouldCreateServices) {
       try {
-        await createServicesFromOrder(parseInt(id))
-      } catch (serviceError) {
+        const orderIdNum = typeof id === 'string' ? parseInt(id, 10) : id
+        if (isNaN(orderIdNum)) {
+          throw new Error(`Invalid orderId: ${id} (parsed as ${orderIdNum})`)
+        }
+        await createServicesFromOrder(orderIdNum)
+      } catch (serviceError: any) {
         // Don't fail the whole request if service creation fails
         console.error('[OrderService] Error creating services:', serviceError)
       }

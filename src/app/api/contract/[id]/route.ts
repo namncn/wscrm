@@ -13,6 +13,9 @@ import {
   domain,
   hosting,
   vps,
+  hostingPackages,
+  vpsPackages,
+  domainPackages,
 } from '@/lib/schema'
 import { eq, inArray } from 'drizzle-orm'
 import { createErrorResponse, createSuccessResponse } from '@/lib/api-response'
@@ -144,42 +147,47 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
               registrationDate: domain.registrationDate,
               expiryDate: domain.expiryDate,
               status: domain.status,
-              price: domain.price,
+              price: domainPackages.price,
+              packageName: domainPackages.name,
             })
             .from(domain)
+            .leftJoin(domainPackages, eq(domain.domainTypeId, domainPackages.id))
             .where(inArray(domain.id, domainIds))
         : [],
       hostingIds.length
         ? db
             .select({
               id: hosting.id,
-              planName: hosting.planName,
-              storage: hosting.storage,
-              bandwidth: hosting.bandwidth,
-              price: hosting.price,
+              planName: hostingPackages.planName,
+              storage: hostingPackages.storage,
+              bandwidth: hostingPackages.bandwidth,
+              price: hostingPackages.price,
               status: hosting.status,
               expiryDate: hosting.expiryDate,
-              serverLocation: hosting.serverLocation,
+              serverLocation: hostingPackages.serverLocation,
+              ipAddress: hosting.ipAddress,
             })
             .from(hosting)
+            .leftJoin(hostingPackages, eq(hosting.hostingTypeId, hostingPackages.id))
             .where(inArray(hosting.id, hostingIds))
         : [],
       vpsIds.length
         ? db
             .select({
               id: vps.id,
-              planName: vps.planName,
-              cpu: vps.cpu,
-              ram: vps.ram,
-              storage: vps.storage,
-              bandwidth: vps.bandwidth,
-              price: vps.price,
+              planName: vpsPackages.planName,
+              cpu: vpsPackages.cpu,
+              ram: vpsPackages.ram,
+              storage: vpsPackages.storage,
+              bandwidth: vpsPackages.bandwidth,
+              price: vpsPackages.price,
               status: vps.status,
               expiryDate: vps.expiryDate,
-              os: vps.os,
+              os: vpsPackages.os,
               ipAddress: vps.ipAddress,
             })
             .from(vps)
+            .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
             .where(inArray(vps.id, vpsIds))
         : [],
     ])

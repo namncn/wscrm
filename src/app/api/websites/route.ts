@@ -1,5 +1,5 @@
 import { db } from '@/lib/database'
-import { websites, domain, hosting, vps, contracts, orders, customers } from '@/lib/schema'
+import { websites, domain, hosting, vps, contracts, orders, customers, hostingPackages, vpsPackages } from '@/lib/schema'
 import { eq, desc, sql, and } from 'drizzle-orm'
 import { createSuccessResponse, createErrorResponse, createCreatedResponse } from '@/lib/api-response'
 import { NextRequest } from 'next/server'
@@ -83,8 +83,8 @@ export async function GET(req: NextRequest) {
         createdAt: websites.createdAt,
         updatedAt: websites.updatedAt,
         domainName: domain.domainName,
-        hostingPlanName: hosting.planName,
-        vpsPlanName: vps.planName,
+        hostingPlanName: hostingPackages.planName,
+        vpsPlanName: vpsPackages.planName,
         contractNumber: contracts.contractNumber,
         orderNumberRaw: orders.id,
         customerName: customers.name,
@@ -93,7 +93,9 @@ export async function GET(req: NextRequest) {
       .from(websites)
       .leftJoin(domain, eq(websites.domainId, domain.id))
       .leftJoin(hosting, eq(websites.hostingId, hosting.id))
+      .leftJoin(hostingPackages, eq(hosting.hostingTypeId, hostingPackages.id))
       .leftJoin(vps, eq(websites.vpsId, vps.id))
+      .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
       .leftJoin(contracts, eq(websites.contractId, contracts.id))
       .leftJoin(orders, eq(websites.orderId, orders.id))
       .leftJoin(customers, eq(websites.customerId, customers.id))
@@ -160,8 +162,8 @@ export async function POST(req: Request) {
         createdAt: websites.createdAt,
         updatedAt: websites.updatedAt,
         domainName: domain.domainName,
-        hostingPlanName: hosting.planName,
-        vpsPlanName: vps.planName,
+        hostingPlanName: hostingPackages.planName,
+        vpsPlanName: vpsPackages.planName,
         contractNumber: contracts.contractNumber,
         orderNumberRaw: orders.id,
         customerName: customers.name,
@@ -170,7 +172,9 @@ export async function POST(req: Request) {
       .from(websites)
       .leftJoin(domain, eq(websites.domainId, domain.id))
       .leftJoin(hosting, eq(websites.hostingId, hosting.id))
+      .leftJoin(hostingPackages, eq(hosting.hostingTypeId, hostingPackages.id))
       .leftJoin(vps, eq(websites.vpsId, vps.id))
+      .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
       .leftJoin(contracts, eq(websites.contractId, contracts.id))
       .leftJoin(orders, eq(websites.orderId, orders.id))
       .leftJoin(customers, eq(websites.customerId, customers.id))
@@ -252,8 +256,8 @@ export async function PUT(req: Request) {
         createdAt: websites.createdAt,
         updatedAt: websites.updatedAt,
         domainName: domain.domainName,
-        hostingPlanName: hosting.planName,
-        vpsPlanName: vps.planName,
+        hostingPlanName: hostingPackages.planName,
+        vpsPlanName: vpsPackages.planName,
         contractNumber: contracts.contractNumber,
         orderNumberRaw: orders.id,
         customerName: customers.name,
@@ -262,7 +266,9 @@ export async function PUT(req: Request) {
       .from(websites)
       .leftJoin(domain, eq(websites.domainId, domain.id))
       .leftJoin(hosting, eq(websites.hostingId, hosting.id))
+      .leftJoin(hostingPackages, eq(hosting.hostingTypeId, hostingPackages.id))
       .leftJoin(vps, eq(websites.vpsId, vps.id))
+      .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
       .leftJoin(contracts, eq(websites.contractId, contracts.id))
       .leftJoin(orders, eq(websites.orderId, orders.id))
       .leftJoin(customers, eq(websites.customerId, customers.id))

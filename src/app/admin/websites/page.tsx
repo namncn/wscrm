@@ -358,11 +358,29 @@ export default function WebsitesPage() {
   }
 
   const handleViewWebsite = (website: Website) => {
-    router.push(`/admin/websites/${website.id}`)
+    if (!website || !website.id) {
+      toastError('Không tìm thấy thông tin website')
+      return
+    }
+    try {
+      router.push(`/admin/websites/${website.id}`)
+    } catch (error) {
+      console.error('Error navigating to website view:', error)
+      toastError('Lỗi khi điều hướng đến trang xem website')
+    }
   }
 
   const handleEditWebsite = (website: Website) => {
-    router.push(`/admin/websites/${website.id}/edit`)
+    if (!website || !website.id) {
+      toastError('Không tìm thấy thông tin website')
+      return
+    }
+    try {
+      router.push(`/admin/websites/${website.id}/edit`)
+    } catch (error) {
+      console.error('Error navigating to website edit:', error)
+      toastError('Lỗi khi điều hướng đến trang chỉnh sửa website')
+    }
   }
 
   const handleDeleteWebsite = (website: Website) => {
