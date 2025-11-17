@@ -152,13 +152,14 @@ export async function POST(request: NextRequest) {
         return data.domainName === domainName
       })
     } else {
-      // For HOSTING/VPS, check by userId and serviceId
+      // For HOSTING/VPS, check by userId, serviceType, and serviceId
       const items = await db
         .select()
         .from(cart)
         .where(
           and(
             eq(cart.userId, userId),
+            eq(cart.serviceType, serviceType),
             eq(cart.serviceId, serviceIdNum)
           )
         )
@@ -231,6 +232,7 @@ export async function POST(request: NextRequest) {
           .where(
             and(
               eq(cart.userId, userId),
+              eq(cart.serviceType, serviceType),
               eq(cart.serviceId, serviceIdNum)
             )
           )

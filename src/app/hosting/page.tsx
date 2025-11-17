@@ -53,7 +53,7 @@ export default function HostingPage() {
     const fetchHostingProducts = async () => {
       try {
         setIsLoadingProducts(true)
-        const response = await fetch('/api/hosting')
+        const response = await fetch('/api/hosting-packages')
         if (response.ok) {
           const result = await response.json()
           if (result.success && result.data) {
@@ -61,7 +61,7 @@ export default function HostingPage() {
               id: hosting.id,
               name: hosting.planName,
               price: parseFloat(hosting.price) || 0,
-              description: `Gói hosting ${hosting.planName}`,
+              description: hosting.description || `Gói hosting ${hosting.planName}`,
               features: {
                 storage: `${hosting.storage}GB SSD`,
                 bandwidth: `${hosting.bandwidth}GB/tháng`,

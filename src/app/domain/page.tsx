@@ -50,19 +50,36 @@ export default function DomainPage() {
     const fetchDomainTypes = async () => {
       try {
         setIsLoadingProducts(true)
-        const response = await fetch('/api/domain-types')
+        const response = await fetch('/api/domain-packages')
         if (response.ok) {
           const data = await response.json()
           if (data.success && data.data) {
             // Transform domain types to DomainProduct format
-            const products: DomainProduct[] = data.data.map((domainType: any) => ({
-              id: domainType.id,
-              name: domainType.name,
-              price: domainType.price,
-              description: domainType.description,
-              features: domainType.features,
-              popular: domainType.popular
-            }))
+            const products: DomainProduct[] = data.data.map((domainType: any) => {
+              // Ensure features is always an array
+              let featuresArray: string[] = []
+              if (Array.isArray(domainType.features)) {
+                featuresArray = domainType.features
+              } else if (domainType.features && typeof domainType.features === 'string') {
+                try {
+                  const parsed = JSON.parse(domainType.features)
+                  featuresArray = Array.isArray(parsed) ? parsed : []
+                } catch {
+                  featuresArray = []
+                }
+              } else if (domainType.features && typeof domainType.features === 'object') {
+                featuresArray = Object.values(domainType.features) as string[]
+              }
+              
+              return {
+                id: domainType.id,
+                name: domainType.name,
+                price: domainType.price,
+                description: domainType.description,
+                features: featuresArray,
+                popular: domainType.popular
+              }
+            })
             setDomainProducts(products)
           } else {
             throw new Error('Invalid API response format')
@@ -277,12 +294,16 @@ export default function DomainPage() {
                       <div className="text-sm text-gray-500">/ năm</div>
                       
                       <div className="space-y-2">
-                        {domain.features.map((feature, index) => (
-                          <div key={index} className="flex items-center space-x-2">
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                            <span className="text-sm text-gray-600">{feature}</span>
-                          </div>
-                        ))}
+                        {Array.isArray(domain.features) && domain.features.length > 0 ? (
+                          domain.features.map((feature, index) => (
+                            <div key={index} className="flex items-center space-x-2">
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                              <span className="text-sm text-gray-600">{feature}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-sm text-gray-500">Không có tính năng nào</div>
+                        )}
                       </div>
                       
                       <Button 

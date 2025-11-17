@@ -1,5 +1,5 @@
 import { db } from '@/lib/database'
-import { websites, domain, hosting, vps, contracts, orders, customers } from '@/lib/schema'
+import { websites, domain, hosting, vps, contracts, orders, customers, hostingPackages, vpsPackages } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
 import { createSuccessResponse, createErrorResponse } from '@/lib/api-response'
 
@@ -35,8 +35,8 @@ export async function GET(
         createdAt: websites.createdAt,
         updatedAt: websites.updatedAt,
         domainName: domain.domainName,
-        hostingPlanName: hosting.planName,
-        vpsPlanName: vps.planName,
+        hostingPlanName: hostingPackages.planName,
+        vpsPlanName: vpsPackages.planName,
         contractNumber: contracts.contractNumber,
         orderNumberRaw: orders.id,
         customerName: customers.name,
@@ -45,7 +45,9 @@ export async function GET(
       .from(websites)
       .leftJoin(domain, eq(websites.domainId, domain.id))
       .leftJoin(hosting, eq(websites.hostingId, hosting.id))
+      .leftJoin(hostingPackages, eq(hosting.hostingTypeId, hostingPackages.id))
       .leftJoin(vps, eq(websites.vpsId, vps.id))
+      .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
       .leftJoin(contracts, eq(websites.contractId, contracts.id))
       .leftJoin(orders, eq(websites.orderId, orders.id))
       .leftJoin(customers, eq(websites.customerId, customers.id))
