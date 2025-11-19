@@ -3,8 +3,8 @@
  * Cung cấp common functionality và logging
  */
 
-import { IControlPanel, ControlPanelType } from './control-panel.interface'
-import { ControlPanelResponse } from './types'
+import { IControlPanel } from './control-panel.interface'
+import { ControlPanelResponse, ControlPanelType } from './types'
 
 export abstract class BaseControlPanel implements IControlPanel {
   protected config: any
@@ -27,6 +27,7 @@ export abstract class BaseControlPanel implements IControlPanel {
   abstract getType(): ControlPanelType
 
   // Abstract methods - mỗi CP phải implement
+  abstract findCustomerByEmail(email: string): Promise<ControlPanelResponse<any>>
   abstract findOrCreateCustomer(params: any): Promise<ControlPanelResponse<any>>
   abstract getCustomer(customerId: string): Promise<ControlPanelResponse<any>>
   abstract updateCustomer(customerId: string, params: any): Promise<ControlPanelResponse<any>>
