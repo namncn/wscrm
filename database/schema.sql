@@ -134,10 +134,19 @@ CREATE TABLE IF NOT EXISTS hosting (
   status ENUM('ACTIVE', 'INACTIVE', 'SUSPENDED') DEFAULT 'ACTIVE',
   ipAddress VARCHAR(45),
   expiryDate DATE,
+  -- Control Panel fields
+  controlPanelId INT NULL,
+  externalAccountId VARCHAR(255),
+  externalWebsiteId VARCHAR(255),
+  syncStatus ENUM('PENDING', 'SYNCED', 'FAILED', 'SYNCING') DEFAULT 'PENDING',
+  syncError TEXT,
+  lastSyncedAt TIMESTAMP NULL,
+  syncMetadata JSON,
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (hostingTypeId) REFERENCES hosting_packages(id) ON DELETE RESTRICT,
-  FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE
+  FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE,
+  FOREIGN KEY (controlPanelId) REFERENCES control_panels(id) ON DELETE SET NULL
 );
 
 -- VPS Packages table (pre-defined packages, no customer assignment)
@@ -398,6 +407,33 @@ CREATE TABLE IF NOT EXISTS websites (
   FOREIGN KEY (contractId) REFERENCES contracts(id) ON DELETE SET NULL,
   FOREIGN KEY (orderId) REFERENCES orders(id) ON DELETE SET NULL,
   FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE
+);
+
+-- Control Panels table
+CREATE TABLE IF NOT EXISTS control_panels (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  type ENUM('ENHANCE', 'CPANEL', 'PLESK', 'DIRECTADMIN') NOT NULL UNIQUE,
+  enabled ENUM('YES', 'NO') DEFAULT 'YES',
+  config JSON NOT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_control_panel_type (type)
+);
+
+-- Control Panel Plans table - Maps local plans to control panel plans
+CREATE TABLE IF NOT EXISTS control_panel_plans (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  controlPanelId INT NOT NULL,
+  localPlanType ENUM('HOSTING', 'VPS') NOT NULL,
+  localPlanId INT NOT NULL,
+  externalPlanId VARCHAR(255) NOT NULL,
+  externalPlanName VARCHAR(255),
+  isActive ENUM('YES', 'NO') DEFAULT 'YES',
+  mappingConfig JSON,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (controlPanelId) REFERENCES control_panels(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_cp_local_plan (controlPanelId, localPlanType, localPlanId)
 );
 
 -- Insert sample data (only if not exists)
@@ -704,5 +740,10 @@ CREATE INDEX idx_domain_domainTypeId ON domain(domainTypeId);
 CREATE INDEX idx_domain_customerId ON domain(customerId);
 CREATE INDEX idx_hosting_hostingTypeId ON hosting(hostingTypeId);
 CREATE INDEX idx_hosting_customerId ON hosting(customerId);
+CREATE INDEX idx_hosting_controlPanelId ON hosting(controlPanelId);
+CREATE INDEX idx_hosting_syncStatus ON hosting(syncStatus);
 CREATE INDEX idx_vps_vpsTypeId ON vps(vpsTypeId);
 CREATE INDEX idx_vps_customerId ON vps(customerId);
+CREATE INDEX idx_control_panels_enabled ON control_panels(enabled);
+CREATE INDEX idx_control_panels_type ON control_panels(type);
+CREATE INDEX idx_control_panel_plans_local_plan ON control_panel_plans(localPlanType, localPlanId);

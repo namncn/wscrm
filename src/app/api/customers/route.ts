@@ -199,6 +199,21 @@ export async function POST(request: NextRequest) {
       .where(eq(customers.email, email))
       .limit(1)
 
+    // Try to sync customer to control panel (Enhance) asynchronously
+    // Don't block the response if sync fails
+    if (insertedCustomer[0]) {
+      const { ControlPanelSyncService } = await import('@/lib/control-panel-sync/sync-service')
+      ControlPanelSyncService.syncCustomerToControlPanel({
+        name: insertedCustomer[0].name,
+        email: insertedCustomer[0].email,
+        phone: insertedCustomer[0].phone,
+        company: insertedCustomer[0].company,
+      }).catch((syncError) => {
+        console.error('[Customer Create] Failed to sync customer to control panel:', syncError)
+        // Don't throw - customer was created successfully in database
+      })
+    }
+
     return createCreatedResponse(insertedCustomer[0], 'Tạo khách hàng')
   } catch (error: any) {
     console.error('Error creating customer:', error)
@@ -420,6 +435,22 @@ export async function PUT(request: NextRequest) {
       .where(eq(customers.id, id))
       .limit(1)
 
+    // Try to sync customer to control panel (Enhance) asynchronously
+    // Use the original email for sync (not pendingEmail) since email change is pending verification
+    const emailForSync = emailChanged ? existingCustomer[0].email : email
+    if (emailForSync) {
+      const { ControlPanelSyncService } = await import('@/lib/control-panel-sync/sync-service')
+      ControlPanelSyncService.syncCustomerToControlPanel({
+        name: updatedCustomer[0].name,
+        email: emailForSync,
+        phone: updatedCustomer[0].phone,
+        company: updatedCustomer[0].company,
+      }).catch((syncError) => {
+        console.error('[Customer Update] Failed to sync customer to control panel:', syncError)
+        // Don't throw - customer was updated successfully in database
+      })
+    }
+
     const message = emailChanged
       ? 'Đã gửi email xác thực đến địa chỉ mới. Vui lòng kiểm tra hộp thư để hoàn tất thay đổi.'
       : 'Cập nhật khách hàng'
@@ -474,8 +505,30 @@ export async function DELETE(request: NextRequest) {
       return createErrorResponse('Không tìm thấy khách hàng', 404)
     }
 
-    // Delete customer
+    const customer = existingCustomer[0]
+
+    // Try to delete customer from control panel (Enhance) first
+    let cpDeleteError: string | null = null
+    if (customer.email) {
+      const { ControlPanelSyncService } = await import('@/lib/control-panel-sync/sync-service')
+      const deleteResult = await ControlPanelSyncService.deleteCustomerFromControlPanel(customer.email)
+      
+      if (!deleteResult.success) {
+        cpDeleteError = deleteResult.error || 'Không thể xóa customer trên control panel'
+        console.error('[Customer Delete] Failed to delete customer from control panel:', cpDeleteError)
+      }
+    }
+
+    // Delete customer from local database
     await db.delete(customers).where(eq(customers.id, customerId))
+
+    // If there was an error deleting from control panel, return success with warning
+    if (cpDeleteError) {
+      return createSuccessResponse(
+        { warning: cpDeleteError },
+        `Đã xóa khách hàng trong database, nhưng có lỗi khi xóa trên control panel: ${cpDeleteError}`
+      )
+    }
 
     return createSuccessResponse(null, 'Xóa khách hàng')
   } catch (error) {

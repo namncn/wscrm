@@ -30,6 +30,7 @@ import {
   ChevronDown,
   X,
   NotebookText,
+  Network,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -84,6 +85,7 @@ const navigationSections: NavigationSection[] = [
     label: 'Tài khoản & hệ thống',
     items: [
       { name: 'Thành Viên', href: '/admin/users', icon: Shield, color: 'text-red-600' },
+      { name: 'Control Panels', href: '/admin/control-panels', icon: Network, color: 'text-violet-600' },
       { name: 'Hồ Sơ', href: '/admin/profile', icon: User, color: 'text-teal-600' },
       { name: 'Cài Đặt', href: '/admin/settings', icon: Settings, color: 'text-gray-600' },
     ],

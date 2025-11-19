@@ -224,22 +224,48 @@ export default function HostingPage() {
 
   const fetchHostings = async () => {
     try {
+      // For packages tab, load from /api/hosting-packages
+      // For purchased tab, load from /api/hosting?purchased=all
       const [packagesRes, purchasedRes] = await Promise.all([
-        fetch('/api/hosting'),
-        fetch('/api/hosting?purchased=all')
+        fetch('/api/hosting-packages'), // Load hosting packages (catalog)
+        fetch('/api/hosting?purchased=all') // Load purchased hostings
       ])
 
       if (packagesRes.ok) {
         const result = await packagesRes.json()
-        if (result.success && result.data) setHostings(result.data)
-        else setHostings([])
-      } else setHostings([])
+        if (result.success && result.data) {
+          // Map hosting packages to Hosting format for display
+          setHostings(result.data.map((pkg: any) => ({
+            id: typeof pkg.id === 'string' ? parseInt(pkg.id, 10) : pkg.id,
+            planName: pkg.planName,
+            storage: pkg.storage || 0,
+            bandwidth: pkg.bandwidth || 0,
+            price: pkg.price,
+            status: pkg.status,
+            addonDomain: pkg.addonDomain,
+            subDomain: pkg.subDomain,
+            ftpAccounts: pkg.ftpAccounts,
+            databases: pkg.databases,
+            hostingType: pkg.hostingType,
+            operatingSystem: pkg.operatingSystem,
+            serverLocation: pkg.serverLocation,
+            createdAt: pkg.createdAt,
+            updatedAt: pkg.updatedAt,
+          })))
+        } else {
+          setHostings([])
+        }
+      } else {
+        setHostings([])
+      }
 
       if (purchasedRes.ok) {
         const result2 = await purchasedRes.json()
         if (result2.success && result2.data) setPurchasedHostings(result2.data)
         else setPurchasedHostings([])
-      } else setPurchasedHostings([])
+      } else {
+        setPurchasedHostings([])
+      }
     } catch (error) {
       setHostings([])
       setPurchasedHostings([])
@@ -259,26 +285,26 @@ export default function HostingPage() {
       
       let requestBody: any
       if (activeTab === 'packages') {
-        // Convert storage and bandwidth from MB (string) to GB (number)
-        const storageGB = newHosting.storage === '' || newHosting.storage.toLowerCase() === 'unlimited'
+        // Save value directly from input (no conversion)
+        const storageValue = newHosting.storage === '' || newHosting.storage.toLowerCase() === 'unlimited'
           ? 0
           : (() => {
               const parsed = parseFloat(newHosting.storage)
-              return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+              return isNaN(parsed) ? 0 : parsed
             })()
         
-        const bandwidthGB = newHosting.bandwidth === '' || newHosting.bandwidth.toLowerCase() === 'unlimited'
+        const bandwidthValue = newHosting.bandwidth === '' || newHosting.bandwidth.toLowerCase() === 'unlimited'
           ? 0
           : (() => {
               const parsed = parseFloat(newHosting.bandwidth)
-              return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+              return isNaN(parsed) ? 0 : parsed
             })()
         
         // Create hosting package
         requestBody = {
           planName: newHosting.planName,
-          storage: storageGB,
-          bandwidth: bandwidthGB,
+          storage: storageValue,
+          bandwidth: bandwidthValue,
           price: newHosting.price,
           status: newHosting.status,
           serverLocation: newHosting.serverLocation || null,
@@ -390,14 +416,14 @@ export default function HostingPage() {
 
   const handleEditHostingPackage = (hosting: Hosting) => {
     setSelectedHostingPackage(hosting)
-    // Convert storage and bandwidth from GB (number) to MB (string) for display
-    const storageMB = hosting.storage ? String(Math.round(hosting.storage * 1024)) : ''
-    const bandwidthMB = hosting.bandwidth ? String(Math.round(hosting.bandwidth * 1024)) : ''
+    // Display value directly from database (no conversion)
+    const storageValue = hosting.storage ? String(hosting.storage) : ''
+    const bandwidthValue = hosting.bandwidth ? String(hosting.bandwidth) : ''
     
     setEditHostingPackage({
       planName: hosting.planName || '',
-      storage: storageMB,
-      bandwidth: bandwidthMB,
+      storage: storageValue,
+      bandwidth: bandwidthValue,
       price: typeof hosting.price === 'string' ? parseFloat(hosting.price) : hosting.price || 0,
       status: (hosting.status === 'SUSPENDED' ? 'INACTIVE' : hosting.status) as 'ACTIVE' | 'INACTIVE',
       hostingTypeId: (hosting as any).hostingTypeId || null,
@@ -482,26 +508,26 @@ export default function HostingPage() {
     
     setIsUpdating(true)
     try {
-      // Convert storage and bandwidth from MB (string) to GB (number)
-      const storageGB = editHostingPackage.storage === '' || editHostingPackage.storage.toLowerCase() === 'unlimited'
+      // Save value directly from input (no conversion)
+      const storageValue = editHostingPackage.storage === '' || editHostingPackage.storage.toLowerCase() === 'unlimited'
         ? 0
         : (() => {
             const parsed = parseFloat(editHostingPackage.storage)
-            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+            return isNaN(parsed) ? 0 : parsed
           })()
       
-      const bandwidthGB = editHostingPackage.bandwidth === '' || editHostingPackage.bandwidth.toLowerCase() === 'unlimited'
+      const bandwidthValue = editHostingPackage.bandwidth === '' || editHostingPackage.bandwidth.toLowerCase() === 'unlimited'
         ? 0
         : (() => {
             const parsed = parseFloat(editHostingPackage.bandwidth)
-            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+            return isNaN(parsed) ? 0 : parsed
           })()
       
       const updateData = {
         id: selectedHostingPackage.id,
         planName: editHostingPackage.planName,
-        storage: storageGB,
-        bandwidth: bandwidthGB,
+        storage: storageValue,
+        bandwidth: bandwidthValue,
         price: editHostingPackage.price,
         status: editHostingPackage.status,
         serverLocation: editHostingPackage.serverLocation || null,
@@ -612,7 +638,13 @@ export default function HostingPage() {
     
     setIsDeleting(true)
     try {
-      const response = await fetch(`/api/hosting?id=${selectedHosting.id}`, {
+      // For packages tab, delete from /api/hosting-packages
+      // For purchased tab, delete from /api/hosting
+      const endpoint = activeTab === 'packages' 
+        ? `/api/hosting-packages?id=${selectedHosting.id}`
+        : `/api/hosting?id=${selectedHosting.id}`
+      
+      const response = await fetch(endpoint, {
         method: 'DELETE',
       })
 
@@ -707,20 +739,22 @@ export default function HostingPage() {
     if (storage === 0 || storage === null || storage === undefined) {
       return 'Unlimited'
     }
-    if (storage >= 1024) {
-      return `${(storage / 1024).toFixed(1)}TB`
-    }
-    return `${storage}GB`
+    // Convert MB to GB (divide by 1024) and display with GB unit
+    const gb = storage / 1024
+    // Round to 1 decimal place if needed
+    const displayValue = gb % 1 === 0 ? gb : gb.toFixed(1)
+    return `${displayValue}GB`
   }
 
   const formatBandwidth = (bandwidth: number) => {
     if (bandwidth === 0 || bandwidth === null || bandwidth === undefined) {
       return 'Unlimited'
     }
-    if (bandwidth >= 1024) {
-      return `${(bandwidth / 1024).toFixed(1)}TB`
-    }
-    return `${bandwidth}GB`
+    // Convert MB to GB (divide by 1024) and display with GB unit
+    const gb = bandwidth / 1024
+    // Round to 1 decimal place if needed
+    const displayValue = gb % 1 === 0 ? gb : gb.toFixed(1)
+    return `${displayValue}GB`
   }
 
   return (

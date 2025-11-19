@@ -3,7 +3,7 @@ import { db } from '@/lib/database'
 import { users, customers } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
 import { createErrorResponse, createCreatedResponse } from '@/lib/api-response'
-import { sendVerificationEmail, sendWelcomeEmail } from '@/lib/email'
+import { sendVerificationEmail } from '@/lib/email'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 
@@ -75,14 +75,6 @@ export async function POST(request: NextRequest) {
       emailVerified: 'NO',
       verificationToken,
     })
-
-    // Send welcome email
-    try {
-      await sendWelcomeEmail(email, name)
-    } catch (emailError) {
-      console.error('Error sending welcome email:', emailError)
-      // Don't fail registration if email fails, but log it
-    }
 
     // Send verification email
     try {

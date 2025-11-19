@@ -29,7 +29,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Pagination } from '@/components/ui/pagination'
 import { toastError, toastSuccess, toastFormError, toastFormSuccess } from '@/lib/toast'
-import { Plus, Search, Edit, Trash2, Eye, Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Eye, Loader2, CheckCircle2, XCircle, RefreshCw } from 'lucide-react'
 
 interface Customer {
   id: number
@@ -60,6 +60,7 @@ export default function CustomersPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true)
+  const [syncingCustomerId, setSyncingCustomerId] = useState<number | null>(null)
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -249,6 +250,43 @@ export default function CustomersPage() {
     setIsDeleteDialogOpen(true)
   }
 
+  const handleSyncCustomer = async (customer: Customer) => {
+    try {
+      setSyncingCustomerId(customer.id)
+      const response = await fetch('/api/customers/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: customer.id,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        const action = data.data?.action || 'synced'
+        let message = `Đồng bộ customer "${customer.name}" thành công!`
+        
+        if (action === 'created') {
+          message = `Đã tạo customer "${customer.name}" trên control panel thành công!`
+        } else if (action === 'updated') {
+          message = `Đã cập nhật customer "${customer.name}" trên control panel thành công!`
+        } else if (action === 'no_change') {
+          message = `Customer "${customer.name}" đã tồn tại và không có thay đổi cần cập nhật.`
+        }
+        
+        toastSuccess(message)
+      } else {
+        toastError(data.error || 'Không thể đồng bộ customer với control panel')
+      }
+    } catch (error: any) {
+      console.error('Error syncing customer:', error)
+      toastError('Có lỗi xảy ra khi đồng bộ customer: ' + error.message)
+    } finally {
+      setSyncingCustomerId(null)
+    }
+  }
+
   const confirmDeleteCustomer = async () => {
     if (!selectedCustomer) return
 
@@ -258,15 +296,21 @@ export default function CustomersPage() {
         method: 'DELETE',
       })
 
+      const data = await response.json()
+
       if (response.ok) {
-        toastFormSuccess('Xóa khách hàng')
+        // Check if there's a warning about control panel deletion
+        if (data.data?.warning) {
+          toastSuccess(`Đã xóa khách hàng "${selectedCustomer.name}" trong database. Lưu ý: ${data.data.warning}`)
+        } else {
+          toastFormSuccess('Xóa khách hàng')
+        }
         setIsDeleteDialogOpen(false)
         setSelectedCustomer(null)
         // Refresh customers list
         await fetchCustomers()
       } else {
-        const error = await response.json()
-        toastFormError('Xóa khách hàng', error.error)
+        toastFormError('Xóa khách hàng', data.error || 'Có lỗi xảy ra')
       }
     } catch (error) {
       console.error('Error deleting customer:', error)
@@ -1013,6 +1057,20 @@ export default function CustomersPage() {
                     <TableRow key={customer.id}>
                       <TableCell className="w-fit">
                         <div className="flex gap-1">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => handleSyncCustomer(customer)}
+                            title="Đồng bộ với Control Panel"
+                            disabled={syncingCustomerId === customer.id}
+                          >
+                            {syncingCustomerId === customer.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4" />
+                            )}
+                          </Button>
                           <Button 
                             variant="outline" 
                             size="sm"
