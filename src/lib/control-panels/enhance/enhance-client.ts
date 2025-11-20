@@ -613,6 +613,22 @@ export class EnhanceClient {
   }
 
   /**
+   * List websites for an org
+   * Endpoint: GET /orgs/{org_id}/websites
+   * If orgId is provided, use that org context, otherwise use parent org (this.orgId)
+   */
+  async listWebsites(orgId?: string): Promise<EnhanceApiResponse<Array<{ id: string; domain?: string; [key: string]: any }>>> {
+    const targetOrgId = orgId || this.orgId
+    if (!targetOrgId) {
+      return {
+        success: false,
+        error: 'orgId is required to list websites',
+      }
+    }
+    return this.request<Array<{ id: string; domain?: string; [key: string]: any }>>(`/orgs/${targetOrgId}/websites`, 'GET')
+  }
+
+  /**
    * Get website by ID
    * Endpoint: GET /orgs/{org_id}/websites/{website_id}
    * Note: Website can be accessed from parent org or the org where it was created
@@ -633,9 +649,18 @@ export class EnhanceClient {
   /**
    * Update website
    * Endpoint: PUT /orgs/{org_id}/websites/{website_id}
+   * If orgId is provided, use that org context, otherwise use parent org (this.orgId)
    */
-  async updateWebsite(websiteId: string, params: any): Promise<EnhanceApiResponse<any>> {
-    return this.request(`${this.getOrgPrefix()}/websites/${websiteId}`, 'PUT', params)
+  async updateWebsite(websiteId: string, params: any, orgId?: string): Promise<EnhanceApiResponse<any>> {
+    // Use provided orgId or fallback to parent org
+    const targetOrgId = orgId || this.orgId
+    if (!targetOrgId) {
+      return {
+        success: false,
+        error: 'orgId is required to update website',
+      }
+    }
+    return this.request(`/orgs/${targetOrgId}/websites/${websiteId}`, 'PUT', params)
   }
 
   /**
@@ -643,20 +668,38 @@ export class EnhanceClient {
    * Endpoint: DELETE /orgs/{org_id}/websites/{website_id}
    * Optional query parameter: force=true (for hard delete, requires MO privileges)
    * Alternative: DELETE /orgs/{org_id}/websites with body containing UuidListing (for multiple)
+   * If orgId is provided, use that org context, otherwise use parent org (this.orgId)
    */
-  async deleteWebsite(websiteId: string, force: boolean = false): Promise<EnhanceApiResponse<void>> {
+  async deleteWebsite(websiteId: string, force: boolean = false, orgId?: string): Promise<EnhanceApiResponse<void>> {
+    // Use provided orgId or fallback to parent org
+    const targetOrgId = orgId || this.orgId
+    if (!targetOrgId) {
+      return {
+        success: false,
+        error: 'orgId is required to delete website',
+      }
+    }
     const endpoint = force 
-      ? `${this.getOrgPrefix()}/websites/${websiteId}?force=true`
-      : `${this.getOrgPrefix()}/websites/${websiteId}`
+      ? `/orgs/${targetOrgId}/websites/${websiteId}?force=true`
+      : `/orgs/${targetOrgId}/websites/${websiteId}`
     return this.request<void>(endpoint, 'DELETE')
   }
 
   /**
    * Add domain to website
    * Endpoint: POST /orgs/{org_id}/websites/{website_id}/domains
+   * If orgId is provided, use that org context, otherwise use parent org (this.orgId)
    */
-  async addDomain(websiteId: string, domain: string): Promise<EnhanceApiResponse<void>> {
-    return this.request<void>(`${this.getOrgPrefix()}/websites/${websiteId}/domains`, 'POST', { domain })
+  async addDomain(websiteId: string, domain: string, orgId?: string): Promise<EnhanceApiResponse<void>> {
+    // Use provided orgId or fallback to parent org
+    const targetOrgId = orgId || this.orgId
+    if (!targetOrgId) {
+      return {
+        success: false,
+        error: 'orgId is required to add domain',
+      }
+    }
+    return this.request<void>(`/orgs/${targetOrgId}/websites/${websiteId}/domains`, 'POST', { domain })
   }
 
   /**

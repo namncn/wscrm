@@ -303,7 +303,7 @@ export default function CustomersPage() {
         if (data.data?.warning) {
           toastSuccess(`Đã xóa khách hàng "${selectedCustomer.name}" trong database. Lưu ý: ${data.data.warning}`)
         } else {
-          toastFormSuccess('Xóa khách hàng')
+        toastFormSuccess('Xóa khách hàng')
         }
         setIsDeleteDialogOpen(false)
         setSelectedCustomer(null)

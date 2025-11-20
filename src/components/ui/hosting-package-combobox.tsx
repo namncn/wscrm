@@ -111,7 +111,11 @@ export function HostingPackageCombobox({
             />
           </div>
         </div>
-        <div className="max-h-[300px] overflow-y-auto p-1">
+        <div 
+          className="max-h-[300px] overflow-y-auto overflow-x-hidden p-1"
+          onWheel={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+        >
           {filteredPackages.length === 0 ? (
             <div className="px-2 py-6 text-center text-sm text-muted-foreground">
               Không tìm thấy gói hosting
