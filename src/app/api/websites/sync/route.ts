@@ -101,7 +101,11 @@ export async function POST(req: NextRequest) {
 
     // 3. Sync customer to Control Panel nếu chưa có externalAccountId
     let customerExternalId: string | undefined
-    if (!hostingData?.externalAccountId) {
+    // Kiểm tra từ hosting trước (vì externalAccountId được lưu trong hosting)
+    if (hostingData?.externalAccountId) {
+      customerExternalId = hostingData.externalAccountId
+    } else {
+      // Sync customer nếu chưa có
       const syncResult = await ControlPanelSyncService.syncCustomerToControlPanel(
         {
           name: customerData.name,
@@ -120,8 +124,6 @@ export async function POST(req: NextRequest) {
       }
 
       customerExternalId = syncResult.externalAccountId
-    } else {
-      customerExternalId = hostingData.externalAccountId
     }
 
     // 4. Kiểm tra xem website đã được sync chưa (có externalWebsiteId trong notes)
@@ -305,24 +307,98 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 8. Lấy subscription ID từ hosting nếu có
+    // 8. Nếu website có hosting, cần đảm bảo hosting đã có subscription trước khi tạo website
     let subscriptionId: number | undefined
-    if (hostingData && hostingData.syncMetadata) {
-      try {
-        const metadata = typeof hostingData.syncMetadata === 'string' 
-          ? JSON.parse(hostingData.syncMetadata) 
-          : hostingData.syncMetadata
-        if (metadata.subscriptionId) {
-          subscriptionId = typeof metadata.subscriptionId === 'string' 
-            ? parseInt(metadata.subscriptionId, 10) 
-            : metadata.subscriptionId
+    if (hostingData && websiteRecord.hostingId) {
+      // Kiểm tra xem hosting đã có subscriptionId trong syncMetadata chưa
+      let hasSubscription = false
+      if (hostingData.syncMetadata) {
+        try {
+          const metadata = typeof hostingData.syncMetadata === 'string' 
+            ? JSON.parse(hostingData.syncMetadata) 
+            : hostingData.syncMetadata
+          const subscriptionIdValue = metadata.subscriptionId || metadata.externalSubscriptionId
+          if (subscriptionIdValue) {
+            subscriptionId = typeof subscriptionIdValue === 'string' 
+              ? parseInt(subscriptionIdValue, 10) 
+              : subscriptionIdValue
+            hasSubscription = true
+          }
+        } catch (e) {
+          // Ignore parse errors
         }
-      } catch (e) {
-        // Ignore parse errors
+      }
+
+      // Nếu chưa có subscription, cần sync hosting trước để tạo subscription
+      if (!hasSubscription) {
+        console.log(`[Website Sync] Hosting ${hostingData.id} chưa có subscription, đang sync hosting...`)
+        
+        // Lấy plan mapping
+        const planMapping = await db.select()
+          .from(controlPanelPlans)
+          .where(and(
+            eq(controlPanelPlans.controlPanelId, cpId),
+            eq(controlPanelPlans.localPlanType, 'HOSTING'),
+            eq(controlPanelPlans.localPlanId, hostingData.hostingTypeId),
+            eq(controlPanelPlans.isActive, 'YES')
+          ))
+          .limit(1)
+
+        if (planMapping.length === 0) {
+          return createErrorResponse(
+            `Không tìm thấy plan mapping cho hosting. Vui lòng tạo mapping trong Control Panels > Plans trước khi sync website.`,
+            404
+          )
+        }
+
+        const enhancePlanId = planMapping[0].externalPlanId
+
+        // Tạo subscription trên Enhance
+        const subscriptionResult = await enhanceClient.createSubscription(
+          customerExternalId,
+          enhancePlanId
+        )
+
+        if (!subscriptionResult.success || !subscriptionResult.data) {
+          return createErrorResponse(
+            `Không thể tạo subscription trên Control Panel: ${subscriptionResult.error || 'Unknown error'}. Vui lòng sync hosting trước.`,
+            500
+          )
+        }
+
+        subscriptionId = subscriptionResult.data.id
+
+        // Update hosting record với subscription info
+        const currentMetadata = hostingData.syncMetadata ? JSON.parse(JSON.stringify(hostingData.syncMetadata)) : {}
+        const updatedMetadata = {
+          ...currentMetadata,
+          subscriptionId: subscriptionId,
+          externalSubscriptionId: subscriptionId,
+          subscriptionSyncedAt: new Date().toISOString(),
+        }
+
+        await db.update(hosting)
+          .set({
+            externalAccountId: customerExternalId,
+            syncStatus: 'SYNCED',
+            lastSyncedAt: new Date(),
+            syncMetadata: updatedMetadata,
+          })
+          .where(eq(hosting.id, hostingData.id))
+
+        console.log(`[Website Sync] Đã tạo subscription ${subscriptionId} cho hosting ${hostingData.id}`)
       }
     }
 
     // 9. Tạo website mới trên Control Panel
+    // Lưu ý: Enhance yêu cầu subscriptionId là bắt buộc khi tạo website
+    if (!subscriptionId) {
+      return createErrorResponse(
+        'Website cần có hosting với subscription để tạo trên Control Panel. Vui lòng gán hosting cho website trước.',
+        400
+      )
+    }
+
     const websiteResult = await enhanceClient.createWebsite({
       customerId: customerExternalId,
       domain: domainData.domainName,

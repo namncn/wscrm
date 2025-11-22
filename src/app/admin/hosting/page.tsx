@@ -529,7 +529,9 @@ export default function HostingPage() {
       const result = await response.json()
 
       if (response.ok && result.success) {
-        toastSuccess('Tạo subscription trên Control Panel thành công!')
+        // Sử dụng message từ API response thay vì hardcode
+        const message = result.message || 'Tạo subscription trên Control Panel thành công!'
+        toastSuccess(message)
         // Refresh hosting list
         await fetchHostings()
       } else {
@@ -694,13 +696,25 @@ export default function HostingPage() {
       })
 
       if (response.ok) {
+        const result = await response.json()
         await Promise.all([
           fetchHostings(),
           fetchHostingPackages() // Refresh packages list for combobox
         ])
         setIsDeleteHostingDialogOpen(false)
         setSelectedHosting(null)
-        toastSuccess('Xóa gói hosting thành công!')
+        
+        // Hiển thị thông báo chi tiết dựa trên response
+        if (result.data?.warning) {
+          // Có cảnh báo (xóa subscription thất bại)
+          toastError(result.message || 'Xóa gói hosting thành công nhưng có lỗi khi xóa subscription trên Control Panel')
+        } else if (result.data?.subscriptionDeleted) {
+          // Xóa subscription thành công
+          toastSuccess(result.message || 'Xóa gói hosting và subscription trên Control Panel thành công!')
+        } else {
+          // Xóa hosting thành công (không có subscription)
+          toastSuccess(result.message || 'Xóa gói hosting thành công!')
+        }
       } else {
         const errorData = await response.json()
         toastError(`Lỗi: ${errorData.error || 'Không thể xóa gói hosting'}`)

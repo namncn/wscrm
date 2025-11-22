@@ -613,6 +613,191 @@ export class EnhanceClient {
   }
 
   /**
+   * List subscriptions for a customer
+   * Endpoint: GET /orgs/{org_id}/customers/{customer_id}/subscriptions
+   */
+  async listSubscriptions(
+    customerId: string
+  ): Promise<EnhanceApiResponse<Array<{ id: number; planId?: number; [key: string]: any }>>> {
+    const result = await this.request<Array<{ id: number; planId?: number; [key: string]: any }>>(
+      `${this.getOrgPrefix()}/customers/${customerId}/subscriptions`,
+      'GET'
+    )
+    
+    return result
+  }
+
+  /**
+   * Get subscription by ID
+   * Endpoint: GET /orgs/{org_id}/customers/{customer_id}/subscriptions/{subscription_id}
+   */
+  async getSubscription(
+    customerId: string,
+    subscriptionId: number | string
+  ): Promise<EnhanceApiResponse<{ id: number; planId?: number; [key: string]: any }>> {
+    const subscriptionIdInt = typeof subscriptionId === 'string' ? parseInt(subscriptionId, 10) : subscriptionId
+    if (isNaN(subscriptionIdInt)) {
+      return {
+        success: false,
+        error: 'subscriptionId must be a valid integer',
+      }
+    }
+    
+    const result = await this.request<{ id: number; planId?: number; [key: string]: any }>(
+      `${this.getOrgPrefix()}/customers/${customerId}/subscriptions/${subscriptionIdInt}`,
+      'GET'
+    )
+    
+    return result
+  }
+
+  /**
+   * Update subscription
+   * Endpoint: PATCH /orgs/{org_id}/subscriptions/{subscription_id}
+   * According to API docs and PHP code: Updates the organization's subscription
+   * Note: org_id should be the customer org ID (subscriberId), not vendor org ID
+   * Based on enhance.php line 316: updateSubscription uses customer's enhOrgId
+   */
+  async updateSubscription(
+    customerId: string,
+    subscriptionId: number | string,
+    planId: string | number
+  ): Promise<EnhanceApiResponse<{ id: number }>> {
+    // Convert planId to integer if it's a string
+    const planIdInt = typeof planId === 'string' ? parseInt(planId, 10) : planId
+    if (isNaN(planIdInt)) {
+      return {
+        success: false,
+        error: 'planId must be a valid integer',
+      }
+    }
+
+    const subscriptionIdInt = typeof subscriptionId === 'string' ? parseInt(subscriptionId, 10) : subscriptionId
+    if (isNaN(subscriptionIdInt)) {
+      return {
+        success: false,
+        error: 'subscriptionId must be a valid integer',
+      }
+    }
+    
+    // Endpoint đúng theo API docs: /orgs/{org_id}/subscriptions/{subscription_id}
+    // Theo code PHP (enhance.php line 316), org_id là customer org ID (enhOrgId), không phải vendor org ID
+    // Thử với customer org ID trước
+    const endpointWithCustomerOrg = `/orgs/${customerId}/subscriptions/${subscriptionIdInt}`
+    const requestBody = { planId: planIdInt }
+    
+    console.log(`[EnhanceClient] Updating subscription:`, {
+      endpointWithCustomerOrg,
+      subscriptionId: subscriptionIdInt,
+      customerOrgId: customerId,
+      vendorOrgId: this.orgId,
+      planId: planIdInt,
+      requestBody,
+    })
+    
+    // Theo API docs, method là PATCH
+    // Thử với customer org ID trước (theo code PHP)
+    let result = await this.request<{ id: number }>(
+      endpointWithCustomerOrg,
+      'PATCH',
+      requestBody
+    )
+    
+    // Nếu thất bại với customer org ID, thử với vendor org ID (fallback)
+    if (!result.success && result.statusCode === 404) {
+      const endpointWithVendorOrg = `${this.getOrgPrefix()}/subscriptions/${subscriptionIdInt}`
+      console.log(`[EnhanceClient] Customer org endpoint failed, trying vendor org endpoint: ${endpointWithVendorOrg}`)
+      result = await this.request<{ id: number }>(
+        endpointWithVendorOrg,
+        'PATCH',
+        requestBody
+      )
+    }
+    
+    if (!result.success) {
+      console.error(`[EnhanceClient] Update subscription failed:`, {
+        subscriptionId: subscriptionIdInt,
+        customerOrgId: customerId,
+        vendorOrgId: this.orgId,
+        planId: planIdInt,
+        error: result.error,
+        statusCode: result.statusCode,
+        triedEndpoints: [endpointWithCustomerOrg, `${this.getOrgPrefix()}/subscriptions/${subscriptionIdInt}`],
+      })
+    } else {
+      console.log(`[EnhanceClient] ✓ Update subscription succeeded:`, {
+        subscriptionId: subscriptionIdInt,
+        planId: planIdInt,
+      })
+    }
+    
+    return result
+  }
+
+  /**
+   * Delete subscription
+   * Endpoint: DELETE /orgs/{org_id}/subscriptions/{subscription_id}
+   * According to API docs and PHP code: Uses customer org ID (enhOrgId), not vendor org ID
+   * Based on enhance.php line 263: deleteSubscription uses customer's enhOrgId
+   */
+  async deleteSubscription(
+    customerId: string,
+    subscriptionId: number | string
+  ): Promise<EnhanceApiResponse<void>> {
+    const subscriptionIdInt = typeof subscriptionId === 'string' ? parseInt(subscriptionId, 10) : subscriptionId
+    if (isNaN(subscriptionIdInt)) {
+      return {
+        success: false,
+        error: 'subscriptionId must be a valid integer',
+      }
+    }
+    
+    // Endpoint đúng theo API docs: /orgs/{org_id}/subscriptions/{subscription_id}
+    // Theo code PHP (enhance.php line 263), org_id là customer org ID (enhOrgId), không phải vendor org ID
+    // Thử với customer org ID trước
+    const endpointWithCustomerOrg = `/orgs/${customerId}/subscriptions/${subscriptionIdInt}`
+    
+    console.log(`[EnhanceClient] Deleting subscription:`, {
+      endpointWithCustomerOrg,
+      subscriptionId: subscriptionIdInt,
+      customerOrgId: customerId,
+      vendorOrgId: this.orgId,
+    })
+    
+    let result = await this.request<void>(
+      endpointWithCustomerOrg,
+      'DELETE'
+    )
+    
+    // Nếu thất bại với customer org ID, thử với vendor org ID (fallback)
+    if (!result.success && result.statusCode === 404) {
+      const endpointWithVendorOrg = `${this.getOrgPrefix()}/subscriptions/${subscriptionIdInt}`
+      console.log(`[EnhanceClient] Customer org endpoint failed, trying vendor org endpoint: ${endpointWithVendorOrg}`)
+      result = await this.request<void>(
+        endpointWithVendorOrg,
+        'DELETE'
+      )
+    }
+    
+    if (!result.success) {
+      console.error(`[EnhanceClient] Delete subscription failed:`, {
+        subscriptionId: subscriptionIdInt,
+        customerOrgId: customerId,
+        vendorOrgId: this.orgId,
+        error: result.error,
+        statusCode: result.statusCode,
+        triedEndpoints: [endpointWithCustomerOrg, `${this.getOrgPrefix()}/subscriptions/${subscriptionIdInt}`],
+      })
+    } else {
+      console.log(`[EnhanceClient] ✓ Delete subscription succeeded:`, {
+        subscriptionId: subscriptionIdInt,
+      })
+    }
+    
+    return result
+  }
+
+  /**
    * List websites for an org
    * Endpoint: GET /orgs/{org_id}/websites
    * If orgId is provided, use that org context, otherwise use parent org (this.orgId)

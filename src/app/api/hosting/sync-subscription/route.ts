@@ -141,46 +141,229 @@ export async function POST(req: NextRequest) {
 
     const enhancePlanId = planMapping[0].externalPlanId
 
-    // 5. Tạo subscription trên Enhance
     const controlPanelInstance = ControlPanelFactory.create(controlPanel[0].type as ControlPanelType, config)
     const enhanceAdapter = controlPanelInstance as any
 
-    // Sử dụng enhance client trực tiếp để tạo subscription
+    // Sử dụng enhance client trực tiếp để tạo hoặc cập nhật subscription
     const enhanceClient = (enhanceAdapter as any).client
     if (!enhanceClient) {
       return createErrorResponse('Không thể truy cập Enhance client', 500)
     }
 
-    const subscriptionResult = await enhanceClient.createSubscription(
-      customerExternalId,
-      enhancePlanId
-    )
-
-    if (!subscriptionResult.success || !subscriptionResult.data) {
-      return createErrorResponse(
-        `Không thể tạo subscription trên Enhance: ${subscriptionResult.error || 'Unknown error'}`,
-        500
-      )
+    // 5. Kiểm tra xem hosting đã có subscription ID trong syncMetadata chưa
+    let existingSubscriptionId: number | undefined
+    if (hostingRecord.syncMetadata) {
+      try {
+        const metadata = typeof hostingRecord.syncMetadata === 'string' 
+          ? JSON.parse(hostingRecord.syncMetadata) 
+          : hostingRecord.syncMetadata
+        const subscriptionIdValue = metadata.subscriptionId || metadata.externalSubscriptionId
+        if (subscriptionIdValue) {
+          existingSubscriptionId = typeof subscriptionIdValue === 'string' 
+            ? parseInt(subscriptionIdValue, 10) 
+            : subscriptionIdValue
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
     }
 
-    const subscriptionId = subscriptionResult.data.id
+    // 6. Nếu không có subscription ID trong syncMetadata, tạo subscription mới
+    // Không tìm subscription đã có để gán vào - mỗi hosting cần subscription riêng
+    if (!existingSubscriptionId) {
+      console.log(`[SyncSubscription] Hosting ${hostingId} chưa có subscription ID trong syncMetadata, sẽ tạo subscription mới trên Enhance...`)
+    } else {
+      console.log(`[SyncSubscription] Hosting ${hostingId} đã có subscription ID ${existingSubscriptionId} trong syncMetadata`)
+    }
+
+    let subscriptionId: number
+    let action: 'created' | 'updated' | 'recreated' | 'upgrade' | 'downgrade' = 'created'
+    let oldPlanId: number | undefined
+    let oldPlanName: string | undefined
+
+    if (existingSubscriptionId) {
+      // Nếu đã có subscription ID, kiểm tra subscription có tồn tại và planId có thay đổi không
+      console.log(`[SyncSubscription] Hosting ${hostingId} đã có subscription ${existingSubscriptionId}, đang kiểm tra...`)
+      
+      // Thay vì dùng getSubscription (có thể trả về 404), dùng listSubscriptions để tìm subscription
+      const listResult = await enhanceClient.listSubscriptions(customerExternalId)
+      
+      if (!listResult.success) {
+        return createErrorResponse(
+          `Không thể kiểm tra subscriptions trên Enhance: ${listResult.error || 'Unknown error'}`,
+          500
+        )
+      }
+
+      // Tìm subscription với ID tương ứng
+      // Log để debug subscription structure
+      console.log(`[SyncSubscription] Danh sách subscriptions:`, listResult.data?.map((sub: any) => ({
+        id: sub.id,
+        subscriptionId: sub.subscriptionId,
+        planId: sub.planId || sub.plan_id,
+        allKeys: Object.keys(sub),
+      })))
+      
+      const foundSubscription = listResult.data?.find((sub: any) => {
+        const subId = sub.id || sub.subscriptionId
+        const match = subId === existingSubscriptionId
+        if (!match) {
+          console.log(`[SyncSubscription] Subscription ${subId} không khớp với ${existingSubscriptionId}`)
+        }
+        return match
+      })
+
+      if (!foundSubscription) {
+        // Subscription không tồn tại trong danh sách, có thể đã bị xóa
+        console.log(`[SyncSubscription] Subscription ${existingSubscriptionId} không tìm thấy trong danh sách subscriptions, đang tạo mới...`)
+        const createResult = await enhanceClient.createSubscription(
+          customerExternalId,
+          enhancePlanId
+        )
+
+        if (!createResult.success || !createResult.data) {
+          return createErrorResponse(
+            `Subscription cũ không tồn tại và không thể tạo mới: ${createResult.error || 'Unknown error'}`,
+            500
+          )
+        }
+
+        subscriptionId = createResult.data.id
+        action = 'recreated'
+      } else {
+        // Subscription tồn tại, kiểm tra planId có thay đổi không
+        const currentPlanId = foundSubscription.planId || foundSubscription.plan_id
+        const newPlanIdInt = typeof enhancePlanId === 'string' ? parseInt(enhancePlanId, 10) : enhancePlanId
+        
+        // Lưu thông tin plan cũ
+        oldPlanId = currentPlanId
+        oldPlanName = foundSubscription.planName || foundSubscription.friendlyName || `Plan ${currentPlanId}`
+        
+        console.log(`[SyncSubscription] Tìm thấy subscription ${existingSubscriptionId} với planId ${currentPlanId} (${oldPlanName}), planId mới: ${newPlanIdInt} (${packageData.planName})`)
+        
+        if (currentPlanId === newPlanIdInt) {
+          // PlanId không thay đổi, không cần cập nhật
+          console.log(`[SyncSubscription] Subscription ${existingSubscriptionId} đã tồn tại với planId ${currentPlanId}, không cần cập nhật`)
+          subscriptionId = existingSubscriptionId
+          action = 'updated' // Dùng 'updated' nhưng thực tế không cập nhật
+        } else {
+          // PlanId đã thay đổi, cần cập nhật
+          // Xác định upgrade hay downgrade
+          const isUpgrade = newPlanIdInt > currentPlanId
+          const actionType = isUpgrade ? 'upgrade' : 'downgrade'
+          console.log(`[SyncSubscription] Subscription ${existingSubscriptionId} có planId ${currentPlanId}, đang ${actionType} sang ${newPlanIdInt}...`)
+          
+          // Thử update subscription
+          // Note: customerExternalId được truyền vào nhưng không dùng trong endpoint
+          // Endpoint đúng là /orgs/{org_id}/subscriptions/{subscription_id} với orgId từ config
+          const updateResult = await enhanceClient.updateSubscription(
+            customerExternalId,
+            existingSubscriptionId,
+            enhancePlanId
+          )
+
+          if (!updateResult.success) {
+            console.error(`[SyncSubscription] Lỗi khi cập nhật subscription:`, {
+              subscriptionId: existingSubscriptionId,
+              customerId: customerExternalId,
+              planId: enhancePlanId,
+              error: updateResult.error,
+              statusCode: updateResult.statusCode,
+              foundSubscription: foundSubscription, // Log subscription object để debug
+            })
+            return createErrorResponse(
+              `Không thể cập nhật subscription trên Enhance: ${updateResult.error || 'Unknown error'}${updateResult.statusCode ? ` (HTTP ${updateResult.statusCode})` : ''}. Vui lòng kiểm tra lại Enhance API documentation hoặc liên hệ support.`,
+              updateResult.statusCode || 500
+            )
+          }
+
+          // Update thành công
+          // API trả về void (empty response body), nên dùng existingSubscriptionId
+          subscriptionId = existingSubscriptionId
+          action = actionType as 'created' | 'updated' | 'recreated' | 'upgrade' | 'downgrade'
+          console.log(`[SyncSubscription] ✓ Đã ${actionType} subscription ${subscriptionId} thành công từ planId ${currentPlanId} sang ${newPlanIdInt}`)
+        }
+      }
+    } else {
+      // Nếu chưa có subscription ID, tạo mới
+      console.log(`[SyncSubscription] Hosting ${hostingId} chưa có subscription, đang tạo mới...`)
+      const subscriptionResult = await enhanceClient.createSubscription(
+        customerExternalId,
+        enhancePlanId
+      )
+
+      if (!subscriptionResult.success || !subscriptionResult.data) {
+        return createErrorResponse(
+          `Không thể tạo subscription trên Enhance: ${subscriptionResult.error || 'Unknown error'}`,
+          500
+        )
+      }
+
+      subscriptionId = subscriptionResult.data.id
+    }
 
     // 6. Update hosting record với subscription info
-    const currentMetadata = hostingRecord.syncMetadata ? JSON.parse(JSON.stringify(hostingRecord.syncMetadata)) : {}
+    let currentMetadata: any = {}
+    try {
+      if (hostingRecord.syncMetadata) {
+        if (typeof hostingRecord.syncMetadata === 'string') {
+          currentMetadata = JSON.parse(hostingRecord.syncMetadata)
+        } else {
+          currentMetadata = hostingRecord.syncMetadata
+        }
+      }
+    } catch (e) {
+      console.error('[SyncSubscription] Error parsing syncMetadata:', e)
+      currentMetadata = {}
+    }
+
     const updatedMetadata = {
       ...currentMetadata,
       subscriptionId: subscriptionId,
+      externalSubscriptionId: subscriptionId,
       subscriptionSyncedAt: new Date().toISOString(),
     }
 
-    await db.update(hosting)
-      .set({
-        externalAccountId: customerExternalId,
-        syncStatus: 'SYNCED',
-        lastSyncedAt: new Date(),
-        syncMetadata: updatedMetadata,
-      })
-      .where(eq(hosting.id, hostingId))
+    try {
+      await db.update(hosting)
+        .set({
+          externalAccountId: customerExternalId,
+          syncStatus: 'SYNCED',
+          lastSyncedAt: new Date(),
+          syncMetadata: updatedMetadata,
+        })
+        .where(eq(hosting.id, hostingId))
+    } catch (dbError: any) {
+      console.error('[SyncSubscription] Error updating hosting record:', dbError)
+      // Nếu lỗi database nhưng subscription đã được tạo/cập nhật trên Enhance, vẫn trả về success
+      // nhưng có warning
+      if (dbError.code === 'ECONNRESET' || dbError.code === 'ETIMEDOUT') {
+        console.warn('[SyncSubscription] Database connection error, but subscription was synced to Enhance')
+        // Vẫn trả về success vì subscription đã được sync trên Enhance
+      } else {
+        throw dbError
+      }
+    }
+
+    let message: string
+    if (action === 'created') {
+      message = `Tạo subscription trên Control Panel thành công cho gói "${packageData.planName}"`
+    } else if (action === 'upgrade') {
+      message = `Nâng cấp subscription thành công từ "${oldPlanName || `Plan ${oldPlanId}`}" lên "${packageData.planName}"`
+    } else if (action === 'downgrade') {
+      message = `Hạ cấp subscription thành công từ "${oldPlanName || `Plan ${oldPlanId}`}" xuống "${packageData.planName}"`
+    } else if (action === 'updated') {
+      // Kiểm tra xem có thực sự cập nhật không (planId có thay đổi)
+      if (existingSubscriptionId && subscriptionId === existingSubscriptionId) {
+        // Không cập nhật vì planId giống nhau
+        message = `Subscription đã tồn tại trên Control Panel (ID: ${subscriptionId}) với gói "${packageData.planName}" và không cần cập nhật`
+      } else {
+        message = `Cập nhật subscription trên Control Panel thành công cho gói "${packageData.planName}"`
+      }
+    } else {
+      // recreated
+      message = `Subscription cũ không tồn tại trên Control Panel, đã tạo subscription mới (ID: ${subscriptionId}) cho gói "${packageData.planName}"`
+    }
 
     return createSuccessResponse(
       {
@@ -188,8 +371,9 @@ export async function POST(req: NextRequest) {
         subscriptionId: subscriptionId,
         customerExternalId: customerExternalId,
         planId: enhancePlanId,
+        action: action,
       },
-      'Tạo subscription trên Enhance thành công'
+      message
     )
   } catch (error: any) {
     console.error('Error syncing subscription:', error)

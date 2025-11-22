@@ -57,6 +57,7 @@ export default function CustomersPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isSyncCustomerDialogOpen, setIsSyncCustomerDialogOpen] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true)
@@ -250,14 +251,21 @@ export default function CustomersPage() {
     setIsDeleteDialogOpen(true)
   }
 
-  const handleSyncCustomer = async (customer: Customer) => {
+  const handleSyncCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer)
+    setIsSyncCustomerDialogOpen(true)
+  }
+
+  const confirmSyncCustomer = async () => {
+    if (!selectedCustomer) return
+
     try {
-      setSyncingCustomerId(customer.id)
+      setSyncingCustomerId(selectedCustomer.id)
       const response = await fetch('/api/customers/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customerId: customer.id,
+          customerId: selectedCustomer.id,
         }),
       })
 
@@ -265,17 +273,19 @@ export default function CustomersPage() {
 
       if (response.ok && data.success) {
         const action = data.data?.action || 'synced'
-        let message = `Đồng bộ customer "${customer.name}" thành công!`
+        let message = `Đồng bộ customer "${selectedCustomer.name}" thành công!`
         
         if (action === 'created') {
-          message = `Đã tạo customer "${customer.name}" trên control panel thành công!`
+          message = `Đã tạo customer "${selectedCustomer.name}" trên control panel thành công!`
         } else if (action === 'updated') {
-          message = `Đã cập nhật customer "${customer.name}" trên control panel thành công!`
+          message = `Đã cập nhật customer "${selectedCustomer.name}" trên control panel thành công!`
         } else if (action === 'no_change') {
-          message = `Customer "${customer.name}" đã tồn tại và không có thay đổi cần cập nhật.`
+          message = `Customer "${selectedCustomer.name}" đã tồn tại và không có thay đổi cần cập nhật.`
         }
         
         toastSuccess(message)
+        setIsSyncCustomerDialogOpen(false)
+        setSelectedCustomer(null)
       } else {
         toastError(data.error || 'Không thể đồng bộ customer với control panel')
       }
@@ -931,6 +941,71 @@ export default function CustomersPage() {
                 disabled={isLoading}
               >
                 {isLoading ? 'Đang xóa...' : 'Xóa'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Sync Customer Dialog */}
+        <Dialog open={isSyncCustomerDialogOpen} onOpenChange={setIsSyncCustomerDialogOpen}>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
+              <DialogTitle>Sync Customer lên Control Panel</DialogTitle>
+              <DialogDescription>
+                Bạn có chắc chắn muốn đồng bộ khách hàng này lên Control Panel không?
+              </DialogDescription>
+            </DialogHeader>
+            {selectedCustomer && (
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="py-4 space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                    <div className="text-sm font-medium text-blue-900 mb-2">Thông tin khách hàng:</div>
+                    <div className="space-y-1 text-sm text-blue-800">
+                      <div><span className="font-medium">Tên:</span> {selectedCustomer.name}</div>
+                      <div><span className="font-medium">Email:</span> {selectedCustomer.email}</div>
+                      {selectedCustomer.phone && (
+                        <div><span className="font-medium">Số điện thoại:</span> {selectedCustomer.phone}</div>
+                      )}
+                      {selectedCustomer.company && (
+                        <div><span className="font-medium">Công ty:</span> {selectedCustomer.company}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                    <div className="text-sm text-yellow-800">
+                      <strong>Lưu ý:</strong> Hành động này sẽ tạo hoặc cập nhật thông tin khách hàng trên Control Panel.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setIsSyncCustomerDialogOpen(false)
+                  setSelectedCustomer(null)
+                }}
+                disabled={syncingCustomerId === selectedCustomer?.id}
+              >
+                Hủy
+              </Button>
+              <Button 
+                onClick={confirmSyncCustomer}
+                disabled={syncingCustomerId === selectedCustomer?.id}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {syncingCustomerId === selectedCustomer?.id ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Đang sync...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    Xác nhận Sync
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
