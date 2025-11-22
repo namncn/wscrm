@@ -446,10 +446,6 @@ export async function DELETE(req: Request) {
                 if (!deleteResult.success) {
                   warning = `Không thể xóa subscription trên Control Panel: ${deleteResult.error || 'Unknown error'}. Hosting đã được xóa trong database.`
                   console.error('[DeleteHosting] Failed to delete subscription:', deleteResult.error)
-                } else {
-                  console.log(`[DeleteHosting] Đã xóa subscription ${subscriptionId} trên Control Panel`)
-                  // Lưu thông tin thành công để trả về trong response
-                  // (sẽ được xử lý trong response message)
                 }
               }
             }

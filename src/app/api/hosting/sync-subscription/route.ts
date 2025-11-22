@@ -170,11 +170,6 @@ export async function POST(req: NextRequest) {
 
     // 6. Nếu không có subscription ID trong syncMetadata, tạo subscription mới
     // Không tìm subscription đã có để gán vào - mỗi hosting cần subscription riêng
-    if (!existingSubscriptionId) {
-      console.log(`[SyncSubscription] Hosting ${hostingId} chưa có subscription ID trong syncMetadata, sẽ tạo subscription mới trên Enhance...`)
-    } else {
-      console.log(`[SyncSubscription] Hosting ${hostingId} đã có subscription ID ${existingSubscriptionId} trong syncMetadata`)
-    }
 
     let subscriptionId: number
     let action: 'created' | 'updated' | 'recreated' | 'upgrade' | 'downgrade' = 'created'
@@ -183,8 +178,6 @@ export async function POST(req: NextRequest) {
 
     if (existingSubscriptionId) {
       // Nếu đã có subscription ID, kiểm tra subscription có tồn tại và planId có thay đổi không
-      console.log(`[SyncSubscription] Hosting ${hostingId} đã có subscription ${existingSubscriptionId}, đang kiểm tra...`)
-      
       // Thay vì dùng getSubscription (có thể trả về 404), dùng listSubscriptions để tìm subscription
       const listResult = await enhanceClient.listSubscriptions(customerExternalId)
       
@@ -196,26 +189,13 @@ export async function POST(req: NextRequest) {
       }
 
       // Tìm subscription với ID tương ứng
-      // Log để debug subscription structure
-      console.log(`[SyncSubscription] Danh sách subscriptions:`, listResult.data?.map((sub: any) => ({
-        id: sub.id,
-        subscriptionId: sub.subscriptionId,
-        planId: sub.planId || sub.plan_id,
-        allKeys: Object.keys(sub),
-      })))
-      
       const foundSubscription = listResult.data?.find((sub: any) => {
         const subId = sub.id || sub.subscriptionId
-        const match = subId === existingSubscriptionId
-        if (!match) {
-          console.log(`[SyncSubscription] Subscription ${subId} không khớp với ${existingSubscriptionId}`)
-        }
-        return match
+        return subId === existingSubscriptionId
       })
 
       if (!foundSubscription) {
         // Subscription không tồn tại trong danh sách, có thể đã bị xóa
-        console.log(`[SyncSubscription] Subscription ${existingSubscriptionId} không tìm thấy trong danh sách subscriptions, đang tạo mới...`)
         const createResult = await enhanceClient.createSubscription(
           customerExternalId,
           enhancePlanId
@@ -239,11 +219,8 @@ export async function POST(req: NextRequest) {
         oldPlanId = currentPlanId
         oldPlanName = foundSubscription.planName || foundSubscription.friendlyName || `Plan ${currentPlanId}`
         
-        console.log(`[SyncSubscription] Tìm thấy subscription ${existingSubscriptionId} với planId ${currentPlanId} (${oldPlanName}), planId mới: ${newPlanIdInt} (${packageData.planName})`)
-        
         if (currentPlanId === newPlanIdInt) {
           // PlanId không thay đổi, không cần cập nhật
-          console.log(`[SyncSubscription] Subscription ${existingSubscriptionId} đã tồn tại với planId ${currentPlanId}, không cần cập nhật`)
           subscriptionId = existingSubscriptionId
           action = 'updated' // Dùng 'updated' nhưng thực tế không cập nhật
         } else {
@@ -251,7 +228,6 @@ export async function POST(req: NextRequest) {
           // Xác định upgrade hay downgrade
           const isUpgrade = newPlanIdInt > currentPlanId
           const actionType = isUpgrade ? 'upgrade' : 'downgrade'
-          console.log(`[SyncSubscription] Subscription ${existingSubscriptionId} có planId ${currentPlanId}, đang ${actionType} sang ${newPlanIdInt}...`)
           
           // Thử update subscription
           // Note: customerExternalId được truyền vào nhưng không dùng trong endpoint
@@ -281,12 +257,10 @@ export async function POST(req: NextRequest) {
           // API trả về void (empty response body), nên dùng existingSubscriptionId
           subscriptionId = existingSubscriptionId
           action = actionType as 'created' | 'updated' | 'recreated' | 'upgrade' | 'downgrade'
-          console.log(`[SyncSubscription] ✓ Đã ${actionType} subscription ${subscriptionId} thành công từ planId ${currentPlanId} sang ${newPlanIdInt}`)
         }
       }
     } else {
       // Nếu chưa có subscription ID, tạo mới
-      console.log(`[SyncSubscription] Hosting ${hostingId} chưa có subscription, đang tạo mới...`)
       const subscriptionResult = await enhanceClient.createSubscription(
         customerExternalId,
         enhancePlanId
