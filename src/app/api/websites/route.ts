@@ -1,10 +1,12 @@
 import { db } from '@/lib/database'
-import { websites, domain, hosting, vps, contracts, orders, customers } from '@/lib/schema'
+import { websites, domain, hosting, vps, contracts, orders, customers, hostingPackages, vpsPackages, controlPanels } from '@/lib/schema'
 import { eq, desc, sql, and } from 'drizzle-orm'
 import { createSuccessResponse, createErrorResponse, createCreatedResponse } from '@/lib/api-response'
 import { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { ControlPanelFactory } from '@/lib/control-panels/factory'
+import { ControlPanelType } from '@/lib/control-panels/base/types'
 
 // Helper function to check if user is ADMIN
 async function checkAdminRole() {
@@ -83,8 +85,8 @@ export async function GET(req: NextRequest) {
         createdAt: websites.createdAt,
         updatedAt: websites.updatedAt,
         domainName: domain.domainName,
-        hostingPlanName: hosting.planName,
-        vpsPlanName: vps.planName,
+        hostingPlanName: hostingPackages.planName,
+        vpsPlanName: vpsPackages.planName,
         contractNumber: contracts.contractNumber,
         orderNumberRaw: orders.id,
         customerName: customers.name,
@@ -93,7 +95,9 @@ export async function GET(req: NextRequest) {
       .from(websites)
       .leftJoin(domain, eq(websites.domainId, domain.id))
       .leftJoin(hosting, eq(websites.hostingId, hosting.id))
+      .leftJoin(hostingPackages, eq(hosting.hostingTypeId, hostingPackages.id))
       .leftJoin(vps, eq(websites.vpsId, vps.id))
+      .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
       .leftJoin(contracts, eq(websites.contractId, contracts.id))
       .leftJoin(orders, eq(websites.orderId, orders.id))
       .leftJoin(customers, eq(websites.customerId, customers.id))
@@ -160,8 +164,8 @@ export async function POST(req: Request) {
         createdAt: websites.createdAt,
         updatedAt: websites.updatedAt,
         domainName: domain.domainName,
-        hostingPlanName: hosting.planName,
-        vpsPlanName: vps.planName,
+        hostingPlanName: hostingPackages.planName,
+        vpsPlanName: vpsPackages.planName,
         contractNumber: contracts.contractNumber,
         orderNumberRaw: orders.id,
         customerName: customers.name,
@@ -170,7 +174,9 @@ export async function POST(req: Request) {
       .from(websites)
       .leftJoin(domain, eq(websites.domainId, domain.id))
       .leftJoin(hosting, eq(websites.hostingId, hosting.id))
+      .leftJoin(hostingPackages, eq(hosting.hostingTypeId, hostingPackages.id))
       .leftJoin(vps, eq(websites.vpsId, vps.id))
+      .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
       .leftJoin(contracts, eq(websites.contractId, contracts.id))
       .leftJoin(orders, eq(websites.orderId, orders.id))
       .leftJoin(customers, eq(websites.customerId, customers.id))
@@ -252,8 +258,8 @@ export async function PUT(req: Request) {
         createdAt: websites.createdAt,
         updatedAt: websites.updatedAt,
         domainName: domain.domainName,
-        hostingPlanName: hosting.planName,
-        vpsPlanName: vps.planName,
+        hostingPlanName: hostingPackages.planName,
+        vpsPlanName: vpsPackages.planName,
         contractNumber: contracts.contractNumber,
         orderNumberRaw: orders.id,
         customerName: customers.name,
@@ -262,7 +268,9 @@ export async function PUT(req: Request) {
       .from(websites)
       .leftJoin(domain, eq(websites.domainId, domain.id))
       .leftJoin(hosting, eq(websites.hostingId, hosting.id))
+      .leftJoin(hostingPackages, eq(hosting.hostingTypeId, hostingPackages.id))
       .leftJoin(vps, eq(websites.vpsId, vps.id))
+      .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
       .leftJoin(contracts, eq(websites.contractId, contracts.id))
       .leftJoin(orders, eq(websites.orderId, orders.id))
       .leftJoin(customers, eq(websites.customerId, customers.id))
@@ -309,10 +317,123 @@ export async function DELETE(req: Request) {
       return createErrorResponse('Không tìm thấy website', 404)
     }
 
-    // Delete website
+    const website = existingWebsite[0]
+
+    // Try to delete website from control panel first
+    let cpDeleteError: string | null = null
+    let externalWebsiteId: string | undefined
+
+    // Parse externalWebsiteId from notes
+    if (website.notes) {
+      const syncMatch = website.notes.match(/External Website ID:\s*([a-f0-9-]+)/i)
+      if (syncMatch && syncMatch[1]) {
+        externalWebsiteId = syncMatch[1]
+      }
+    }
+
+    // If website has been synced to control panel, delete it first
+    if (externalWebsiteId) {
+      try {
+        // Get control panel (Enhance)
+        const controlPanel = await db.select()
+          .from(controlPanels)
+          .where(and(
+            eq(controlPanels.enabled, 'YES'),
+            eq(controlPanels.type, 'ENHANCE')
+          ))
+          .limit(1)
+
+        if (controlPanel.length > 0) {
+          // Parse config và đảm bảo có orgId
+          let config: any = controlPanel[0].config
+          if (typeof config === 'string') {
+            try {
+              config = JSON.parse(config)
+            } catch (parseError) {
+              console.error('[Website Delete] Error parsing config JSON:', parseError)
+              config = {}
+            }
+          }
+
+          // Thêm fallback cho orgId từ environment variables nếu chưa có
+          if (!config.orgId && process.env.ENHANCE_ORG_ID) {
+            config.orgId = process.env.ENHANCE_ORG_ID
+          }
+
+          if (config.orgId) {
+            // Create control panel instance
+            const controlPanelInstance = ControlPanelFactory.create(controlPanel[0].type as ControlPanelType, config)
+            const enhanceAdapter = controlPanelInstance as any
+
+            // Use enhance client directly
+            const enhanceClient = (enhanceAdapter as any).client
+            if (enhanceClient) {
+              // Get customer external ID from hosting if available
+              let customerExternalId: string | undefined
+              if (website.hostingId) {
+                const hostingData = await db
+                  .select()
+                  .from(hosting)
+                  .where(eq(hosting.id, website.hostingId))
+                  .limit(1)
+
+                if (hostingData.length > 0 && hostingData[0].externalAccountId) {
+                  customerExternalId = hostingData[0].externalAccountId
+                }
+              }
+
+              // If no customer external ID from hosting, try to find customer on control panel
+              if (!customerExternalId && website.customerId) {
+                const customerData = await db
+                  .select()
+                  .from(customers)
+                  .where(eq(customers.id, website.customerId))
+                  .limit(1)
+
+                if (customerData.length > 0 && customerData[0].email) {
+                  const findResult = await controlPanelInstance.findCustomerByEmail(customerData[0].email)
+                  
+                  if (findResult.success && findResult.data) {
+                    customerExternalId = findResult.data.id
+                  }
+                }
+              }
+
+              // Try to delete website from control panel
+              // Use customerExternalId as orgId if available (website was created in customer org context)
+              // Otherwise use parent orgId (config.orgId)
+              const targetOrgId = customerExternalId || config.orgId
+              const deleteResult = await enhanceClient.deleteWebsite(
+                externalWebsiteId,
+                false, // soft delete, not force
+                targetOrgId
+              )
+
+              if (!deleteResult.success) {
+                cpDeleteError = deleteResult.error || 'Không thể xóa website trên control panel'
+                console.error('[Website Delete] Failed to delete website from control panel:', cpDeleteError)
+              }
+            }
+          }
+        }
+      } catch (cpError: any) {
+        cpDeleteError = cpError.message || 'Lỗi khi xóa website trên control panel'
+        console.error('[Website Delete] Error deleting website from control panel:', cpError)
+      }
+    }
+
+    // Delete website from local database
     await db
       .delete(websites)
       .where(eq(websites.id, id))
+
+    // If there was an error deleting from control panel, return success with warning
+    if (cpDeleteError) {
+      return createSuccessResponse(
+        { warning: cpDeleteError },
+        `Đã xóa website trong database, nhưng có lỗi khi xóa trên control panel: ${cpDeleteError}`
+      )
+    }
 
     return createSuccessResponse(null, 'Xóa website thành công')
   } catch (error) {

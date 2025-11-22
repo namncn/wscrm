@@ -50,31 +50,43 @@ export const customers = mysqlTable('customers', {
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
 })
 
-// Domain table
-export const domain = mysqlTable('domain', {
+// Domain Packages table (pre-defined packages, no customer assignment)
+export const domainPackages = mysqlTable('domain_packages', {
   id: int('id').primaryKey().notNull().autoincrement(),
-  domainName: varchar('domainName', { length: 255 }).notNull().unique(),
-  registrar: varchar('registrar', { length: 255 }),
-  registrationDate: date('registrationDate'),
-  expiryDate: date('expiryDate'),
-  status: mysqlEnum('status', ['ACTIVE', 'EXPIRED', 'SUSPENDED']).default('ACTIVE'),
-  price: decimal('price', { precision: 10, scale: 2 }),
-  customerId: int('customerId'),
+  name: varchar('name', { length: 255 }).notNull(),
+  price: decimal('price', { precision: 10, scale: 2 }).notNull(),
+  description: text('description'),
+  features: json('features'),
+  popular: mysqlEnum('popular', ['YES', 'NO']).default('NO'),
+  category: varchar('category', { length: 255 }),
+  status: mysqlEnum('status', ['ACTIVE', 'INACTIVE']).default('ACTIVE'),
   createdAt: timestamp('createdAt').defaultNow(),
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
 })
 
-// Hosting table
-export const hosting = mysqlTable('hosting', {
+// Domain table (customer registered domains)
+export const domain = mysqlTable('domain', {
+  id: int('id').primaryKey().notNull().autoincrement(),
+  domainName: varchar('domainName', { length: 255 }).notNull().unique(),
+  domainTypeId: int('domainTypeId').notNull(),
+  customerId: int('customerId').notNull(),
+  status: mysqlEnum('status', ['ACTIVE', 'EXPIRED', 'SUSPENDED']).default('ACTIVE'),
+  registrar: varchar('registrar', { length: 255 }),
+  ipAddress: varchar('ipAddress', { length: 45 }),
+  registrationDate: date('registrationDate'),
+  expiryDate: date('expiryDate'),
+  createdAt: timestamp('createdAt').defaultNow(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
+})
+
+// Hosting Packages table (pre-defined packages, no customer assignment)
+export const hostingPackages = mysqlTable('hosting_packages', {
   id: int('id').primaryKey().notNull().autoincrement(),
   planName: varchar('planName', { length: 255 }).notNull(),
-  domain: varchar('domain', { length: 255 }),
   storage: int('storage').notNull(),
   bandwidth: int('bandwidth').notNull(),
   price: decimal('price', { precision: 10, scale: 2 }).notNull(),
   status: mysqlEnum('status', ['ACTIVE', 'INACTIVE', 'SUSPENDED']).default('ACTIVE'),
-  customerId: int('customerId'),
-  expiryDate: date('expiryDate'),
   serverLocation: varchar('serverLocation', { length: 255 }),
   addonDomain: varchar('addonDomain', { length: 50 }).default('Unlimited'),
   subDomain: varchar('subDomain', { length: 50 }).default('Unlimited'),
@@ -86,21 +98,50 @@ export const hosting = mysqlTable('hosting', {
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
 })
 
-// VPS table
-export const vps = mysqlTable('vps', {
+// Hosting table (customer registered hosting)
+export const hosting = mysqlTable('hosting', {
+  id: int('id').primaryKey().notNull().autoincrement(),
+  hostingTypeId: int('hostingTypeId').notNull(),
+  customerId: int('customerId').notNull(),
+  status: mysqlEnum('status', ['ACTIVE', 'INACTIVE', 'SUSPENDED']).default('ACTIVE'),
+  ipAddress: varchar('ipAddress', { length: 45 }),
+  expiryDate: date('expiryDate'),
+  // Control Panel fields
+  controlPanelId: int('controlPanelId'),
+  externalAccountId: varchar('externalAccountId', { length: 255 }),
+  externalWebsiteId: varchar('externalWebsiteId', { length: 255 }),
+  syncStatus: mysqlEnum('syncStatus', ['PENDING', 'SYNCED', 'FAILED', 'SYNCING']).default('PENDING'),
+  syncError: text('syncError'),
+  lastSyncedAt: timestamp('lastSyncedAt'),
+  syncMetadata: json('syncMetadata'),
+  createdAt: timestamp('createdAt').defaultNow(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
+})
+
+// VPS Packages table (pre-defined packages, no customer assignment)
+export const vpsPackages = mysqlTable('vps_packages', {
   id: int('id').primaryKey().notNull().autoincrement(),
   planName: varchar('planName', { length: 255 }).notNull(),
-  ipAddress: varchar('ipAddress', { length: 45 }),
   cpu: int('cpu').notNull(),
   ram: int('ram').notNull(),
   storage: int('storage').notNull(),
   bandwidth: int('bandwidth').notNull(),
   price: decimal('price', { precision: 10, scale: 2 }).notNull(),
   status: mysqlEnum('status', ['ACTIVE', 'INACTIVE', 'SUSPENDED']).default('ACTIVE'),
-  customerId: int('customerId'),
-  expiryDate: date('expiryDate'),
   os: varchar('os', { length: 255 }),
   serverLocation: varchar('serverLocation', { length: 255 }),
+  createdAt: timestamp('createdAt').defaultNow(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
+})
+
+// VPS table (customer registered VPS)
+export const vps = mysqlTable('vps', {
+  id: int('id').primaryKey().notNull().autoincrement(),
+  vpsTypeId: int('vpsTypeId').notNull(),
+  customerId: int('customerId').notNull(),
+  status: mysqlEnum('status', ['ACTIVE', 'INACTIVE', 'SUSPENDED']).default('ACTIVE'),
+  ipAddress: varchar('ipAddress', { length: 45 }),
+  expiryDate: date('expiryDate'),
   createdAt: timestamp('createdAt').defaultNow(),
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
 })
@@ -302,6 +343,30 @@ export const websites = mysqlTable('websites', {
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
 })
 
+// Control Panels table
+export const controlPanels = mysqlTable('control_panels', {
+  id: int('id').primaryKey().notNull().autoincrement(),
+  type: mysqlEnum('type', ['ENHANCE', 'CPANEL', 'PLESK', 'DIRECTADMIN']).notNull().unique(),
+  enabled: mysqlEnum('enabled', ['YES', 'NO']).default('YES'),
+  config: json('config').notNull(),
+  createdAt: timestamp('createdAt').defaultNow(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
+})
+
+// Control Panel Plans table - Maps local plans to control panel plans
+export const controlPanelPlans = mysqlTable('control_panel_plans', {
+  id: int('id').primaryKey().notNull().autoincrement(),
+  controlPanelId: int('controlPanelId').notNull(),
+  localPlanType: mysqlEnum('localPlanType', ['HOSTING', 'VPS']).notNull(),
+  localPlanId: int('localPlanId').notNull(),
+  externalPlanId: varchar('externalPlanId', { length: 255 }).notNull(),
+  externalPlanName: varchar('externalPlanName', { length: 255 }),
+  isActive: mysqlEnum('isActive', ['YES', 'NO']).default('YES'),
+  mappingConfig: json('mappingConfig'),
+  createdAt: timestamp('createdAt').defaultNow(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
+})
+
 
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
@@ -440,15 +505,40 @@ export const websitesRelations = relations(websites, ({ one }) => ({
   }),
 }))
 
+export const controlPanelsRelations = relations(controlPanels, ({ many }) => ({
+  plans: many(controlPanelPlans),
+  hostings: many(hosting),
+}))
+
+export const controlPanelPlansRelations = relations(controlPanelPlans, ({ one }) => ({
+  controlPanel: one(controlPanels, {
+    fields: [controlPanelPlans.controlPanelId],
+    references: [controlPanels.id],
+  }),
+}))
+
+export const hostingRelations = relations(hosting, ({ one }) => ({
+  controlPanel: one(controlPanels, {
+    fields: [hosting.controlPanelId],
+    references: [controlPanels.id],
+  }),
+}))
+
 // Export types
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 export type Customer = typeof customers.$inferSelect
 export type NewCustomer = typeof customers.$inferInsert
+export type DomainPackage = typeof domainPackages.$inferSelect
+export type NewDomainPackage = typeof domainPackages.$inferInsert
 export type Domain = typeof domain.$inferSelect
 export type NewDomain = typeof domain.$inferInsert
+export type HostingPackage = typeof hostingPackages.$inferSelect
+export type NewHostingPackage = typeof hostingPackages.$inferInsert
 export type Hosting = typeof hosting.$inferSelect
 export type NewHosting = typeof hosting.$inferInsert
+export type VpsPackage = typeof vpsPackages.$inferSelect
+export type NewVpsPackage = typeof vpsPackages.$inferInsert
 export type VPS = typeof vps.$inferSelect
 export type NewVPS = typeof vps.$inferInsert
 export type Order = typeof orders.$inferSelect
@@ -475,3 +565,7 @@ export type EmailNotification = typeof emailNotifications.$inferSelect
 export type NewEmailNotification = typeof emailNotifications.$inferInsert
 export type Website = typeof websites.$inferSelect
 export type NewWebsite = typeof websites.$inferInsert
+export type ControlPanel = typeof controlPanels.$inferSelect
+export type NewControlPanel = typeof controlPanels.$inferInsert
+export type ControlPanelPlan = typeof controlPanelPlans.$inferSelect
+export type NewControlPanelPlan = typeof controlPanelPlans.$inferInsert

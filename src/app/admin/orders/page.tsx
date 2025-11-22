@@ -232,7 +232,7 @@ export default function OrdersPage() {
 
   const fetchDomainTypes = async () => {
     try {
-      const response = await fetch('/api/domain-types')
+      const response = await fetch('/api/domain-packages')
       if (response.ok) {
         const result = await response.json()
         if (result.success && result.data) {
@@ -574,8 +574,12 @@ export default function OrdersPage() {
   // Pagination logic
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const paginatedOrders = filteredOrders.slice(startIndex, endIndex)
-  const totalFilteredPages = Math.ceil(filteredOrders.length / itemsPerPage)
+  // Remove duplicates by id to ensure unique keys
+  const uniqueFilteredOrders = Array.from(
+    new Map(filteredOrders.map((o) => [o.id, o])).values()
+  )
+  const paginatedOrders = uniqueFilteredOrders.slice(startIndex, endIndex)
+  const totalFilteredPages = Math.ceil(uniqueFilteredOrders.length / itemsPerPage)
 
   const getStatusBadge = (status: string) => {
     switch (status) {

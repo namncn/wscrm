@@ -76,31 +76,45 @@ CREATE TABLE IF NOT EXISTS customers (
   FOREIGN KEY (userId) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Domain table
-CREATE TABLE IF NOT EXISTS domain (
+-- Domain Packages table (pre-defined packages, no customer assignment)
+CREATE TABLE IF NOT EXISTS domain_packages (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  domainName VARCHAR(255) UNIQUE NOT NULL,
-  registrar VARCHAR(255),
-  registrationDate DATE,
-  expiryDate DATE,
-  status ENUM('ACTIVE', 'EXPIRED', 'SUSPENDED') DEFAULT 'ACTIVE',
-  price DECIMAL(10,2),
-  customerId INT,
+  name VARCHAR(255) NOT NULL,
+  price DECIMAL(10,2) NOT NULL,
+  description TEXT,
+  features JSON,
+  popular ENUM('YES', 'NO') DEFAULT 'NO',
+  category VARCHAR(255),
+  status ENUM('ACTIVE', 'INACTIVE') DEFAULT 'ACTIVE',
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- Hosting table
-CREATE TABLE IF NOT EXISTS hosting (
+-- Domain table (customer registered domains)
+CREATE TABLE IF NOT EXISTS domain (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  domainName VARCHAR(255) UNIQUE NOT NULL,
+  domainTypeId INT NOT NULL,
+  customerId INT NOT NULL,
+  status ENUM('ACTIVE', 'EXPIRED', 'SUSPENDED') DEFAULT 'ACTIVE',
+  registrar VARCHAR(255),
+  ipAddress VARCHAR(45),
+  registrationDate DATE,
+  expiryDate DATE,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (domainTypeId) REFERENCES domain_packages(id) ON DELETE RESTRICT,
+  FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE
+);
+
+-- Hosting Packages table (pre-defined packages, no customer assignment)
+CREATE TABLE IF NOT EXISTS hosting_packages (
   id INT AUTO_INCREMENT PRIMARY KEY,
   planName VARCHAR(255) NOT NULL,
-  domain VARCHAR(255),
   storage INT NOT NULL,
   bandwidth INT NOT NULL,
   price DECIMAL(10,2) NOT NULL,
   status ENUM('ACTIVE', 'INACTIVE', 'SUSPENDED') DEFAULT 'ACTIVE',
-  customerId INT,
-  expiryDate DATE,
   serverLocation VARCHAR(255),
   addonDomain VARCHAR(50) DEFAULT 'Unlimited',
   subDomain VARCHAR(50) DEFAULT 'Unlimited',
@@ -112,23 +126,57 @@ CREATE TABLE IF NOT EXISTS hosting (
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- VPS table
-CREATE TABLE IF NOT EXISTS vps (
+-- Hosting table (customer registered hosting)
+CREATE TABLE IF NOT EXISTS hosting (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  hostingTypeId INT NOT NULL,
+  customerId INT NOT NULL,
+  status ENUM('ACTIVE', 'INACTIVE', 'SUSPENDED') DEFAULT 'ACTIVE',
+  ipAddress VARCHAR(45),
+  expiryDate DATE,
+  -- Control Panel fields
+  controlPanelId INT NULL,
+  externalAccountId VARCHAR(255),
+  externalWebsiteId VARCHAR(255),
+  syncStatus ENUM('PENDING', 'SYNCED', 'FAILED', 'SYNCING') DEFAULT 'PENDING',
+  syncError TEXT,
+  lastSyncedAt TIMESTAMP NULL,
+  syncMetadata JSON,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (hostingTypeId) REFERENCES hosting_packages(id) ON DELETE RESTRICT,
+  FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE,
+  FOREIGN KEY (controlPanelId) REFERENCES control_panels(id) ON DELETE SET NULL
+);
+
+-- VPS Packages table (pre-defined packages, no customer assignment)
+CREATE TABLE IF NOT EXISTS vps_packages (
   id INT AUTO_INCREMENT PRIMARY KEY,
   planName VARCHAR(255) NOT NULL,
-  ipAddress VARCHAR(45),
   cpu INT NOT NULL,
   ram INT NOT NULL,
   storage INT NOT NULL,
   bandwidth INT NOT NULL,
   price DECIMAL(10,2) NOT NULL,
   status ENUM('ACTIVE', 'INACTIVE', 'SUSPENDED') DEFAULT 'ACTIVE',
-  customerId INT,
-  expiryDate DATE,
   os VARCHAR(255),
   serverLocation VARCHAR(255),
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- VPS table (customer registered VPS)
+CREATE TABLE IF NOT EXISTS vps (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  vpsTypeId INT NOT NULL,
+  customerId INT NOT NULL,
+  status ENUM('ACTIVE', 'INACTIVE', 'SUSPENDED') DEFAULT 'ACTIVE',
+  ipAddress VARCHAR(45),
+  expiryDate DATE,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (vpsTypeId) REFERENCES vps_packages(id) ON DELETE RESTRICT,
+  FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE
 );
 
 -- Orders table
@@ -361,6 +409,33 @@ CREATE TABLE IF NOT EXISTS websites (
   FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE
 );
 
+-- Control Panels table
+CREATE TABLE IF NOT EXISTS control_panels (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  type ENUM('ENHANCE', 'CPANEL', 'PLESK', 'DIRECTADMIN') NOT NULL UNIQUE,
+  enabled ENUM('YES', 'NO') DEFAULT 'YES',
+  config JSON NOT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_control_panel_type (type)
+);
+
+-- Control Panel Plans table - Maps local plans to control panel plans
+CREATE TABLE IF NOT EXISTS control_panel_plans (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  controlPanelId INT NOT NULL,
+  localPlanType ENUM('HOSTING', 'VPS') NOT NULL,
+  localPlanId INT NOT NULL,
+  externalPlanId VARCHAR(255) NOT NULL,
+  externalPlanName VARCHAR(255),
+  isActive ENUM('YES', 'NO') DEFAULT 'YES',
+  mappingConfig JSON,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (controlPanelId) REFERENCES control_panels(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_cp_local_plan (controlPanelId, localPlanType, localPlanId)
+);
+
 -- Insert sample data (only if not exists)
 -- Note: Password hash for all sample users/customers: 'password123'
 -- Note: IDs are auto-generated, so we don't specify them unless needed for relationships
@@ -379,51 +454,91 @@ INSERT IGNORE INTO customers (id, name, email, password, phone, address, company
 (4, 'Phạm Thị D', 'customer4@example.com', '$2b$10$Tux9JemIUu.gZnGfSNeEo.eniHvA/ydEs/s1N192iEvF0AM4DNzPe', '0933445566', '321 Đường GHI, Quận 7, TP.HCM', 'Công ty TNHH GHI', '0933445566', 'sales@ghi-company.com', '321 Đường GHI, Quận 7, TP.HCM', '0933445566', '0933445566', 'ACTIVE', NULL, 'NO'),
 (5, 'Hoàng Văn E', 'customer5@example.com', '$2b$10$Tux9JemIUu.gZnGfSNeEo.eniHvA/ydEs/s1N192iEvF0AM4DNzPe', '0955667788', '654 Đường JKL, Quận Bình Thạnh, TP.HCM', NULL, NULL, NULL, NULL, NULL, NULL, 'INACTIVE', NULL, 'NO');
 
--- Domain data - Mix of assigned and unassigned domains
-INSERT IGNORE INTO domain (domainName, registrar, registrationDate, expiryDate, price, customerId, status) VALUES
--- Domains assigned to customers
-('abc-company.com', 'GoDaddy', '2024-01-15', '2025-01-15', 250000, 1, 'ACTIVE'),
-('abc-company.vn', 'P.A Vietnam', '2024-02-10', '2025-02-10', 450000, 1, 'ACTIVE'),
-('xyz-corp.com', 'Namecheap', '2024-03-01', '2025-03-01', 300000, 2, 'ACTIVE'),
-('xyz-corp.vn', 'Mat Bao', '2024-01-20', '2025-01-20', 420000, 2, 'ACTIVE'),
-('def-company.vn', 'Nhân Hòa', '2024-04-05', '2025-04-05', 380000, 3, 'ACTIVE'),
-('ghi-company.com', 'FPT', '2024-05-12', '2025-05-12', 280000, 4, 'ACTIVE'),
+-- Domain Packages (pre-defined packages)
+-- Note: features is JSON, so we use JSON_ARRAY or JSON_OBJECT syntax
+INSERT IGNORE INTO domain_packages (name, price, description, features, popular, category, status)
+VALUES
+-- Public catalog packages
+('.com', 250000, 'Tên miền quốc tế phổ biến nhất', JSON_ARRAY('Đăng ký 1 năm', 'DNS quản lý', 'Hỗ trợ email'), 'YES', 'International', 'ACTIVE'),
+('.vn', 350000, 'Tên miền Việt Nam chính thức', JSON_ARRAY('Đăng ký 1 năm', 'DNS quản lý', 'Hỗ trợ email'), 'YES', 'Vietnam', 'ACTIVE'),
+('.net', 280000, 'Tên miền cho các tổ chức mạng', JSON_ARRAY('Đăng ký 1 năm', 'DNS quản lý', 'Hỗ trợ email'), 'NO', 'International', 'ACTIVE'),
+('.org', 300000, 'Tên miền cho tổ chức phi lợi nhuận', JSON_ARRAY('Đăng ký 1 năm', 'DNS quản lý', 'Hỗ trợ email'), 'NO', 'International', 'ACTIVE'),
+('.info', 200000, 'Tên miền cho website thông tin', JSON_ARRAY('Đăng ký 1 năm', 'DNS quản lý', 'Hỗ trợ email'), 'NO', 'International', 'ACTIVE'),
+('.com.vn', 400000, 'Tên miền Việt Nam quốc tế', JSON_ARRAY('Đăng ký 1 năm', 'DNS quản lý', 'Hỗ trợ email'), 'YES', 'Vietnam', 'ACTIVE');
+
+-- Domain (customer registered domains)
+-- Note: domainTypeId references domain_packages.id (1=.com, 2=.vn, 3=.net, 4=.org, 5=.info, 6=.com.vn)
+-- All domains include registrar, ipAddress, and registrationDate fields
+INSERT IGNORE INTO domain (domainName, domainTypeId, customerId, status, registrar, ipAddress, registrationDate, expiryDate)
+VALUES
+-- Customer 1: .com and .vn domains
+('abc-company.com', 1, 1, 'ACTIVE', 'GoDaddy', '192.168.1.10', '2024-01-15', '2025-01-15'),
+('abc-company.vn', 2, 1, 'ACTIVE', 'P.A Vietnam', '192.168.1.11', '2024-02-10', '2025-02-10'),
+-- Customer 2: .com and .vn domains
+('xyz-corp.com', 1, 2, 'ACTIVE', 'Namecheap', '192.168.1.20', '2024-03-01', '2025-03-01'),
+('xyz-corp.vn', 2, 2, 'ACTIVE', 'Mat Bao', '192.168.1.21', '2024-01-20', '2025-01-20'),
+-- Customer 3: .vn domain
+('def-company.vn', 2, 3, 'ACTIVE', 'Nhân Hòa', '192.168.1.30', '2024-04-05', '2025-04-05'),
+-- Customer 4: .com domain
+('ghi-company.com', 1, 4, 'ACTIVE', 'FPT', '192.168.1.40', '2024-05-12', '2025-05-12'),
+-- Customer 5: .com.vn domain
+('jkl-company.com.vn', 6, 5, 'ACTIVE', 'Vietnix', '192.168.1.50', '2024-06-20', '2025-06-20'),
 -- Domains expiring soon (for testing notifications)
-('expiring-soon.com', 'GoDaddy', '2023-12-01', '2024-12-20', 250000, 1, 'ACTIVE'),
-('expired-domain.com', 'Namecheap', '2023-06-01', '2024-06-01', 300000, 2, 'EXPIRED'),
--- Unassigned domains (available for purchase)
-('available-domain.com', 'GoDaddy', NULL, NULL, 250000, NULL, 'ACTIVE'),
-('test-domain.vn', 'P.A Vietnam', NULL, NULL, 450000, NULL, 'ACTIVE');
+('expiring-soon.com', 1, 1, 'ACTIVE', 'GoDaddy', '192.168.1.12', '2023-12-20', '2024-12-20'),
+('expired-domain.com', 1, 2, 'EXPIRED', 'Namecheap', '192.168.1.22', '2023-06-01', '2024-06-01');
 
--- Public hosting packages (catalog) - customerId NULL so they appear on frontend
-INSERT IGNORE INTO hosting (planName, domain, storage, bandwidth, price, status, customerId, expiryDate, serverLocation, addonDomain, subDomain, ftpAccounts, `databases`, hostingType, operatingSystem)
+-- Hosting Packages (pre-defined packages)
+INSERT IGNORE INTO hosting_packages (planName, storage, bandwidth, price, status, serverLocation, addonDomain, subDomain, ftpAccounts, `databases`, hostingType, operatingSystem)
 VALUES
 -- Public catalog packages
-('Starter', NULL, 10, 100, 200000, 'ACTIVE', NULL, NULL, 'Hanoi', '5', '10', '5', '5', 'Shared Hosting', 'Linux'),
-('Pro', NULL, 30, 300, 450000, 'ACTIVE', NULL, NULL, 'HCMC', 'Unlimited', 'Unlimited', 'Unlimited', 'Unlimited', 'Shared Hosting', 'Linux'),
-('Business', NULL, 60, 600, 800000, 'ACTIVE', NULL, NULL, 'Singapore', 'Unlimited', 'Unlimited', 'Unlimited', 'Unlimited', 'VPS Hosting', 'Linux'),
--- Assigned hosting packages to customers
-('Pro - Assigned', 'abc-company.com', 30, 300, 450000, 'ACTIVE', 1, '2025-06-15', 'HCMC', 'Unlimited', 'Unlimited', 'Unlimited', 'Unlimited', 'Shared Hosting', 'Linux'),
-('Business - Assigned', 'xyz-corp.com', 60, 600, 800000, 'ACTIVE', 2, '2025-07-20', 'Singapore', 'Unlimited', 'Unlimited', 'Unlimited', 'Unlimited', 'VPS Hosting', 'Linux'),
-('Pro - Assigned', 'def-company.vn', 30, 300, 450000, 'ACTIVE', 3, '2025-08-10', 'HCMC', 'Unlimited', 'Unlimited', 'Unlimited', 'Unlimited', 'Shared Hosting', 'Linux'),
-('Business - Assigned', 'ghi-company.com', 60, 600, 800000, 'ACTIVE', 4, '2025-09-05', 'Singapore', 'Unlimited', 'Unlimited', 'Unlimited', 'Unlimited', 'VPS Hosting', 'Linux'),
--- Expiring hosting
-('Pro - Expiring', 'expiring-soon.com', 30, 300, 450000, 'ACTIVE', 1, '2024-12-25', 'HCMC', 'Unlimited', 'Unlimited', 'Unlimited', 'Unlimited', 'Shared Hosting', 'Linux');
+('Starter', 10, 100, 200000, 'ACTIVE', 'Hanoi', '5', '10', '5', '5', 'Shared Hosting', 'Linux'),
+('Pro', 30, 300, 450000, 'ACTIVE', 'HCMC', 'Unlimited', 'Unlimited', 'Unlimited', 'Unlimited', 'Shared Hosting', 'Linux'),
+('Business', 60, 600, 800000, 'ACTIVE', 'Singapore', 'Unlimited', 'Unlimited', 'Unlimited', 'Unlimited', 'VPS Hosting', 'Linux'),
+('Enterprise', 100, 1000, 1200000, 'ACTIVE', 'Singapore', 'Unlimited', 'Unlimited', 'Unlimited', 'Unlimited', 'VPS Hosting', 'Linux');
 
--- Public VPS packages (catalog) - customerId NULL so they appear on frontend
-INSERT IGNORE INTO vps (planName, ipAddress, cpu, ram, storage, bandwidth, price, status, customerId, expiryDate, os)
+-- Hosting (customer registered hosting)
+-- Note: hostingTypeId references hosting_packages.id (1=Starter, 2=Pro, 3=Business, 4=Enterprise)
+-- All hostings include ipAddress field
+INSERT IGNORE INTO hosting (hostingTypeId, customerId, status, ipAddress, expiryDate)
+VALUES
+-- Customer 1: Pro package
+(2, 1, 'ACTIVE', '192.168.1.100', '2025-06-15'),
+-- Customer 2: Business package
+(3, 2, 'ACTIVE', '192.168.1.200', '2025-07-20'),
+-- Customer 3: Pro package
+(2, 3, 'ACTIVE', '192.168.1.300', '2025-08-10'),
+-- Customer 4: Business package
+(3, 4, 'ACTIVE', '192.168.1.400', '2025-09-05'),
+-- Customer 5: Starter package
+(1, 5, 'ACTIVE', '192.168.1.500', '2025-10-01'),
+-- Customer 1: Pro package expiring soon (for testing notifications)
+(2, 1, 'ACTIVE', '192.168.1.101', '2024-12-25');
+
+-- VPS Packages (pre-defined packages)
+INSERT IGNORE INTO vps_packages (planName, cpu, ram, storage, bandwidth, price, status, os, serverLocation)
 VALUES
 -- Public catalog packages
-('VPS Nano', NULL, 1, 1, 20, 500, 900000, 'ACTIVE', NULL, NULL, 'Ubuntu 22.04'),
-('VPS Micro', NULL, 2, 2, 40, 1000, 1500000, 'ACTIVE', NULL, NULL, 'Ubuntu 22.04'),
-('VPS Small', NULL, 4, 4, 80, 2000, 2800000, 'ACTIVE', NULL, NULL, 'Ubuntu 22.04'),
-('VPS Medium', NULL, 4, 8, 160, 4000, 4500000, 'ACTIVE', NULL, NULL, 'Ubuntu 22.04'),
-('VPS Large', NULL, 8, 16, 320, 8000, 8000000, 'ACTIVE', NULL, NULL, 'Ubuntu 22.04'),
--- Assigned VPS packages to customers
-('VPS Micro - Assigned', '192.168.1.100', 2, 2, 40, 1000, 1500000, 'ACTIVE', 1, '2025-10-15', 'Ubuntu 22.04'),
-('VPS Small - Assigned', '192.168.1.101', 4, 4, 80, 2000, 2800000, 'ACTIVE', 2, '2025-11-20', 'Ubuntu 22.04'),
-('VPS Medium - Assigned', '192.168.1.102', 4, 8, 160, 4000, 4500000, 'ACTIVE', 3, '2025-12-10', 'CentOS 8'),
-('VPS Small - Assigned', '192.168.1.103', 4, 4, 80, 2000, 2800000, 'ACTIVE', 4, '2026-01-05', 'Ubuntu 22.04');
+('VPS Nano', 1, 1, 20, 500, 900000, 'ACTIVE', 'Ubuntu 22.04', 'Hanoi'),
+('VPS Micro', 2, 2, 40, 1000, 1500000, 'ACTIVE', 'Ubuntu 22.04', 'HCMC'),
+('VPS Small', 4, 4, 80, 2000, 2800000, 'ACTIVE', 'Ubuntu 22.04', 'Singapore'),
+('VPS Medium', 4, 8, 160, 4000, 4500000, 'ACTIVE', 'Ubuntu 22.04', 'Singapore'),
+('VPS Large', 8, 16, 320, 8000, 8000000, 'ACTIVE', 'Ubuntu 22.04', 'Singapore');
+
+-- VPS (customer registered VPS)
+-- Note: vpsTypeId references vps_packages.id (1=VPS Nano, 2=VPS Micro, 3=VPS Small, 4=VPS Medium, 5=VPS Large)
+-- All VPS include ipAddress field
+INSERT IGNORE INTO vps (vpsTypeId, customerId, status, ipAddress, expiryDate)
+VALUES
+-- Customer 1: VPS Micro
+(2, 1, 'ACTIVE', '192.168.2.100', '2025-10-15'),
+-- Customer 2: VPS Small
+(3, 2, 'ACTIVE', '192.168.2.200', '2025-11-20'),
+-- Customer 3: VPS Medium
+(4, 3, 'ACTIVE', '192.168.2.300', '2025-12-10'),
+-- Customer 4: VPS Small
+(3, 4, 'ACTIVE', '192.168.2.400', '2026-01-05'),
+-- Customer 5: VPS Nano
+(1, 5, 'ACTIVE', '192.168.2.500', '2026-02-15');
 
 -- Orders data
 INSERT IGNORE INTO orders (id, customerId, userId, totalAmount, status, paymentMethod, notes, createdAt) VALUES
@@ -437,31 +552,34 @@ INSERT IGNORE INTO orders (id, customerId, userId, totalAmount, status, paymentM
 (8, 1, 2, 450000, 'CANCELLED', 'BANK_TRANSFER', 'Khách hàng hủy đơn', '2024-06-20 10:00:00');
 
 -- Order Items data
--- Note: serviceId references the actual IDs from domains, hostings, and vps tables
--- Domain IDs: 1-10 (1=abc-company.com, 2=abc-company.vn, 3=xyz-corp.com, 4=xyz-corp.vn, 5=def-company.vn, 6=ghi-company.com, 7=expiring-soon.com, 8=expired-domain.com, 9=available-domain.com, 10=test-domain.vn)
--- Hosting IDs: 1-8 (1=Starter, 2=Pro, 3=Business, 4=Pro-Assigned-customer1, 5=Business-Assigned-customer2, 6=Pro-Assigned-customer3, 7=Business-Assigned-customer4, 8=Pro-Expiring)
--- VPS IDs: 1-9 (1=VPS Nano, 2=VPS Micro, 3=VPS Small, 4=VPS Medium, 5=VPS Large, 6=VPS Micro-Assigned, 7=VPS Small-Assigned, 8=VPS Medium-Assigned, 9=VPS Small-Assigned-customer4)
+-- Note: 
+-- For DOMAIN: serviceId references domain.id (customer-registered domains)
+-- For HOSTING: serviceId references hosting_packages.id (pre-defined packages), serviceData includes hostingTypeId
+-- For VPS: serviceId references vps_packages.id (pre-defined packages), serviceData includes vpsTypeId
+-- Domain IDs: 1-9 (1=abc-company.com, 2=abc-company.vn, 3=xyz-corp.com, 4=xyz-corp.vn, 5=def-company.vn, 6=ghi-company.com, 7=jkl-company.com.vn, 8=expiring-soon.com, 9=expired-domain.com)
+-- Hosting Package IDs: 1-4 (1=Starter, 2=Pro, 3=Business, 4=Enterprise)
+-- VPS Package IDs: 1-5 (1=VPS Nano, 2=VPS Micro, 3=VPS Small, 4=VPS Medium, 5=VPS Large)
 INSERT IGNORE INTO order_items (orderId, serviceId, serviceType, quantity, price, serviceData) VALUES
 -- Order 1: Domain + Hosting
-(1, 1, 'DOMAIN', 1, 250000, '{"domainName": "abc-company.com"}'),
-(1, 4, 'HOSTING', 1, 450000, '{"planName": "Pro - Assigned", "domain": "abc-company.com"}'),
+(1, 1, 'DOMAIN', 1, 250000, '{"domainName": "abc-company.com", "domainTypeId": 1}'),
+(1, 2, 'HOSTING', 1, 450000, '{"planName": "Pro", "hostingTypeId": 2}'),
 -- Order 2: Domain
-(2, 3, 'DOMAIN', 1, 300000, '{"domainName": "xyz-corp.com"}'),
-(2, 4, 'DOMAIN', 1, 420000, '{"domainName": "xyz-corp.vn"}'),
+(2, 3, 'DOMAIN', 1, 250000, '{"domainName": "xyz-corp.com", "domainTypeId": 1}'),
+(2, 4, 'DOMAIN', 1, 350000, '{"domainName": "xyz-corp.vn", "domainTypeId": 2}'),
 -- Order 3: VPS
-(3, 6, 'VPS', 1, 1500000, '{"planName": "VPS Micro - Assigned", "ipAddress": "192.168.1.100"}'),
+(3, 2, 'VPS', 1, 1500000, '{"planName": "VPS Micro", "vpsTypeId": 2}'),
 -- Order 4: VPS
-(4, 7, 'VPS', 1, 2800000, '{"planName": "VPS Small - Assigned", "ipAddress": "192.168.1.101"}'),
+(4, 3, 'VPS', 1, 2800000, '{"planName": "VPS Small", "vpsTypeId": 3}'),
 -- Order 5: Domain + Hosting
-(5, 5, 'DOMAIN', 1, 380000, '{"domainName": "def-company.vn"}'),
-(5, 6, 'HOSTING', 1, 450000, '{"planName": "Pro - Assigned", "domain": "def-company.vn"}'),
+(5, 5, 'DOMAIN', 1, 350000, '{"domainName": "def-company.vn", "domainTypeId": 2}'),
+(5, 2, 'HOSTING', 1, 450000, '{"planName": "Pro", "hostingTypeId": 2}'),
 -- Order 6: Domain + Hosting
-(6, 6, 'DOMAIN', 1, 280000, '{"domainName": "ghi-company.com"}'),
-(6, 7, 'HOSTING', 1, 800000, '{"planName": "Business - Assigned", "domain": "ghi-company.com"}'),
+(6, 6, 'DOMAIN', 1, 250000, '{"domainName": "ghi-company.com", "domainTypeId": 1}'),
+(6, 3, 'HOSTING', 1, 800000, '{"planName": "Business", "hostingTypeId": 3}'),
 -- Order 7: VPS
-(7, 8, 'VPS', 1, 4500000, '{"planName": "VPS Medium - Assigned", "ipAddress": "192.168.1.102"}'),
+(7, 4, 'VPS', 1, 4500000, '{"planName": "VPS Medium", "vpsTypeId": 4}'),
 -- Order 8: Hosting (Cancelled)
-(8, 4, 'HOSTING', 1, 450000, '{"planName": "Pro - Assigned"}');
+(8, 2, 'HOSTING', 1, 450000, '{"planName": "Pro", "hostingTypeId": 2}');
 
 -- Contracts data
 INSERT IGNORE INTO contracts (id, contractNumber, orderId, customerId, userId, startDate, endDate, totalValue, status, createdAt) VALUES
@@ -482,13 +600,13 @@ INSERT IGNORE INTO contract_domains (contractId, domainId) VALUES
 
 -- Contract Hostings data
 INSERT IGNORE INTO contract_hostings (contractId, hostingId) VALUES
-(1, 4),
-(5, 6);
+(1, 1),
+(5, 3);
 
 -- Contract VPSs data
 INSERT IGNORE INTO contract_vpss (contractId, vpsId) VALUES
-(3, 6),
-(4, 7);
+(3, 1),
+(4, 2);
 
 -- Payments data
 INSERT IGNORE INTO payments (orderId, customerId, amount, status, paymentMethod, transactionId, paymentData, createdAt) VALUES
@@ -540,19 +658,24 @@ VALUES
 
 -- Websites data
 INSERT IGNORE INTO websites (name, domainId, hostingId, vpsId, contractId, orderId, customerId, status, description, notes, createdAt) VALUES
-('Website ABC Company', 1, 4, NULL, 1, 1, 1, 'LIVE', 'Website chính của công ty ABC', 'Website đang hoạt động tốt', '2024-01-20 11:00:00'),
-('Website XYZ Corp', 3, 5, NULL, 2, 2, 2, 'LIVE', 'Website chính của công ty XYZ', NULL, '2024-02-15 15:30:00'),
-('Server ABC Company', NULL, NULL, 6, 3, 3, 1, 'LIVE', 'VPS server cho các ứng dụng của công ty ABC', 'Cần backup định kỳ', '2024-03-10 10:00:00'),
-('Server XYZ Corp', NULL, NULL, 7, 4, 4, 2, 'LIVE', 'VPS server cho hệ thống của công ty XYZ', NULL, '2024-04-05 17:30:00'),
-('Website DEF Company', 5, 6, NULL, 5, 5, 3, 'LIVE', 'Website công ty DEF', 'Đang trong giai đoạn phát triển', '2024-05-12 12:00:00'),
-('Website GHI Company', 6, 7, NULL, NULL, 6, 4, 'MAINTENANCE', 'Website đang bảo trì', 'Chờ thanh toán để kích hoạt', '2024-06-01 08:30:00');
+('Website ABC Company', 1, 1, NULL, 1, 1, 1, 'LIVE', 'Website chính của công ty ABC', 'Website đang hoạt động tốt', '2024-01-20 11:00:00'),
+('Website XYZ Corp', 3, 2, NULL, 2, 2, 2, 'LIVE', 'Website chính của công ty XYZ', NULL, '2024-02-15 15:30:00'),
+('Server ABC Company', NULL, NULL, 1, 3, 3, 1, 'LIVE', 'VPS server cho các ứng dụng của công ty ABC', 'Cần backup định kỳ', '2024-03-10 10:00:00'),
+('Server XYZ Corp', NULL, NULL, 2, 4, 4, 2, 'LIVE', 'VPS server cho hệ thống của công ty XYZ', NULL, '2024-04-05 17:30:00'),
+('Website DEF Company', 5, 3, NULL, 5, 5, 3, 'LIVE', 'Website công ty DEF', 'Đang trong giai đoạn phát triển', '2024-05-12 12:00:00'),
+('Website GHI Company', 6, 4, NULL, NULL, 6, 4, 'MAINTENANCE', 'Website đang bảo trì', 'Chờ thanh toán để kích hoạt', '2024-06-01 08:30:00');
 
 -- Cart data
+-- Note: 
+-- For DOMAIN: serviceId references domain_packages.id (pre-defined packages), serviceData includes domainTypeId
+-- For HOSTING: serviceId references hosting_packages.id (pre-defined packages), serviceData includes hostingTypeId
+-- For VPS: serviceId references vps_packages.id (pre-defined packages), serviceData includes vpsTypeId
+-- Domain Package IDs: 1-6 (1=.com, 2=.vn, 3=.net, 4=.org, 5=.info, 6=.com.vn)
 INSERT IGNORE INTO cart (userId, serviceId, serviceType, serviceName, quantity, price, serviceData, createdAt) VALUES
-(1, 9, 'DOMAIN', 'available-domain.com', 1, 250000, '{"domainName": "available-domain.com"}', '2024-06-25 10:00:00'),
-(1, 2, 'HOSTING', 'Pro', 1, 450000, '{"planName": "Pro"}', '2024-06-25 10:05:00'),
-(2, 10, 'DOMAIN', 'test-domain.vn', 1, 450000, '{"domainName": "test-domain.vn"}', '2024-06-25 11:00:00'),
-(2, 4, 'VPS', 'VPS Medium', 1, 4500000, '{"planName": "VPS Medium"}', '2024-06-25 11:15:00');
+(1, 1, 'DOMAIN', '.com', 1, 250000, '{"domainTypeId": 1, "packageName": ".com"}', '2024-06-25 10:00:00'),
+(1, 2, 'HOSTING', 'Pro', 1, 450000, '{"planName": "Pro", "hostingTypeId": 2}', '2024-06-25 10:05:00'),
+(2, 2, 'DOMAIN', '.vn', 1, 350000, '{"domainTypeId": 2, "packageName": ".vn"}', '2024-06-25 11:00:00'),
+(2, 4, 'VPS', 'VPS Medium', 1, 4500000, '{"planName": "VPS Medium", "vpsTypeId": 4}', '2024-06-25 11:15:00');
 
 -- Settings data
 -- Note: MySQL 5.7.8+ and MariaDB 10.2.7+ support JSON type
@@ -613,3 +736,14 @@ CREATE INDEX idx_websites_vpsId ON websites(vpsId);
 CREATE INDEX idx_websites_contractId ON websites(contractId);
 CREATE INDEX idx_websites_orderId ON websites(orderId);
 CREATE INDEX idx_websites_status ON websites(status);
+CREATE INDEX idx_domain_domainTypeId ON domain(domainTypeId);
+CREATE INDEX idx_domain_customerId ON domain(customerId);
+CREATE INDEX idx_hosting_hostingTypeId ON hosting(hostingTypeId);
+CREATE INDEX idx_hosting_customerId ON hosting(customerId);
+CREATE INDEX idx_hosting_controlPanelId ON hosting(controlPanelId);
+CREATE INDEX idx_hosting_syncStatus ON hosting(syncStatus);
+CREATE INDEX idx_vps_vpsTypeId ON vps(vpsTypeId);
+CREATE INDEX idx_vps_customerId ON vps(customerId);
+CREATE INDEX idx_control_panels_enabled ON control_panels(enabled);
+CREATE INDEX idx_control_panels_type ON control_panels(type);
+CREATE INDEX idx_control_panel_plans_local_plan ON control_panel_plans(localPlanType, localPlanId);

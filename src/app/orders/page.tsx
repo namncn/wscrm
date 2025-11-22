@@ -174,11 +174,16 @@ export default function OrdersPage() {
     order.status.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  // Remove duplicates by id to ensure unique keys
+  const uniqueFilteredOrders = Array.from(
+    new Map(filteredOrders.map((o) => [o.id, o])).values()
+  )
+
   // Pagination logic
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const paginatedOrders = filteredOrders.slice(startIndex, endIndex)
-  const totalFilteredPages = Math.ceil(filteredOrders.length / itemsPerPage)
+  const paginatedOrders = uniqueFilteredOrders.slice(startIndex, endIndex)
+  const totalFilteredPages = Math.ceil(uniqueFilteredOrders.length / itemsPerPage)
 
   // Reset to first page when search term changes
   useEffect(() => {
@@ -380,7 +385,7 @@ export default function OrdersPage() {
           </Card>
 
           {/* Orders List */}
-          {filteredOrders.length === 0 ? (
+          {uniqueFilteredOrders.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -451,7 +456,7 @@ export default function OrdersPage() {
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalFilteredPages}
-                totalItems={filteredOrders.length}
+                totalItems={uniqueFilteredOrders.length}
                 itemsPerPage={itemsPerPage}
                 onPageChange={setCurrentPage}
                 className="mt-8 px-0"

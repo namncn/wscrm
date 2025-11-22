@@ -32,6 +32,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { Pagination } from '@/components/ui/pagination'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
 import { DomainCombobox } from '@/components/ui/domain-combobox'
+import { HostingPackageCombobox } from '@/components/ui/hosting-package-combobox'
 import { Server, Plus, Search, Eye, RefreshCw, CheckCircle, XCircle, HardDrive, Cpu, Edit, Trash2, Loader2, DollarSign } from 'lucide-react'
 import { toastSuccess, toastError } from '@/lib/toast'
 
@@ -46,6 +47,7 @@ interface Hosting {
   updatedAt: string
   domain?: string | null
   customerId?: string | null
+  hostingTypeId?: number | null
   expiryDate?: string | null
   serverLocation?: string | null
   addonDomain?: string
@@ -62,6 +64,14 @@ const formatDateToLocalString = (date: Date): string => {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+// Helper function to format Date to YYYY-MM-DD string, ensuring local timezone
+const formatDateForAPI = (date: Date | undefined): string | null => {
+  if (!date) return null
+  // Ensure we use local date components to avoid timezone issues
+  const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return formatDateToLocalString(localDate)
 }
 
 // Helper function to calculate month-over-month change percentage
@@ -106,12 +116,15 @@ export default function HostingPage() {
   const [isViewHostingDialogOpen, setIsViewHostingDialogOpen] = useState(false)
   const [isEditHostingDialogOpen, setIsEditHostingDialogOpen] = useState(false)
   const [isDeleteHostingDialogOpen, setIsDeleteHostingDialogOpen] = useState(false)
+  const [isSyncSubscriptionDialogOpen, setIsSyncSubscriptionDialogOpen] = useState(false)
   const [selectedHosting, setSelectedHosting] = useState<Hosting | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [syncingHostingIds, setSyncingHostingIds] = useState<Set<number>>(new Set())
   const [customers, setCustomers] = useState<Array<{ id: number; name: string; email: string }>>([])
   const [domains, setDomains] = useState<Array<{ id: number; domainName: string; status?: string }>>([])
+  const [hostingPackages, setHostingPackages] = useState<Array<{ id: number; planName: string; storage: number; bandwidth: number; price: string | number }>>([])
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -119,23 +132,14 @@ export default function HostingPage() {
 
   // Register purchased hosting (assign to customer)
   const [isRegisterHostingDialogOpen, setIsRegisterHostingDialogOpen] = useState(false)
+  const [selectedHostingPackageId, setSelectedHostingPackageId] = useState<number | null>(null)
   const createInitialRegisterHostingState = () => ({
-    planName: '',
-    storage: '',
-    bandwidth: '',
-    price: 0,
+    hostingTypeId: null as number | null,
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED',
     customerId: null as number | null,
+    ipAddress: '',
     registrationDate: undefined as Date | undefined,
     expiryDate: undefined as Date | undefined,
-    serverLocation: '',
-    domain: '',
-    addonDomain: 'Unlimited',
-    subDomain: 'Unlimited',
-    ftpAccounts: 'Unlimited',
-    databases: 'Unlimited',
-    hostingType: 'VPS Hosting',
-    operatingSystem: 'Linux',
   })
   const [registerHosting, setRegisterHosting] = useState(createInitialRegisterHostingState)
 
@@ -146,6 +150,7 @@ export default function HostingPage() {
     bandwidth: '',
     price: 0,
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
+    hostingTypeId: null as number | null,
     addonDomain: 'Unlimited',
     subDomain: 'Unlimited',
     ftpAccounts: 'Unlimited',
@@ -155,24 +160,32 @@ export default function HostingPage() {
     serverLocation: '',
   })
 
-  // Form state for edit hosting
+  // Form state for edit hosting (only for purchased hosting)
   const [editHosting, setEditHosting] = useState({
+    hostingTypeId: null as number | null,
+    status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED',
+    customerId: null as number | null,
+    registrationDate: undefined as Date | undefined,
+    expiryDate: undefined as Date | undefined,
+  })
+
+  // Form state for edit hosting package
+  const [isEditHostingPackageDialogOpen, setIsEditHostingPackageDialogOpen] = useState(false)
+  const [selectedHostingPackage, setSelectedHostingPackage] = useState<Hosting | null>(null)
+  const [editHostingPackage, setEditHostingPackage] = useState({
     planName: '',
     storage: '',
     bandwidth: '',
     price: 0,
-    status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED',
+    status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
+    hostingTypeId: null as number | null,
     addonDomain: 'Unlimited',
     subDomain: 'Unlimited',
     ftpAccounts: 'Unlimited',
     databases: 'Unlimited',
     hostingType: 'VPS Hosting',
     operatingSystem: 'Linux',
-    domain: '',
-    registrationDate: '',
-    expiryDate: '',
     serverLocation: '',
-    customerId: ''
   })
 
   useEffect(() => {
@@ -183,7 +196,28 @@ export default function HostingPage() {
     }
     fetchHostings()
     fetchCustomers()
+    fetchHostingPackages()
   }, [session, status, router])
+  
+  const fetchHostingPackages = async () => {
+    try {
+      const response = await fetch('/api/hosting-packages')
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success && result.data) {
+          setHostingPackages(result.data.map((pkg: any) => ({
+            id: typeof pkg.id === 'string' ? parseInt(pkg.id, 10) : pkg.id,
+            planName: pkg.planName,
+            storage: pkg.storage,
+            bandwidth: pkg.bandwidth,
+            price: pkg.price
+          })))
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching hosting packages:', error)
+    }
+  }
   
   // Reset to first page when search term changes or tab switches
   useEffect(() => {
@@ -192,22 +226,48 @@ export default function HostingPage() {
 
   const fetchHostings = async () => {
     try {
+      // For packages tab, load from /api/hosting-packages
+      // For purchased tab, load from /api/hosting?purchased=all
       const [packagesRes, purchasedRes] = await Promise.all([
-        fetch('/api/hosting'),
-        fetch('/api/hosting?purchased=all')
+        fetch('/api/hosting-packages'), // Load hosting packages (catalog)
+        fetch('/api/hosting?purchased=all') // Load purchased hostings
       ])
 
       if (packagesRes.ok) {
         const result = await packagesRes.json()
-        if (result.success && result.data) setHostings(result.data)
-        else setHostings([])
-      } else setHostings([])
+        if (result.success && result.data) {
+          // Map hosting packages to Hosting format for display
+          setHostings(result.data.map((pkg: any) => ({
+            id: typeof pkg.id === 'string' ? parseInt(pkg.id, 10) : pkg.id,
+            planName: pkg.planName,
+            storage: pkg.storage || 0,
+            bandwidth: pkg.bandwidth || 0,
+            price: pkg.price,
+            status: pkg.status,
+            addonDomain: pkg.addonDomain,
+            subDomain: pkg.subDomain,
+            ftpAccounts: pkg.ftpAccounts,
+            databases: pkg.databases,
+            hostingType: pkg.hostingType,
+            operatingSystem: pkg.operatingSystem,
+            serverLocation: pkg.serverLocation,
+            createdAt: pkg.createdAt,
+            updatedAt: pkg.updatedAt,
+          })))
+        } else {
+          setHostings([])
+        }
+      } else {
+        setHostings([])
+      }
 
       if (purchasedRes.ok) {
         const result2 = await purchasedRes.json()
         if (result2.success && result2.data) setPurchasedHostings(result2.data)
         else setPurchasedHostings([])
-      } else setPurchasedHostings([])
+      } else {
+        setPurchasedHostings([])
+      }
     } catch (error) {
       setHostings([])
       setPurchasedHostings([])
@@ -221,36 +281,64 @@ export default function HostingPage() {
   const createHosting = async () => {
     setIsCreating(true)
     try {
-      // Convert storage and bandwidth from MB (string) to GB (number)
-      const storageGB = newHosting.storage === '' || newHosting.storage.toLowerCase() === 'unlimited'
-        ? 0
-        : (() => {
-            const parsed = parseFloat(newHosting.storage)
-            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
-          })()
+      // For packages tab, create hosting package using /api/hosting-packages
+      // For purchased tab, create customer hosting registration using /api/hosting
+      const endpoint = activeTab === 'packages' ? '/api/hosting-packages' : '/api/hosting'
       
-      const bandwidthGB = newHosting.bandwidth === '' || newHosting.bandwidth.toLowerCase() === 'unlimited'
-        ? 0
-        : (() => {
-            const parsed = parseFloat(newHosting.bandwidth)
-            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
-          })()
+      let requestBody: any
+      if (activeTab === 'packages') {
+        // Save value directly from input (no conversion)
+        const storageValue = newHosting.storage === '' || newHosting.storage.toLowerCase() === 'unlimited'
+          ? 0
+          : (() => {
+              const parsed = parseFloat(newHosting.storage)
+              return isNaN(parsed) ? 0 : parsed
+            })()
+        
+        const bandwidthValue = newHosting.bandwidth === '' || newHosting.bandwidth.toLowerCase() === 'unlimited'
+          ? 0
+          : (() => {
+              const parsed = parseFloat(newHosting.bandwidth)
+              return isNaN(parsed) ? 0 : parsed
+            })()
+        
+        // Create hosting package
+        requestBody = {
+          planName: newHosting.planName,
+          storage: storageValue,
+          bandwidth: bandwidthValue,
+          price: newHosting.price,
+          status: newHosting.status,
+          serverLocation: newHosting.serverLocation || null,
+          addonDomain: newHosting.addonDomain || 'Unlimited',
+          subDomain: newHosting.subDomain || 'Unlimited',
+          ftpAccounts: newHosting.ftpAccounts || 'Unlimited',
+          databases: newHosting.databases || 'Unlimited',
+          hostingType: newHosting.hostingType || 'VPS Hosting',
+          operatingSystem: newHosting.operatingSystem || 'Linux',
+        }
+      } else {
+        // Create customer hosting registration (should not happen from this dialog, but handle it)
+        requestBody = {
+          hostingTypeId: newHosting.hostingTypeId,
+          customerId: null, // This dialog is only for packages, so customerId should be null
+          status: newHosting.status,
+        }
+      }
       
-      const response = await fetch('/api/hosting', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...newHosting,
-          storage: storageGB,
-          bandwidth: bandwidthGB,
-          serverLocation: newHosting.serverLocation || null,
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       if (response.ok) {
-        await fetchHostings()
+        await Promise.all([
+          fetchHostings(),
+          fetchHostingPackages() // Refresh packages list for combobox
+        ])
         setIsCreateHostingDialogOpen(false)
         setNewHosting({
           planName: '',
@@ -258,6 +346,7 @@ export default function HostingPage() {
           bandwidth: '',
           price: 0,
           status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
+          hostingTypeId: null,
           addonDomain: 'Unlimited',
           subDomain: 'Unlimited',
           ftpAccounts: 'Unlimited',
@@ -327,37 +416,87 @@ export default function HostingPage() {
     setIsViewHostingDialogOpen(true)
   }
 
+  const handleEditHostingPackage = (hosting: Hosting) => {
+    setSelectedHostingPackage(hosting)
+    // Display value directly from database (no conversion)
+    const storageValue = hosting.storage ? String(hosting.storage) : ''
+    const bandwidthValue = hosting.bandwidth ? String(hosting.bandwidth) : ''
+    
+    setEditHostingPackage({
+      planName: hosting.planName || '',
+      storage: storageValue,
+      bandwidth: bandwidthValue,
+      price: typeof hosting.price === 'string' ? parseFloat(hosting.price) : hosting.price || 0,
+      status: (hosting.status === 'SUSPENDED' ? 'INACTIVE' : hosting.status) as 'ACTIVE' | 'INACTIVE',
+      hostingTypeId: (hosting as any).hostingTypeId || null,
+      addonDomain: (hosting as any).addonDomain || 'Unlimited',
+      subDomain: (hosting as any).subDomain || 'Unlimited',
+      ftpAccounts: (hosting as any).ftpAccounts || 'Unlimited',
+      databases: (hosting as any).databases || 'Unlimited',
+      hostingType: (hosting as any).hostingType || 'VPS Hosting',
+      operatingSystem: (hosting as any).operatingSystem || 'Linux',
+      serverLocation: (hosting as any).serverLocation || '',
+    })
+    setIsEditHostingPackageDialogOpen(true)
+  }
+
   const handleEditHosting = (hosting: Hosting) => {
     setSelectedHosting(hosting)
     const hasCustomerId = !!(hosting as any).customerId
-    const customerId = hasCustomerId ? String((hosting as any).customerId) : ''
-    // Convert storage and bandwidth from GB to MB, or show as empty string if 0
-    const storageMB = hosting.storage > 0 ? String(hosting.storage * 1024) : ''
-    const bandwidthMB = hosting.bandwidth > 0 ? String(hosting.bandwidth * 1024) : ''
-    setEditHosting({
-      planName: hosting.planName,
-      storage: storageMB,
-      bandwidth: bandwidthMB,
-      price: parseFloat(hosting.price),
-      status: hosting.status,
-      addonDomain: hosting.addonDomain || 'Unlimited',
-      subDomain: hosting.subDomain || 'Unlimited',
-      ftpAccounts: hosting.ftpAccounts || 'Unlimited',
-      databases: hosting.databases || 'Unlimited',
-      hostingType: hosting.hostingType || 'VPS Hosting',
-      operatingSystem: hosting.operatingSystem || 'Linux',
-      domain: hasCustomerId ? ((hosting as any).domain || '') : '',
-      registrationDate: hasCustomerId ? (hosting.createdAt || '') : '',
-      expiryDate: (hosting as any).expiryDate || '',
-      serverLocation: (hosting as any).serverLocation || '',
-      customerId: customerId
-    })
-    // Fetch domains for this customer
-    if (customerId) {
-      fetchDomains(customerId)
-    } else {
-      setDomains([])
+    const customerId = hasCustomerId ? (hosting as any).customerId : null
+    
+    // For DatePicker, pass date strings directly - DatePicker will parse them correctly
+    // This avoids timezone issues when converting ISO strings to Date objects
+    let registrationDate: Date | undefined = undefined
+    let expiryDate: Date | undefined = undefined
+    
+    if (hasCustomerId && hosting.createdAt) {
+      // Extract date part from ISO string if needed (e.g., "2024-01-15T00:00:00.000Z" -> "2024-01-15")
+      const dateStr = hosting.createdAt.includes('T') 
+        ? hosting.createdAt.split('T')[0] 
+        : hosting.createdAt
+      // Parse using local timezone to avoid timezone issues
+      const parts = dateStr.split('-')
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10)
+        const month = parseInt(parts[1], 10) - 1 // month is 0-indexed
+        const day = parseInt(parts[2], 10)
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          registrationDate = new Date(year, month, day)
+        }
+      }
     }
+    
+    if ((hosting as any).expiryDate) {
+      const dateStr = (hosting as any).expiryDate.includes('T')
+        ? (hosting as any).expiryDate.split('T')[0]
+        : (hosting as any).expiryDate
+      const parts = dateStr.split('-')
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10)
+        const month = parseInt(parts[1], 10) - 1 // month is 0-indexed
+        const day = parseInt(parts[2], 10)
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          expiryDate = new Date(year, month, day)
+        }
+      }
+    }
+    
+    // Ensure hostingTypeId is set correctly (convert to number if needed)
+    let hostingTypeId: number | null = null
+    if ((hosting as any).hostingTypeId !== undefined && (hosting as any).hostingTypeId !== null) {
+      hostingTypeId = typeof (hosting as any).hostingTypeId === 'string' 
+        ? parseInt((hosting as any).hostingTypeId, 10) 
+        : (hosting as any).hostingTypeId
+    }
+    
+    setEditHosting({
+      hostingTypeId: hostingTypeId,
+      status: hosting.status,
+      customerId: customerId ? (typeof customerId === 'number' ? customerId : parseInt(String(customerId), 10)) : null,
+      registrationDate: registrationDate,
+      expiryDate: expiryDate,
+    })
     setIsEditHostingDialogOpen(true)
   }
 
@@ -366,60 +505,144 @@ export default function HostingPage() {
     setIsDeleteHostingDialogOpen(true)
   }
 
+  const handleSyncSubscription = (hosting: Hosting) => {
+    setSelectedHosting(hosting)
+    setIsSyncSubscriptionDialogOpen(true)
+  }
+
+  const confirmSyncSubscription = async () => {
+    if (!selectedHosting) return
+
+    const hostingId = selectedHosting.id
+    setSyncingHostingIds(prev => new Set(prev).add(hostingId))
+    setIsSyncSubscriptionDialogOpen(false)
+    
+    try {
+      const response = await fetch('/api/hosting/sync-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ hostingId }),
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        // Sử dụng message từ API response thay vì hardcode
+        const message = result.message || 'Tạo subscription trên Control Panel thành công!'
+        toastSuccess(message)
+        // Refresh hosting list
+        await fetchHostings()
+      } else {
+        toastError(result.error || 'Không thể tạo subscription trên Control Panel')
+      }
+    } catch (error: any) {
+      console.error('Error syncing subscription:', error)
+      toastError('Có lỗi xảy ra khi sync subscription')
+    } finally {
+      setSyncingHostingIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(hostingId)
+        return newSet
+      })
+      setSelectedHosting(null)
+    }
+  }
+
+  const updateHostingPackage = async () => {
+    if (!selectedHostingPackage) return
+    
+    setIsUpdating(true)
+    try {
+      // Save value directly from input (no conversion)
+      const storageValue = editHostingPackage.storage === '' || editHostingPackage.storage.toLowerCase() === 'unlimited'
+        ? 0
+        : (() => {
+            const parsed = parseFloat(editHostingPackage.storage)
+            return isNaN(parsed) ? 0 : parsed
+          })()
+      
+      const bandwidthValue = editHostingPackage.bandwidth === '' || editHostingPackage.bandwidth.toLowerCase() === 'unlimited'
+        ? 0
+        : (() => {
+            const parsed = parseFloat(editHostingPackage.bandwidth)
+            return isNaN(parsed) ? 0 : parsed
+          })()
+      
+      const updateData = {
+        id: selectedHostingPackage.id,
+        planName: editHostingPackage.planName,
+        storage: storageValue,
+        bandwidth: bandwidthValue,
+        price: editHostingPackage.price,
+        status: editHostingPackage.status,
+        serverLocation: editHostingPackage.serverLocation || null,
+        addonDomain: editHostingPackage.addonDomain || 'Unlimited',
+        subDomain: editHostingPackage.subDomain || 'Unlimited',
+        ftpAccounts: editHostingPackage.ftpAccounts || 'Unlimited',
+        databases: editHostingPackage.databases || 'Unlimited',
+        hostingType: editHostingPackage.hostingType || 'VPS Hosting',
+        operatingSystem: editHostingPackage.operatingSystem || 'Linux',
+      }
+      
+      const response = await fetch('/api/hosting-packages', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      })
+
+      if (response.ok) {
+        await Promise.all([
+          fetchHostings(),
+          fetchHostingPackages() // Refresh packages list for combobox
+        ])
+        setIsEditHostingPackageDialogOpen(false)
+        setSelectedHostingPackage(null)
+        setEditHostingPackage({
+          planName: '',
+          storage: '',
+          bandwidth: '',
+          price: 0,
+          status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
+          hostingTypeId: null,
+          addonDomain: 'Unlimited',
+          subDomain: 'Unlimited',
+          ftpAccounts: 'Unlimited',
+          databases: 'Unlimited',
+          hostingType: 'VPS Hosting',
+          operatingSystem: 'Linux',
+          serverLocation: '',
+        })
+        toastSuccess('Cập nhật gói hosting thành công!')
+      } else {
+        const errorData = await response.json()
+        toastError(`Lỗi: ${errorData.error || 'Không thể cập nhật gói hosting'}`)
+      }
+    } catch (error) {
+      toastError('Có lỗi xảy ra khi cập nhật gói hosting')
+      console.error('Error updating hosting package:', error)
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   const updateHosting = async () => {
     if (!selectedHosting) return
     
     setIsUpdating(true)
     try {
-      // Check if this is a package (no customerId) or purchased hosting (has customerId)
-      const originalCustomerId = (selectedHosting as any).customerId
-      const isPackage = !originalCustomerId
-      
-      // Convert storage and bandwidth from MB string to GB number
-      // If empty or "Unlimited", set to 0 (or handle as needed by backend)
-      const storageStr = editHosting.storage.trim()
-      const bandwidthStr = editHosting.bandwidth.trim()
-      
-      const storageGB = storageStr === '' || storageStr.toLowerCase() === 'unlimited'
-        ? 0 
-        : (() => {
-            const parsed = parseFloat(storageStr)
-            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
-          })()
-      
-      const bandwidthGB = bandwidthStr === '' || bandwidthStr.toLowerCase() === 'unlimited'
-        ? 0
-        : (() => {
-            const parsed = parseFloat(bandwidthStr)
-            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
-          })()
-      
-      // Build update data
+      // Build update data - only include fields that can be updated
       const updateData: any = {
         id: selectedHosting.id,
-        planName: editHosting.planName,
-        storage: storageGB,
-        bandwidth: bandwidthGB,
-        price: editHosting.price,
+        hostingTypeId: editHosting.hostingTypeId,
+        customerId: editHosting.customerId,
         status: editHosting.status,
-        addonDomain: editHosting.addonDomain,
-        subDomain: editHosting.subDomain,
-        ftpAccounts: editHosting.ftpAccounts,
-        databases: editHosting.databases,
-        hostingType: editHosting.hostingType,
-        operatingSystem: editHosting.operatingSystem,
-      }
-      
-      // ServerLocation can be set for both packages and purchased hosting
-      updateData.serverLocation = editHosting.serverLocation || null
-      
-      // Only include customerId, domain, expiryDate and related fields if this is a purchased hosting
-      // For packages, never send customerId, domain or expiryDate to keep them as packages
-      if (!isPackage) {
-        updateData.customerId = editHosting.customerId ? parseInt(String(editHosting.customerId)) : null
-        updateData.domain = editHosting.domain || null
-        updateData.expiryDate = editHosting.expiryDate || null
-        updateData.createdAt = editHosting.registrationDate || null
+        ipAddress: (editHosting as any).ipAddress || null,
+        expiryDate: formatDateForAPI(editHosting.expiryDate),
+        createdAt: formatDateForAPI(editHosting.registrationDate),
       }
       
       const response = await fetch('/api/hosting', {
@@ -431,26 +654,18 @@ export default function HostingPage() {
       })
 
       if (response.ok) {
-        await fetchHostings()
+        await Promise.all([
+          fetchHostings(),
+          fetchHostingPackages() // Refresh packages list for combobox
+        ])
         setIsEditHostingDialogOpen(false)
         setSelectedHosting(null)
         setEditHosting({
-          planName: '',
-          storage: '',
-          bandwidth: '',
-          price: 0,
+          hostingTypeId: null,
           status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED',
-          addonDomain: 'Unlimited',
-          subDomain: 'Unlimited',
-          ftpAccounts: 'Unlimited',
-          databases: 'Unlimited',
-          hostingType: 'VPS Hosting',
-          operatingSystem: 'Linux',
-          domain: '',
-          registrationDate: '',
-          expiryDate: '',
-          serverLocation: '',
-          customerId: ''
+          customerId: null,
+          registrationDate: undefined,
+          expiryDate: undefined,
         })
         toastSuccess('Cập nhật gói hosting thành công!')
       } else {
@@ -470,15 +685,36 @@ export default function HostingPage() {
     
     setIsDeleting(true)
     try {
-      const response = await fetch(`/api/hosting?id=${selectedHosting.id}`, {
+      // For packages tab, delete from /api/hosting-packages
+      // For purchased tab, delete from /api/hosting
+      const endpoint = activeTab === 'packages' 
+        ? `/api/hosting-packages?id=${selectedHosting.id}`
+        : `/api/hosting?id=${selectedHosting.id}`
+      
+      const response = await fetch(endpoint, {
         method: 'DELETE',
       })
 
       if (response.ok) {
-        await fetchHostings()
+        const result = await response.json()
+        await Promise.all([
+          fetchHostings(),
+          fetchHostingPackages() // Refresh packages list for combobox
+        ])
         setIsDeleteHostingDialogOpen(false)
         setSelectedHosting(null)
-        toastSuccess('Xóa gói hosting thành công!')
+        
+        // Hiển thị thông báo chi tiết dựa trên response
+        if (result.data?.warning) {
+          // Có cảnh báo (xóa subscription thất bại)
+          toastError(result.message || 'Xóa gói hosting thành công nhưng có lỗi khi xóa subscription trên Control Panel')
+        } else if (result.data?.subscriptionDeleted) {
+          // Xóa subscription thành công
+          toastSuccess(result.message || 'Xóa gói hosting và subscription trên Control Panel thành công!')
+        } else {
+          // Xóa hosting thành công (không có subscription)
+          toastSuccess(result.message || 'Xóa gói hosting thành công!')
+        }
       } else {
         const errorData = await response.json()
         toastError(`Lỗi: ${errorData.error || 'Không thể xóa gói hosting'}`)
@@ -562,20 +798,22 @@ export default function HostingPage() {
     if (storage === 0 || storage === null || storage === undefined) {
       return 'Unlimited'
     }
-    if (storage >= 1024) {
-      return `${(storage / 1024).toFixed(1)}TB`
-    }
-    return `${storage}GB`
+    // Convert MB to GB (divide by 1024) and display with GB unit
+    const gb = storage / 1024
+    // Round to 1 decimal place if needed
+    const displayValue = gb % 1 === 0 ? gb : gb.toFixed(1)
+    return `${displayValue}GB`
   }
 
   const formatBandwidth = (bandwidth: number) => {
     if (bandwidth === 0 || bandwidth === null || bandwidth === undefined) {
       return 'Unlimited'
     }
-    if (bandwidth >= 1024) {
-      return `${(bandwidth / 1024).toFixed(1)}TB`
-    }
-    return `${bandwidth}GB`
+    // Convert MB to GB (divide by 1024) and display with GB unit
+    const gb = bandwidth / 1024
+    // Round to 1 decimal place if needed
+    const displayValue = gb % 1 === 0 ? gb : gb.toFixed(1)
+    return `${displayValue}GB`
   }
 
   return (
@@ -818,41 +1056,16 @@ export default function HostingPage() {
                 <div className="flex-1 overflow-y-auto px-6">
                   <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">Tên gói</Label>
+                    <Label className="text-right">
+                      Gói Hosting <span className="text-red-500">*</span>
+                    </Label>
                     <div className="col-span-3">
-                      <Select
-                        value={registerHosting.planName}
-                        onValueChange={(val) => setRegisterHosting({ ...registerHosting, planName: val })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Chọn gói hosting" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {hostings.map((h) => (
-                            <SelectItem key={h.id} value={h.planName}>
-                              {h.planName} ({new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND'}).format(parseFloat(h.price))})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-storage" className="text-right">Dung lượng (MB)</Label>
-                    <div className="col-span-3">
-                      <Input id="reg-storage" type="text" value={registerHosting.storage} onChange={(e) => setRegisterHosting({...registerHosting, storage: e.target.value})} placeholder="Unlimited" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-bandwidth" className="text-right">Băng thông (MB)</Label>
-                    <div className="col-span-3">
-                      <Input id="reg-bandwidth" type="text" value={registerHosting.bandwidth} onChange={(e) => setRegisterHosting({...registerHosting, bandwidth: e.target.value})} placeholder="Unlimited" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-price" className="text-right">Giá (VND)</Label>
-                    <div className="col-span-3">
-                      <Input id="reg-price" type="number" value={registerHosting.price} onChange={(e) => setRegisterHosting({...registerHosting, price: parseInt(e.target.value) || 0})} placeholder="500000" />
+                      <HostingPackageCombobox
+                        packages={hostingPackages.filter(pkg => pkg.id)}
+                        value={registerHosting.hostingTypeId || null}
+                        onValueChange={(val) => setRegisterHosting({ ...registerHosting, hostingTypeId: val ? (typeof val === 'string' ? parseInt(val) : val) : null })}
+                        placeholder="Chọn gói hosting"
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -886,14 +1099,7 @@ export default function HostingPage() {
                           setRegisterHosting({
                             ...registerHosting,
                             customerId: customerIdNum,
-                            domain: ''
                           })
-                          // Fetch domains when customer changes
-                          if (customerIdNum) {
-                            fetchDomains(customerIdNum)
-                          } else {
-                            setDomains([])
-                          }
                         }}
                         placeholder="Chọn khách hàng"
                       />
@@ -928,72 +1134,14 @@ export default function HostingPage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-domain" className="text-right">Domain</Label>
+                    <Label htmlFor="reg-hosting-ip" className="text-right">IP Address</Label>
                     <div className="col-span-3">
-                      <DomainCombobox
-                        domains={domains}
-                        value={registerHosting.domain || null}
-                        onValueChange={(val) => setRegisterHosting({...registerHosting, domain: val || ''})}
-                        placeholder="Chọn domain"
+                      <Input
+                        id="reg-hosting-ip"
+                        placeholder="192.168.1.1"
+                        value={registerHosting.ipAddress || ''}
+                        onChange={(e) => setRegisterHosting({ ...registerHosting, ipAddress: e.target.value })}
                       />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-addonDomain" className="text-right">Addon Domain</Label>
-                    <div className="col-span-3">
-                      <Input id="reg-addonDomain" placeholder="Unlimited" value={registerHosting.addonDomain} onChange={(e) => setRegisterHosting({...registerHosting, addonDomain: e.target.value})} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-subDomain" className="text-right">Sub Domain</Label>
-                    <div className="col-span-3">
-                      <Input id="reg-subDomain" placeholder="Unlimited" value={registerHosting.subDomain} onChange={(e) => setRegisterHosting({...registerHosting, subDomain: e.target.value})} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-ftpAccounts" className="text-right">Tài khoản FTP</Label>
-                    <div className="col-span-3">
-                      <Input id="reg-ftpAccounts" placeholder="Unlimited" value={registerHosting.ftpAccounts} onChange={(e) => setRegisterHosting({...registerHosting, ftpAccounts: e.target.value})} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-databases" className="text-right">Database</Label>
-                    <div className="col-span-3">
-                      <Input id="reg-databases" placeholder="Unlimited" value={registerHosting.databases} onChange={(e) => setRegisterHosting({...registerHosting, databases: e.target.value})} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-hostingType" className="text-right">Loại hosting</Label>
-                    <div className="col-span-3">
-                      <Select 
-                        value={registerHosting.hostingType} 
-                        onValueChange={(value) =>
-                          setRegisterHosting({...registerHosting, hostingType: value})
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Chọn loại hosting" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Shared Hosting">Shared Hosting</SelectItem>
-                          <SelectItem value="VPS Hosting">VPS Hosting</SelectItem>
-                          <SelectItem value="Cloud Hosting">Cloud Hosting</SelectItem>
-                          <SelectItem value="Dedicated Server">Dedicated Server</SelectItem>
-                          <SelectItem value="WordPress Hosting">WordPress Hosting</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-operatingSystem" className="text-right">Hệ điều hành</Label>
-                    <div className="col-span-3">
-                      <Input id="reg-operatingSystem" placeholder="Linux" value={registerHosting.operatingSystem} onChange={(e) => setRegisterHosting({...registerHosting, operatingSystem: e.target.value})} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reg-location" className="text-right">Vị trí máy chủ</Label>
-                    <div className="col-span-3">
-                      <Input id="reg-location" value={registerHosting.serverLocation} onChange={(e) => setRegisterHosting({...registerHosting, serverLocation: e.target.value})} placeholder="Hanoi" />
                     </div>
                   </div>
                   </div>
@@ -1003,6 +1151,7 @@ export default function HostingPage() {
                     variant="outline"
                     onClick={() => {
                       setRegisterHosting(createInitialRegisterHostingState())
+                      setSelectedHostingPackageId(null)
                       setIsRegisterHostingDialogOpen(false)
                     }}
                   >
@@ -1011,53 +1160,25 @@ export default function HostingPage() {
                   <Button onClick={async () => {
                     try {
                       // Validate required fields
+                      if (!registerHosting.hostingTypeId) {
+                        toastError('Vui lòng chọn gói hosting')
+                        return
+                      }
                       if (!registerHosting.customerId) {
                         toastError('Vui lòng chọn khách hàng')
                         return
                       }
                       
-                      // Convert storage and bandwidth from MB string to GB number
-                      const storageStr = registerHosting.storage.trim()
-                      const bandwidthStr = registerHosting.bandwidth.trim()
-                      
-                      const storageGB = storageStr === '' || storageStr.toLowerCase() === 'unlimited'
-                        ? 0 
-                        : (() => {
-                            const parsed = parseFloat(storageStr)
-                            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
-                          })()
-                      
-                      const bandwidthGB = bandwidthStr === '' || bandwidthStr.toLowerCase() === 'unlimited'
-                        ? 0
-                        : (() => {
-                            const parsed = parseFloat(bandwidthStr)
-                            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
-                          })()
-                      
                       const res = await fetch('/api/hosting', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                          planName: registerHosting.planName,
-                          storage: storageGB,
-                          bandwidth: bandwidthGB,
-                          price: registerHosting.price || 0,
+                          hostingTypeId: registerHosting.hostingTypeId,
+                          customerId: registerHosting.customerId,
                           status: registerHosting.status,
-                          customerId: registerHosting.customerId || null,
-                          domain: registerHosting.domain || null,
-                          createdAt: registerHosting.registrationDate
-                            ? format(registerHosting.registrationDate, 'yyyy-MM-dd')
-                            : null,
-                          expiryDate: registerHosting.expiryDate
-                            ? format(registerHosting.expiryDate, 'yyyy-MM-dd')
-                            : null,
-                          serverLocation: registerHosting.serverLocation || null,
-                          addonDomain: registerHosting.addonDomain || 'Unlimited',
-                          subDomain: registerHosting.subDomain || 'Unlimited',
-                          ftpAccounts: registerHosting.ftpAccounts || 'Unlimited',
-                          databases: registerHosting.databases || 'Unlimited',
-                          hostingType: registerHosting.hostingType || 'VPS Hosting',
-                          operatingSystem: registerHosting.operatingSystem || 'Linux',
+                          ipAddress: registerHosting.ipAddress || null,
+                          createdAt: formatDateForAPI(registerHosting.registrationDate),
+                          expiryDate: formatDateForAPI(registerHosting.expiryDate),
                         })
                       })
                       if (!res.ok) {
@@ -1066,6 +1187,7 @@ export default function HostingPage() {
                         return
                       }
                       setRegisterHosting(createInitialRegisterHostingState())
+                      setSelectedHostingPackageId(null)
                       setIsRegisterHostingDialogOpen(false)
                       await fetchHostings()
                       toastSuccess('Đăng ký hosting thành công!')
@@ -1258,7 +1380,7 @@ export default function HostingPage() {
                             <Button variant="outline" size="sm" className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteHosting(hosting)} title="Xóa">
                               <Trash2 className="h-4 w-4" />
                             </Button>
-                            <Button variant="outline" size="sm" className="w-8" onClick={() => handleEditHosting(hosting)} title="Chỉnh sửa">
+                            <Button variant="outline" size="sm" className="w-8" onClick={() => handleEditHostingPackage(hosting)} title="Chỉnh sửa">
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button variant="outline" size="sm" className="w-8" onClick={() => handleViewHosting(hosting)} title="Xem chi tiết">
@@ -1322,10 +1444,12 @@ export default function HostingPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-fit">Thao Tác</TableHead>
-                      <TableHead>Tên Gói</TableHead>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Gói Hosting</TableHead>
                       <TableHead>Dung Lượng</TableHead>
                       <TableHead>Băng Thông</TableHead>
                       <TableHead>Khách Hàng</TableHead>
+                      <TableHead>IP Address</TableHead>
                       <TableHead>Ngày Đăng Ký</TableHead>
                       <TableHead>Ngày Hết Hạn</TableHead>
                       <TableHead>Giá</TableHead>
@@ -1337,11 +1461,24 @@ export default function HostingPage() {
                       const customerId = (hosting as any).customerId
                       const customerIdNum = typeof customerId === 'string' ? parseInt(customerId, 10) : customerId
                       const customer = customers.find(c => c.id === customerIdNum)
-                      const label = customer ? `${customer.name} (${customer.email})` : '—'
                       return (
                         <TableRow key={hosting.id}>
                           <TableCell>
                             <div className="flex gap-1">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50" 
+                                onClick={() => handleSyncSubscription(hosting)} 
+                                title="Sync Subscription lên Control Panel"
+                                disabled={syncingHostingIds.has(hosting.id)}
+                              >
+                                {syncingHostingIds.has(hosting.id) ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="h-4 w-4" />
+                                )}
+                              </Button>
                               <Button variant="outline" size="sm" className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteHosting(hosting)} title="Xóa">
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1354,12 +1491,34 @@ export default function HostingPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="font-medium">{hosting.planName}</div>
-                            <div className="text-xs text-gray-500 font-mono">ID: {hosting.id}</div>
+                            <div className="font-medium font-mono">{hosting.id}</div>
+                          </TableCell>
+                          <TableCell>
+                            {hosting.planName || (hosting.hostingTypeId ? (
+                              hostingPackages.find(pkg => String(pkg.id) === String(hosting.hostingTypeId))?.planName || '—'
+                            ) : (
+                              '—'
+                            ))}
                           </TableCell>
                           <TableCell>{formatStorage(hosting.storage)}</TableCell>
                           <TableCell>{formatBandwidth(hosting.bandwidth)}</TableCell>
-                          <TableCell>{label}</TableCell>
+                          <TableCell>
+                            {customer ? (
+                              <div>
+                                <div className="font-medium">{customer.name}</div>
+                                <div className="text-xs text-gray-500">{customer.email}</div>
+                              </div>
+                            ) : (
+                              '—'
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {(hosting as any).ipAddress ? (
+                              <code className="bg-gray-100 px-2 py-1 rounded text-sm">{(hosting as any).ipAddress}</code>
+                            ) : (
+                              '—'
+                            )}
+                          </TableCell>
                           <TableCell>{new Date(hosting.createdAt).toLocaleDateString('vi-VN')}</TableCell>
                           <TableCell>{(hosting as any).expiryDate ? new Date((hosting as any).expiryDate as any).toLocaleDateString('vi-VN') : '—'}</TableCell>
                           <TableCell>{formatCurrency(hosting.price)}</TableCell>
@@ -1405,30 +1564,37 @@ export default function HostingPage() {
                     <Label className="font-medium mb-2 block">Tên gói</Label>
                     <div className="text-sm text-gray-600">{selectedHosting.planName}</div>
                   </div>
-                  <div>
-                    <Label className="font-medium mb-2 block">Trạng thái</Label>
-                    <div>{getStatusBadge(selectedHosting.status)}</div>
-                  </div>
-                </div>
-                {(selectedHosting as any).customerId && (() => {
-                  const customerId = (selectedHosting as any).customerId
-                  const customerIdNum = typeof customerId === 'string' ? parseInt(customerId, 10) : customerId
-                  const customer = customers.find(c => c.id === customerIdNum)
-                  return (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label className="font-medium mb-2 block">Khách hàng</Label>
-                        <div className="text-sm text-gray-600">
-                          {customer ? `${customer.name} (${customer.email})` : '—'}
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="font-medium mb-2 block">Giá</Label>
-                        <div className="text-sm text-gray-600">{formatCurrency(selectedHosting.price)}</div>
+                  {(selectedHosting as any).customerId && (
+                    <div>
+                      <Label className="font-medium mb-2 block">IP Address</Label>
+                      <div className="text-sm text-gray-600">
+                        {(selectedHosting as any).ipAddress ? (
+                          <code className="bg-gray-100 px-2 py-1 rounded">{(selectedHosting as any).ipAddress}</code>
+                        ) : (
+                          'Chưa có'
+                        )}
                       </div>
                     </div>
-                  )
-                })()}
+                  )}
+                  {!(selectedHosting as any).customerId && (
+                    <div>
+                      <Label className="font-medium mb-2 block">Trạng thái</Label>
+                      <div>{getStatusBadge(selectedHosting.status)}</div>
+                    </div>
+                  )}
+                </div>
+                {(selectedHosting as any).customerId && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="font-medium mb-2 block">Trạng thái</Label>
+                      <div>{getStatusBadge(selectedHosting.status)}</div>
+                    </div>
+                    <div>
+                      <Label className="font-medium mb-2 block">Giá</Label>
+                      <div className="text-sm text-gray-600">{formatCurrency(selectedHosting.price)}</div>
+                    </div>
+                  </div>
+                )}
                 {(selectedHosting as any).customerId && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -1573,207 +1739,60 @@ export default function HostingPage() {
             </DialogHeader>
             <div className="flex-1 overflow-y-auto px-6">
               <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-planName" className="text-right">
-                  Tên gói <span className="text-red-500">*</span>
-                </Label>
-                <div className="col-span-3">
-                  <Input 
-                    id="edit-planName" 
-                    placeholder="Basic Hosting"
-                    value={editHosting.planName}
-                    onChange={(e) => setEditHosting({...editHosting, planName: e.target.value})}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-storage" className="text-right">
-                  Dung lượng (MB)
-                </Label>
-                <div className="col-span-3">
-                  <Input 
-                    id="edit-storage" 
-                    type="text"
-                    placeholder="Unlimited"
-                    value={editHosting.storage}
-                    onChange={(e) => setEditHosting({...editHosting, storage: e.target.value})}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-bandwidth" className="text-right">
-                  Băng thông (MB)
-                </Label>
-                <div className="col-span-3">
-                  <Input 
-                    id="edit-bandwidth" 
-                    type="text"
-                    placeholder="Unlimited"
-                    value={editHosting.bandwidth}
-                    onChange={(e) => setEditHosting({...editHosting, bandwidth: e.target.value})}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-price" className="text-right">
-                  Giá (VND)
-                </Label>
-                <div className="col-span-3">
-                  <Input 
-                    id="edit-price" 
-                    type="number"
-                    placeholder="500000"
-                    value={editHosting.price}
-                    onChange={(e) => setEditHosting({...editHosting, price: parseInt(e.target.value) || 0})}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-status" className="text-right">
-                  Trạng thái
-                </Label>
-                <div className="col-span-3">
-                  <Select 
-                    value={editHosting.status} 
-                    onValueChange={(value: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED') =>
-                      setEditHosting({...editHosting, status: value})
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ACTIVE">Hoạt động</SelectItem>
-                      <SelectItem value="INACTIVE">Không hoạt động</SelectItem>
-                      <SelectItem value="SUSPENDED">Tạm ngừng</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-addonDomain" className="text-right">
-                  Addon Domain
-                </Label>
-                <div className="col-span-3">
-                  <Input 
-                    id="edit-addonDomain" 
-                    placeholder="Unlimited"
-                    value={editHosting.addonDomain}
-                    onChange={(e) => setEditHosting({...editHosting, addonDomain: e.target.value})}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-subDomain" className="text-right">
-                  Sub Domain
-                </Label>
-                <div className="col-span-3">
-                  <Input 
-                    id="edit-subDomain" 
-                    placeholder="Unlimited"
-                    value={editHosting.subDomain}
-                    onChange={(e) => setEditHosting({...editHosting, subDomain: e.target.value})}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-ftpAccounts" className="text-right">
-                  Tài khoản FTP
-                </Label>
-                <div className="col-span-3">
-                  <Input 
-                    id="edit-ftpAccounts" 
-                    placeholder="Unlimited"
-                    value={editHosting.ftpAccounts}
-                    onChange={(e) => setEditHosting({...editHosting, ftpAccounts: e.target.value})}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-databases" className="text-right">
-                  Database
-                </Label>
-                <div className="col-span-3">
-                  <Input 
-                    id="edit-databases" 
-                    placeholder="Unlimited"
-                    value={editHosting.databases}
-                    onChange={(e) => setEditHosting({...editHosting, databases: e.target.value})}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-hostingType" className="text-right">
-                  Loại hosting
-                </Label>
-                <div className="col-span-3">
-                  <Select 
-                    value={editHosting.hostingType} 
-                    onValueChange={(value) =>
-                      setEditHosting({...editHosting, hostingType: value})
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Chọn loại hosting" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Shared Hosting">Shared Hosting</SelectItem>
-                      <SelectItem value="VPS Hosting">VPS Hosting</SelectItem>
-                      <SelectItem value="Cloud Hosting">Cloud Hosting</SelectItem>
-                      <SelectItem value="Dedicated Server">Dedicated Server</SelectItem>
-                      <SelectItem value="WordPress Hosting">WordPress Hosting</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-operatingSystem" className="text-right">
-                  Hệ điều hành
-                </Label>
-                <div className="col-span-3">
-                  <Input 
-                    id="edit-operatingSystem" 
-                    placeholder="Linux"
-                    value={editHosting.operatingSystem}
-                    onChange={(e) => setEditHosting({...editHosting, operatingSystem: e.target.value})}
-                  />
-                </div>
-              </div>
-              {/* Only show customer field if this is a purchased hosting (has customerId) */}
+              {/* Only show fields for purchased hosting (has customerId) */}
               {selectedHosting && (selectedHosting as any).customerId && (
                 <>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right">
-                      Khách hàng
+                      Gói Hosting <span className="text-red-500">*</span>
                     </Label>
                     <div className="col-span-3">
-                      <CustomerCombobox
-                        customers={customers}
-                        value={editHosting.customerId ? (typeof editHosting.customerId === 'string' ? parseInt(editHosting.customerId, 10) : editHosting.customerId) : null}
+                      <HostingPackageCombobox
+                        packages={hostingPackages}
+                        value={editHosting.hostingTypeId ? (typeof editHosting.hostingTypeId === 'string' ? parseInt(editHosting.hostingTypeId, 10) : editHosting.hostingTypeId) : null}
                         onValueChange={(val) => {
-                          const customerIdStr = val ? String(val) : ''
-                          setEditHosting({...editHosting, customerId: customerIdStr, domain: ''})
-                          // Fetch domains when customer changes
-                          if (val) {
-                            fetchDomains(val)
-                          } else {
-                            setDomains([])
-                          }
+                          const hostingTypeId = val ? (typeof val === 'string' ? parseInt(val, 10) : val) : null
+                          setEditHosting({ ...editHosting, hostingTypeId: hostingTypeId })
                         }}
-                        placeholder="Chọn khách hàng"
+                        placeholder="Chọn gói hosting"
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="edit-domain" className="text-right">
-                      Domain
+                    <Label htmlFor="edit-status" className="text-right">
+                      Trạng thái
                     </Label>
                     <div className="col-span-3">
-                      <DomainCombobox
-                        domains={domains}
-                        value={editHosting.domain || null}
-                        onValueChange={(val) => setEditHosting({...editHosting, domain: val || ''})}
-                        placeholder="Chọn domain"
+                      <Select 
+                        value={editHosting.status} 
+                        onValueChange={(value: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED') =>
+                          setEditHosting({...editHosting, status: value})
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ACTIVE">Hoạt động</SelectItem>
+                          <SelectItem value="INACTIVE">Không hoạt động</SelectItem>
+                          <SelectItem value="SUSPENDED">Tạm ngừng</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label className="text-right">
+                      Khách hàng <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="col-span-3">
+                      <CustomerCombobox
+                        customers={customers}
+                        value={editHosting.customerId}
+                        onValueChange={(val) => {
+                          const customerIdNum = typeof val === 'number' ? val : val ? parseInt(String(val), 10) : null
+                          setEditHosting({...editHosting, customerId: customerIdNum})
+                        }}
+                        placeholder="Chọn khách hàng"
                       />
                     </div>
                   </div>
@@ -1783,10 +1802,10 @@ export default function HostingPage() {
                     </Label>
                     <div className="col-span-3">
                       <DatePicker
-                        value={editHosting.registrationDate || undefined}
+                        value={editHosting.registrationDate}
                         onChange={(date) => setEditHosting({
                           ...editHosting,
-                          registrationDate: date ? formatDateToLocalString(date) : ''
+                          registrationDate: date ?? undefined
                         })}
                         placeholder="Chọn ngày đăng ký"
                       />
@@ -1798,30 +1817,30 @@ export default function HostingPage() {
                     </Label>
                     <div className="col-span-3">
                       <DatePicker
-                        value={editHosting.expiryDate || undefined}
+                        value={editHosting.expiryDate}
                         onChange={(date) => setEditHosting({
                           ...editHosting,
-                          expiryDate: date ? formatDateToLocalString(date) : ''
+                          expiryDate: date ?? undefined
                         })}
                         placeholder="Chọn ngày hết hạn"
                       />
                     </div>
                   </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-ipAddress" className="text-right">
+                      IP Address
+                    </Label>
+                    <div className="col-span-3">
+                      <Input
+                        id="edit-ipAddress"
+                        placeholder="192.168.1.1"
+                        value={(editHosting as any).ipAddress || ''}
+                        onChange={(e) => setEditHosting({ ...editHosting, ipAddress: e.target.value } as any)}
+                      />
+                    </div>
+                  </div>
                 </>
               )}
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-serverLocation" className="text-right">
-                  Vị trí máy chủ
-                </Label>
-                <div className="col-span-3">
-                  <Input 
-                    id="edit-serverLocation" 
-                    placeholder="Ho Chi Minh City"
-                    value={editHosting.serverLocation}
-                    onChange={(e) => setEditHosting({...editHosting, serverLocation: e.target.value})}
-                  />
-                </div>
-              </div>
               </div>
             </div>
             <DialogFooter className="px-6 pt-4 pb-6 border-t">
@@ -1841,6 +1860,217 @@ export default function HostingPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Edit Hosting Package Dialog */}
+        {activeTab === 'packages' && (
+          <Dialog open={isEditHostingPackageDialogOpen} onOpenChange={setIsEditHostingPackageDialogOpen}>
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+              <DialogHeader className="px-6 pt-6 pb-4">
+                <DialogTitle>Chỉnh Sửa Gói Hosting</DialogTitle>
+                <DialogDescription>
+                  Cập nhật thông tin gói hosting
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-planName" className="text-right">
+                      Tên gói <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="col-span-3">
+                      <Input 
+                        id="edit-planName" 
+                        placeholder="Basic Hosting"
+                        value={editHostingPackage.planName}
+                        onChange={(e) => setEditHostingPackage({...editHostingPackage, planName: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-storage" className="text-right">
+                      Dung lượng (MB)
+                    </Label>
+                    <div className="col-span-3">
+                      <Input 
+                        id="edit-storage" 
+                        type="text"
+                        placeholder="Unlimited"
+                        value={editHostingPackage.storage}
+                        onChange={(e) => setEditHostingPackage({...editHostingPackage, storage: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-bandwidth" className="text-right">
+                      Băng thông (MB)
+                    </Label>
+                    <div className="col-span-3">
+                      <Input 
+                        id="edit-bandwidth" 
+                        type="text"
+                        placeholder="Unlimited"
+                        value={editHostingPackage.bandwidth}
+                        onChange={(e) => setEditHostingPackage({...editHostingPackage, bandwidth: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-price" className="text-right">
+                      Giá (VND)
+                    </Label>
+                    <div className="col-span-3">
+                      <Input 
+                        id="edit-price" 
+                        type="number"
+                        placeholder="500000"
+                        value={editHostingPackage.price}
+                        onChange={(e) => setEditHostingPackage({...editHostingPackage, price: parseInt(e.target.value) || 0})}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-status" className="text-right">
+                      Trạng thái
+                    </Label>
+                    <div className="col-span-3">
+                      <Select 
+                        value={editHostingPackage.status} 
+                        onValueChange={(value: 'ACTIVE' | 'INACTIVE') =>
+                          setEditHostingPackage({...editHostingPackage, status: value})
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ACTIVE">Hoạt động</SelectItem>
+                          <SelectItem value="INACTIVE">Không hoạt động</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-serverLocation" className="text-right">
+                      Vị trí máy chủ
+                    </Label>
+                    <div className="col-span-3">
+                      <Input 
+                        id="edit-serverLocation" 
+                        placeholder="Vietnam"
+                        value={editHostingPackage.serverLocation}
+                        onChange={(e) => setEditHostingPackage({...editHostingPackage, serverLocation: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-addonDomain" className="text-right">
+                      Addon Domain
+                    </Label>
+                    <div className="col-span-3">
+                      <Input 
+                        id="edit-addonDomain" 
+                        placeholder="Unlimited"
+                        value={editHostingPackage.addonDomain}
+                        onChange={(e) => setEditHostingPackage({...editHostingPackage, addonDomain: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-subDomain" className="text-right">
+                      Sub Domain
+                    </Label>
+                    <div className="col-span-3">
+                      <Input 
+                        id="edit-subDomain" 
+                        placeholder="Unlimited"
+                        value={editHostingPackage.subDomain}
+                        onChange={(e) => setEditHostingPackage({...editHostingPackage, subDomain: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-ftpAccounts" className="text-right">
+                      Tài khoản FTP
+                    </Label>
+                    <div className="col-span-3">
+                      <Input 
+                        id="edit-ftpAccounts" 
+                        placeholder="Unlimited"
+                        value={editHostingPackage.ftpAccounts}
+                        onChange={(e) => setEditHostingPackage({...editHostingPackage, ftpAccounts: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-databases" className="text-right">
+                      Database
+                    </Label>
+                    <div className="col-span-3">
+                      <Input 
+                        id="edit-databases" 
+                        placeholder="Unlimited"
+                        value={editHostingPackage.databases}
+                        onChange={(e) => setEditHostingPackage({...editHostingPackage, databases: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-hostingType" className="text-right">
+                      Loại Hosting
+                    </Label>
+                    <div className="col-span-3">
+                      <Select 
+                        value={editHostingPackage.hostingType} 
+                        onValueChange={(value) =>
+                          setEditHostingPackage({...editHostingPackage, hostingType: value})
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn loại hosting" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Shared Hosting">Shared Hosting</SelectItem>
+                          <SelectItem value="VPS Hosting">VPS Hosting</SelectItem>
+                          <SelectItem value="Dedicated Server">Dedicated Server</SelectItem>
+                          <SelectItem value="Cloud Hosting">Cloud Hosting</SelectItem>
+                          <SelectItem value="WordPress Hosting">WordPress Hosting</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-operatingSystem" className="text-right">
+                      Hệ điều hành
+                    </Label>
+                    <div className="col-span-3">
+                      <Input 
+                        id="edit-operatingSystem" 
+                        placeholder="Linux"
+                        value={editHostingPackage.operatingSystem}
+                        onChange={(e) => setEditHostingPackage({...editHostingPackage, operatingSystem: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter className="px-6 pt-4 pb-6 border-t">
+                <Button variant="outline" onClick={() => setIsEditHostingPackageDialogOpen(false)}>
+                  Hủy
+                </Button>
+                <Button onClick={updateHostingPackage} disabled={isUpdating}>
+                  {isUpdating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Đang cập nhật...
+                    </>
+                  ) : (
+                    'Cập nhật'
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* Delete Hosting Dialog */}
         <Dialog open={isDeleteHostingDialogOpen} onOpenChange={setIsDeleteHostingDialogOpen}>
@@ -1879,6 +2109,70 @@ export default function HostingPage() {
                   </>
                 ) : (
                   'Xóa'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Sync Subscription Dialog */}
+        <Dialog open={isSyncSubscriptionDialogOpen} onOpenChange={setIsSyncSubscriptionDialogOpen}>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
+              <DialogTitle>Sync Subscription lên Control Panel</DialogTitle>
+              <DialogDescription>
+                Bạn có chắc chắn muốn tạo subscription cho gói hosting này trên Control Panel không?
+              </DialogDescription>
+            </DialogHeader>
+            {selectedHosting && (
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="py-4 space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                    <div className="text-sm font-medium text-blue-900 mb-2">Thông tin gói hosting:</div>
+                    <div className="space-y-1 text-sm text-blue-800">
+                      <div><span className="font-medium">Gói:</span> {selectedHosting.planName || (selectedHosting.hostingTypeId ? hostingPackages.find(pkg => String(pkg.id) === String(selectedHosting.hostingTypeId))?.planName || '—' : '—')}</div>
+                      <div><span className="font-medium">Dung lượng:</span> {formatStorage(selectedHosting.storage)}</div>
+                      <div><span className="font-medium">Băng thông:</span> {formatBandwidth(selectedHosting.bandwidth)}</div>
+                      {selectedHosting.price && (
+                        <div><span className="font-medium">Giá:</span> {formatCurrency(selectedHosting.price)}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                    <div className="text-sm text-yellow-800">
+                      <div className="font-medium mb-1">Lưu ý:</div>
+                      <ul className="list-disc list-inside space-y-1 text-xs">
+                        <li>Hệ thống sẽ tự động sync customer lên Control Panel nếu chưa có</li>
+                        <li>Subscription sẽ được tạo với plan mapping đã cấu hình</li>
+                        <li>Thông tin subscription sẽ được lưu vào hosting record</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
+              <Button variant="outline" onClick={() => {
+                setIsSyncSubscriptionDialogOpen(false)
+                setSelectedHosting(null)
+              }}>
+                Hủy
+              </Button>
+              <Button 
+                onClick={confirmSyncSubscription}
+                disabled={syncingHostingIds.has(selectedHosting?.id || 0)}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {syncingHostingIds.has(selectedHosting?.id || 0) ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Đang sync...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    Xác nhận Sync
+                  </>
                 )}
               </Button>
             </DialogFooter>

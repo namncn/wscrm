@@ -4,33 +4,36 @@
  */
 
 import { db } from './database'
-import { orderItems, hosting, vps, domain, orders } from './schema'
-import { eq } from 'drizzle-orm'
+import { orderItems, hosting, vps, domain, orders, domainPackages, hostingPackages, vpsPackages } from './schema'
+import { eq, sql, desc } from 'drizzle-orm'
+import { ControlPanelSyncService } from './control-panel-sync/sync-service'
+import { RetryQueue } from './control-panel-sync/retry-queue'
 
 /**
  * Create service instances from order items when payment is completed
  * This is payment-method agnostic and can be called from any payment provider
  */
-export async function createServicesFromOrder(orderId: number) {
+export async function createServicesFromOrder(orderId: number | string) {
   try {
-    console.log('[OrderService] Creating services from order:', orderId)
+    // Convert orderId to number if it's a string
+    const orderIdNum = typeof orderId === 'string' ? parseInt(orderId, 10) : orderId
+    if (isNaN(orderIdNum)) {
+      throw new Error(`Invalid orderId: ${orderId}`)
+    }
 
     // Get all order items
     const items = await db.select()
       .from(orderItems)
-      .where(eq(orderItems.orderId, orderId))
+      .where(eq(orderItems.orderId, orderIdNum))
 
     if (items.length === 0) {
-      console.log('[OrderService] No items found for order:', orderId)
       return
     }
-
-    console.log('[OrderService] Processing', items.length, 'order items')
 
     // Get order details to get customerId
     const orderDetails = await db.select({ customerId: orders.customerId })
       .from(orders)
-      .where(eq(orders.id, orderId))
+      .where(eq(orders.id, orderIdNum))
       .limit(1)
     
     if (!orderDetails[0] || !orderDetails[0].customerId) {
@@ -39,7 +42,6 @@ export async function createServicesFromOrder(orderId: number) {
     }
 
     const customerId = orderDetails[0].customerId
-    console.log('[OrderService] Customer ID:', customerId)
 
     // Process each order item
     // Track success and failures separately to allow partial success
@@ -90,12 +92,6 @@ export async function createServicesFromOrder(orderId: number) {
     }
 
     // Log summary
-    if (results.success.length > 0) {
-      console.log('[OrderService] Successfully created', results.success.length, 'service(s):', results.success.join(', '))
-    }
-    if (results.skipped.length > 0) {
-      console.log('[OrderService] Skipped', results.skipped.length, 'service(s) (already exists):', results.skipped.map(s => `${s.serviceType} (${s.itemId}): ${s.reason}`).join(', '))
-    }
     if (results.failed.length > 0) {
       console.error('[OrderService] Failed to create', results.failed.length, 'service(s):', results.failed.map(f => `${f.serviceType} (${f.itemId}): ${f.error}`).join(', '))
     }
@@ -104,8 +100,6 @@ export async function createServicesFromOrder(orderId: number) {
     if (results.success.length === 0 && results.failed.length > 0) {
       throw new Error(`Failed to create all services: ${results.failed.map(f => f.error).join(', ')}`)
     }
-
-    console.log('[OrderService] Completed processing order:', orderId, '- Created:', results.success.length, 'Skipped:', results.skipped.length, 'Failed:', results.failed.length)
   } catch (error: any) {
     console.error('[OrderService] Critical error creating services:', error)
     throw error
@@ -118,40 +112,68 @@ export async function createServicesFromOrder(orderId: number) {
  */
 async function createHostingService(item: any, customerId: number): Promise<boolean> {
   try {
-    console.log('[OrderService] Creating hosting for item:', item.id)
-
-    // Get hosting plan details (template/package)
-    const hostingPlan = await db.select()
-      .from(hosting)
-      .where(eq(hosting.id, item.serviceId))
-      .limit(1)
-
-    if (hostingPlan.length === 0) {
-      console.error('[OrderService] Hosting plan not found:', item.serviceId)
-      throw new Error(`Hosting plan not found: ${item.serviceId}`)
+    // Parse serviceId to get hostingTypeId
+    const hostingTypeId = typeof item.serviceId === 'string' ? parseInt(item.serviceId, 10) : item.serviceId
+    
+    if (isNaN(hostingTypeId)) {
+      console.error('[OrderService] Invalid hostingTypeId:', item.serviceId)
+      throw new Error(`Invalid hostingTypeId: ${item.serviceId}`)
     }
 
+    // Get hosting package details
+    const hostingPackage = await db.select()
+      .from(hostingPackages)
+      .where(eq(hostingPackages.id, hostingTypeId))
+      .limit(1)
+
+    if (hostingPackage.length === 0) {
+      console.error('[OrderService] Hosting package not found:', hostingTypeId)
+      throw new Error(`Hosting package not found: ${hostingTypeId}`)
+    }
+
+    // Calculate expiry date: 1 year from today
+    const expiryDate = new Date()
+    expiryDate.setFullYear(expiryDate.getFullYear() + 1)
+
     // Create new hosting instance (allow multiple instances per customer)
-    console.log('[OrderService] Creating hosting instance for customer:', customerId, '- Plan:', hostingPlan[0].planName)
-    await db.insert(hosting).values({
-      planName: hostingPlan[0].planName,
-      domain: null,
-      storage: hostingPlan[0].storage,
-      bandwidth: hostingPlan[0].bandwidth,
-      price: typeof item.price === 'string' ? parseFloat(item.price) : item.price,
-      status: 'ACTIVE',
+    const insertResult = await db.insert(hosting).values({
+      hostingTypeId: hostingTypeId,
       customerId: typeof customerId === 'string' ? parseInt(customerId, 10) : customerId,
-      expiryDate: null,
-      serverLocation: hostingPlan[0].serverLocation || null,
-      addonDomain: hostingPlan[0].addonDomain || 'Unlimited',
-      subDomain: hostingPlan[0].subDomain || 'Unlimited',
-      ftpAccounts: hostingPlan[0].ftpAccounts || 'Unlimited',
-      databases: hostingPlan[0].databases || 'Unlimited',
-      hostingType: hostingPlan[0].hostingType || 'VPS Hosting',
-      operatingSystem: hostingPlan[0].operatingSystem || 'Linux'
+      status: 'ACTIVE',
+      ipAddress: null,
+      expiryDate: expiryDate, // 1 year from today
+      syncStatus: 'PENDING', // Will be synced to control panel
     })
 
-    console.log('[OrderService] Hosting created successfully')
+    // Get the created hosting record
+    const createdHosting = await db.select()
+      .from(hosting)
+      .where(eq(hosting.customerId, typeof customerId === 'string' ? parseInt(customerId, 10) : customerId))
+      .orderBy(desc(hosting.createdAt))
+      .limit(1)
+
+    if (createdHosting[0]) {
+      // Sync với control panel (async, không block)
+      // Không await để không block order completion
+      ControlPanelSyncService.syncHostingToControlPanel(createdHosting[0].id)
+        .then(result => {
+          if (result.success) {
+            console.log(`[OrderService] Hosting ${createdHosting[0].id} synced to control panel successfully`)
+          } else {
+            console.error(`[OrderService] Failed to sync hosting ${createdHosting[0].id}:`, result.error)
+            // Add to retry queue
+            RetryQueue.addToQueue(createdHosting[0].id, result.error || 'Unknown error')
+              .catch(err => console.error(`[OrderService] Error adding to retry queue:`, err))
+          }
+        })
+        .catch(error => {
+          console.error(`[OrderService] Error syncing hosting ${createdHosting[0].id}:`, error)
+          // Add to retry queue
+          RetryQueue.addToQueue(createdHosting[0].id, error.message || 'Unknown error')
+            .catch(err => console.error(`[OrderService] Error adding to retry queue:`, err))
+        })
+    }
+
     return true
   } catch (error: any) {
     console.error('[OrderService] Error creating hosting:', error)
@@ -165,36 +187,38 @@ async function createHostingService(item: any, customerId: number): Promise<bool
  */
 async function createVpsService(item: any, customerId: number): Promise<boolean> {
   try {
-    console.log('[OrderService] Creating VPS for item:', item.id)
-
-    // Get VPS plan details
-    const vpsPlan = await db.select()
-      .from(vps)
-      .where(eq(vps.id, item.serviceId))
-      .limit(1)
-
-    if (vpsPlan.length === 0) {
-      console.error('[OrderService] VPS plan not found:', item.serviceId)
-      throw new Error(`VPS plan not found: ${item.serviceId}`)
+    // Parse serviceId to get vpsTypeId
+    const vpsTypeId = typeof item.serviceId === 'string' ? parseInt(item.serviceId, 10) : item.serviceId
+    
+    if (isNaN(vpsTypeId)) {
+      console.error('[OrderService] Invalid vpsTypeId:', item.serviceId)
+      throw new Error(`Invalid vpsTypeId: ${item.serviceId}`)
     }
 
+    // Get VPS package details
+    const vpsPackage = await db.select()
+      .from(vpsPackages)
+      .where(eq(vpsPackages.id, vpsTypeId))
+      .limit(1)
+
+    if (vpsPackage.length === 0) {
+      console.error('[OrderService] VPS package not found:', vpsTypeId)
+      throw new Error(`VPS package not found: ${vpsTypeId}`)
+    }
+
+    // Calculate expiry date: 1 year from today
+    const expiryDate = new Date()
+    expiryDate.setFullYear(expiryDate.getFullYear() + 1)
+
     // Create new VPS instance (allow multiple instances per customer)
-    console.log('[OrderService] Creating VPS instance for customer:', customerId, '- Plan:', vpsPlan[0].planName)
     await db.insert(vps).values({
-      planName: vpsPlan[0].planName,
-      ipAddress: null,
-      cpu: vpsPlan[0].cpu,
-      ram: vpsPlan[0].ram,
-      storage: vpsPlan[0].storage,
-      bandwidth: vpsPlan[0].bandwidth,
-      price: typeof item.price === 'string' ? parseFloat(item.price) : item.price,
-      status: 'ACTIVE',
+      vpsTypeId: vpsTypeId,
       customerId: typeof customerId === 'string' ? parseInt(customerId, 10) : customerId,
-      expiryDate: null,
-      os: vpsPlan[0].os || null
+      status: 'ACTIVE',
+      ipAddress: null,
+      expiryDate: expiryDate // 1 year from today
     })
 
-    console.log('[OrderService] VPS created successfully')
     return true
   } catch (error: any) {
     console.error('[OrderService] Error creating VPS:', error)
@@ -208,18 +232,40 @@ async function createVpsService(item: any, customerId: number): Promise<boolean>
  */
 async function createDomainService(item: any, customerId: number): Promise<boolean> {
   try {
-    console.log('[OrderService] Creating domain for item:', item.id)
-
-    // Get domain name from multiple possible sources
+    // Parse serviceData to get domainTypeId and domainName
     let domainName = ''
+    let domainTypeId: number | null = null
     
-    // Priority 1: Get from serviceData.domainName (most reliable)
     if (item.serviceData) {
       try {
-        const serviceData = typeof item.serviceData === 'string' ? JSON.parse(item.serviceData) : item.serviceData
-        domainName = serviceData?.domainName || ''
-        if (domainName) {
-          console.log('[OrderService] Found domainName in serviceData:', domainName)
+        // Handle different formats of serviceData
+        let serviceData: any = null
+        if (typeof item.serviceData === 'string') {
+          // Try to parse as JSON string
+          try {
+            serviceData = JSON.parse(item.serviceData)
+          } catch {
+            // If parsing fails, might be a plain string representation
+            console.warn('[OrderService] serviceData is string but not valid JSON:', item.serviceData)
+          }
+        } else if (typeof item.serviceData === 'object') {
+          serviceData = item.serviceData
+        }
+        
+        if (serviceData) {
+          domainName = serviceData.domainName || ''
+          if (serviceData.domainTypeId !== undefined && serviceData.domainTypeId !== null) {
+            const parsedDomainTypeId = typeof serviceData.domainTypeId === 'string' 
+              ? parseInt(serviceData.domainTypeId, 10) 
+              : (typeof serviceData.domainTypeId === 'number' ? serviceData.domainTypeId : null)
+            
+            // Only set domainTypeId if it's a valid positive number
+            if (parsedDomainTypeId !== null && !isNaN(parsedDomainTypeId) && parsedDomainTypeId > 0) {
+              domainTypeId = parsedDomainTypeId
+            } else {
+              console.warn('[OrderService] Invalid domainTypeId in serviceData:', serviceData.domainTypeId, 'parsed as:', parsedDomainTypeId)
+            }
+          }
         }
       } catch (parseError) {
         console.error('[OrderService] Error parsing serviceData:', parseError, 'serviceData:', item.serviceData)
@@ -227,16 +273,28 @@ async function createDomainService(item: any, customerId: number): Promise<boole
     }
     
     // Priority 2: Get from serviceName (if it looks like a domain - contains a dot)
-    if (!domainName && item.serviceName && item.serviceName.includes('.')) {
+    if (!domainName && item.serviceName && typeof item.serviceName === 'string' && item.serviceName.includes('.')) {
       domainName = item.serviceName
-      console.log('[OrderService] Using serviceName as domainName:', domainName)
     }
     
     // Priority 3: Fallback to serviceId if it looks like a domain
     // (for old orders that might have domain name in serviceId)
-    if (!domainName && item.serviceId && item.serviceId.includes('.')) {
+    if (!domainName && item.serviceId && typeof item.serviceId === 'string' && item.serviceId.includes('.')) {
       domainName = item.serviceId
-      console.log('[OrderService] Using serviceId as domainName fallback:', domainName)
+    }
+
+    // If domainTypeId is not in serviceData, try to get it from serviceId
+    // Note: For DOMAIN orders, serviceId is usually 0, so this won't work
+    // But we'll try anyway for backward compatibility
+    if (!domainTypeId && item.serviceId !== undefined && item.serviceId !== null) {
+      const serviceIdStr = String(item.serviceId)
+      // Only try if serviceId doesn't look like a domain name (doesn't contain a dot)
+      if (!serviceIdStr.includes('.')) {
+        const parsedId = parseInt(serviceIdStr, 10)
+        if (!isNaN(parsedId) && parsedId !== 0) {
+          domainTypeId = parsedId
+        }
+      }
     }
 
     if (!domainName) {
@@ -249,6 +307,49 @@ async function createDomainService(item: any, customerId: number): Promise<boole
       throw new Error(`Domain name not found for order item ${item.id}`)
     }
 
+    // If domainTypeId is invalid, try to find it by domain extension
+    if (!domainTypeId || domainTypeId <= 0) {
+      if (domainName) {
+        // Extract domain extension (e.g., "net" from "example.net")
+        const domainParts = domainName.split('.')
+        if (domainParts.length > 1) {
+          const extension = domainParts[domainParts.length - 1].toLowerCase()
+          
+          // Try to find domain package by name (e.g., ".net", ".com")
+          const matchingPackages = await db.select()
+            .from(domainPackages)
+            .where(sql`LOWER(${domainPackages.name}) LIKE ${'%.' + extension + '%'}`)
+            .limit(1)
+          
+          if (matchingPackages.length > 0) {
+            domainTypeId = matchingPackages[0].id
+          }
+        }
+      }
+    }
+    
+    // Validate domainTypeId exists and is valid (must be > 0)
+    if (!domainTypeId || domainTypeId <= 0) {
+      console.error('[OrderService] DomainTypeId not found or invalid for item:', item.id, {
+        domainTypeId,
+        domainName,
+        serviceData: item.serviceData,
+        serviceId: item.serviceId
+      })
+      throw new Error(`DomainTypeId not found or invalid (must be > 0) for order item ${item.id}. Found: ${domainTypeId}. Domain: ${domainName}`)
+    }
+
+    // Verify domainTypeId exists in domain_packages table
+    const domainPackage = await db.select()
+      .from(domainPackages)
+      .where(eq(domainPackages.id, domainTypeId))
+      .limit(1)
+
+    if (domainPackage.length === 0) {
+      console.error('[OrderService] Domain package not found:', domainTypeId)
+      throw new Error(`Domain package not found: ${domainTypeId}`)
+    }
+
     // Check if domain already exists
     const existingDomain = await db.select()
       .from(domain)
@@ -256,23 +357,26 @@ async function createDomainService(item: any, customerId: number): Promise<boole
       .limit(1)
 
     if (existingDomain.length > 0) {
-      console.log('[OrderService] Domain already exists, skipping:', domainName)
       return false
     }
 
+    // Calculate expiry date: 1 year from registration date
+    const registrationDate = new Date()
+    const expiryDate = new Date(registrationDate)
+    expiryDate.setFullYear(expiryDate.getFullYear() + 1)
+
     // Create new domain instance
-    console.log('[OrderService] Creating domain instance for customer:', customerId, '- Domain:', domainName)
     await db.insert(domain).values({
       domainName: domainName,
+      domainTypeId: domainTypeId,
       registrar: null,
-      registrationDate: new Date(),
-      expiryDate: null, // Will be set by admin or based on registration period
+      ipAddress: null,
+      registrationDate: registrationDate,
+      expiryDate: expiryDate, // 1 year from registration date
       status: 'ACTIVE',
-      price: typeof item.price === 'string' ? parseFloat(item.price) : item.price,
       customerId: typeof customerId === 'string' ? parseInt(customerId, 10) : customerId
     })
 
-    console.log('[OrderService] Domain created successfully')
     return true
   } catch (error: any) {
     console.error('[OrderService] Error creating domain:', error)
