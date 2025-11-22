@@ -686,15 +686,6 @@ export class EnhanceClient {
     const endpointWithCustomerOrg = `/orgs/${customerId}/subscriptions/${subscriptionIdInt}`
     const requestBody = { planId: planIdInt }
     
-    console.log(`[EnhanceClient] Updating subscription:`, {
-      endpointWithCustomerOrg,
-      subscriptionId: subscriptionIdInt,
-      customerOrgId: customerId,
-      vendorOrgId: this.orgId,
-      planId: planIdInt,
-      requestBody,
-    })
-    
     // Theo API docs, method là PATCH
     // Thử với customer org ID trước (theo code PHP)
     let result = await this.request<{ id: number }>(
@@ -706,7 +697,6 @@ export class EnhanceClient {
     // Nếu thất bại với customer org ID, thử với vendor org ID (fallback)
     if (!result.success && result.statusCode === 404) {
       const endpointWithVendorOrg = `${this.getOrgPrefix()}/subscriptions/${subscriptionIdInt}`
-      console.log(`[EnhanceClient] Customer org endpoint failed, trying vendor org endpoint: ${endpointWithVendorOrg}`)
       result = await this.request<{ id: number }>(
         endpointWithVendorOrg,
         'PATCH',
@@ -723,11 +713,6 @@ export class EnhanceClient {
         error: result.error,
         statusCode: result.statusCode,
         triedEndpoints: [endpointWithCustomerOrg, `${this.getOrgPrefix()}/subscriptions/${subscriptionIdInt}`],
-      })
-    } else {
-      console.log(`[EnhanceClient] ✓ Update subscription succeeded:`, {
-        subscriptionId: subscriptionIdInt,
-        planId: planIdInt,
       })
     }
     
@@ -757,13 +742,6 @@ export class EnhanceClient {
     // Thử với customer org ID trước
     const endpointWithCustomerOrg = `/orgs/${customerId}/subscriptions/${subscriptionIdInt}`
     
-    console.log(`[EnhanceClient] Deleting subscription:`, {
-      endpointWithCustomerOrg,
-      subscriptionId: subscriptionIdInt,
-      customerOrgId: customerId,
-      vendorOrgId: this.orgId,
-    })
-    
     let result = await this.request<void>(
       endpointWithCustomerOrg,
       'DELETE'
@@ -772,7 +750,6 @@ export class EnhanceClient {
     // Nếu thất bại với customer org ID, thử với vendor org ID (fallback)
     if (!result.success && result.statusCode === 404) {
       const endpointWithVendorOrg = `${this.getOrgPrefix()}/subscriptions/${subscriptionIdInt}`
-      console.log(`[EnhanceClient] Customer org endpoint failed, trying vendor org endpoint: ${endpointWithVendorOrg}`)
       result = await this.request<void>(
         endpointWithVendorOrg,
         'DELETE'
@@ -787,10 +764,6 @@ export class EnhanceClient {
         error: result.error,
         statusCode: result.statusCode,
         triedEndpoints: [endpointWithCustomerOrg, `${this.getOrgPrefix()}/subscriptions/${subscriptionIdInt}`],
-      })
-    } else {
-      console.log(`[EnhanceClient] ✓ Delete subscription succeeded:`, {
-        subscriptionId: subscriptionIdInt,
       })
     }
     
