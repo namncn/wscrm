@@ -39,6 +39,18 @@ export function HostingPackageCombobox({
   const [open, setOpen] = React.useState(false)
   const [searchTerm, setSearchTerm] = React.useState('')
 
+  // Helper function to convert MB to GB
+  // If value is 0, it means "Unlimited"
+  const mbToGb = (mb: number): string => {
+    if (mb === 0 || mb === null || mb === undefined) {
+      return 'Unlimited'
+    }
+    const gb = mb / 1024
+    // Round to 1 decimal place, remove trailing zeros
+    const rounded = Math.round(gb * 10) / 10
+    return rounded % 1 === 0 ? rounded.toString() : rounded.toFixed(1)
+  }
+
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen)
     if (onOpenChange) {
@@ -73,7 +85,13 @@ export function HostingPackageCombobox({
         >
           {selectedPackage ? (
             <span className="truncate">
-              {selectedPackage.planName} ({selectedPackage.storage}GB / {selectedPackage.bandwidth}GB)
+              {selectedPackage.planName} ({(() => {
+                const storage = mbToGb(selectedPackage.storage)
+                return storage === 'Unlimited' ? storage : `${storage}GB`
+              })()} / {(() => {
+                const bandwidth = mbToGb(selectedPackage.bandwidth)
+                return bandwidth === 'Unlimited' ? bandwidth : `${bandwidth}GB`
+              })()})
             </span>
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>
@@ -93,7 +111,11 @@ export function HostingPackageCombobox({
             />
           </div>
         </div>
-        <div className="max-h-[300px] overflow-y-auto p-1">
+        <div 
+          className="max-h-[300px] overflow-y-auto overflow-x-hidden p-1"
+          onWheel={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+        >
           {filteredPackages.length === 0 ? (
             <div className="px-2 py-6 text-center text-sm text-muted-foreground">
               Không tìm thấy gói hosting
@@ -128,7 +150,13 @@ export function HostingPackageCombobox({
                 <div className="flex flex-col flex-1">
                   <span className="font-medium">{pkg.planName}</span>
                   <span className="text-xs text-muted-foreground">
-                    {pkg.storage}GB Storage / {pkg.bandwidth}GB Bandwidth
+                    {(() => {
+                      const storage = mbToGb(pkg.storage)
+                      return storage === 'Unlimited' ? storage : `${storage}GB`
+                    })()} Storage / {(() => {
+                      const bandwidth = mbToGb(pkg.bandwidth)
+                      return bandwidth === 'Unlimited' ? bandwidth : `${bandwidth}GB`
+                    })()} Bandwidth
                   </span>
                 </div>
               </div>

@@ -5,7 +5,9 @@
 
 import { db } from './database'
 import { orderItems, hosting, vps, domain, orders, domainPackages, hostingPackages, vpsPackages } from './schema'
-import { eq, sql } from 'drizzle-orm'
+import { eq, sql, desc } from 'drizzle-orm'
+import { ControlPanelSyncService } from './control-panel-sync/sync-service'
+import { RetryQueue } from './control-panel-sync/retry-queue'
 
 /**
  * Create service instances from order items when payment is completed
@@ -134,13 +136,43 @@ async function createHostingService(item: any, customerId: number): Promise<bool
     expiryDate.setFullYear(expiryDate.getFullYear() + 1)
 
     // Create new hosting instance (allow multiple instances per customer)
-    await db.insert(hosting).values({
+    const insertResult = await db.insert(hosting).values({
       hostingTypeId: hostingTypeId,
       customerId: typeof customerId === 'string' ? parseInt(customerId, 10) : customerId,
       status: 'ACTIVE',
       ipAddress: null,
-      expiryDate: expiryDate // 1 year from today
+      expiryDate: expiryDate, // 1 year from today
+      syncStatus: 'PENDING', // Will be synced to control panel
     })
+
+    // Get the created hosting record
+    const createdHosting = await db.select()
+      .from(hosting)
+      .where(eq(hosting.customerId, typeof customerId === 'string' ? parseInt(customerId, 10) : customerId))
+      .orderBy(desc(hosting.createdAt))
+      .limit(1)
+
+    if (createdHosting[0]) {
+      // Sync với control panel (async, không block)
+      // Không await để không block order completion
+      ControlPanelSyncService.syncHostingToControlPanel(createdHosting[0].id)
+        .then(result => {
+          if (result.success) {
+            console.log(`[OrderService] Hosting ${createdHosting[0].id} synced to control panel successfully`)
+          } else {
+            console.error(`[OrderService] Failed to sync hosting ${createdHosting[0].id}:`, result.error)
+            // Add to retry queue
+            RetryQueue.addToQueue(createdHosting[0].id, result.error || 'Unknown error')
+              .catch(err => console.error(`[OrderService] Error adding to retry queue:`, err))
+          }
+        })
+        .catch(error => {
+          console.error(`[OrderService] Error syncing hosting ${createdHosting[0].id}:`, error)
+          // Add to retry queue
+          RetryQueue.addToQueue(createdHosting[0].id, error.message || 'Unknown error')
+            .catch(err => console.error(`[OrderService] Error adding to retry queue:`, err))
+        })
+    }
 
     return true
   } catch (error: any) {

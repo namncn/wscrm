@@ -1,9 +1,11 @@
 import { db } from '@/lib/database'
-import { hosting, customers, hostingPackages } from '@/lib/schema'
-import { eq, desc, isNotNull } from 'drizzle-orm'
+import { hosting, customers, hostingPackages, controlPanels } from '@/lib/schema'
+import { eq, desc, isNotNull, and } from 'drizzle-orm'
 import { createSuccessResponse, createErrorResponse, createCreatedResponse } from '@/lib/api-response'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { ControlPanelFactory } from '@/lib/control-panels/factory'
+import { ControlPanelType } from '@/lib/control-panels/base/types'
 
 // Helper function to check if user is ADMIN
 async function checkAdminRole() {
@@ -395,12 +397,120 @@ export async function DELETE(req: Request) {
       return createErrorResponse('Không tìm thấy gói hosting', 404)
     }
 
+    const hostingRecord = existingHosting[0]
+
+    // Nếu hosting đã được sync và có subscription ID, xóa subscription trên Control Panel trước
+    let warning: string | undefined
+    if (hostingRecord.syncMetadata && hostingRecord.externalAccountId) {
+      try {
+        const metadata = typeof hostingRecord.syncMetadata === 'string' 
+          ? JSON.parse(hostingRecord.syncMetadata) 
+          : hostingRecord.syncMetadata
+        const subscriptionId = metadata.subscriptionId || metadata.externalSubscriptionId
+
+        if (subscriptionId) {
+          // Lấy control panel config
+          const controlPanel = await db.select()
+            .from(controlPanels)
+            .where(and(
+              eq(controlPanels.enabled, 'YES'),
+              eq(controlPanels.type, 'ENHANCE')
+            ))
+            .limit(1)
+
+          if (controlPanel.length > 0) {
+            let config: any = controlPanel[0].config
+            if (typeof config === 'string') {
+              try {
+                config = JSON.parse(config)
+              } catch (parseError) {
+                config = {}
+              }
+            }
+
+            if (!config.orgId && process.env.ENHANCE_ORG_ID) {
+              config.orgId = process.env.ENHANCE_ORG_ID
+            }
+
+            if (config.orgId) {
+              const controlPanelInstance = ControlPanelFactory.create(controlPanel[0].type as ControlPanelType, config)
+              const enhanceAdapter = controlPanelInstance as any
+              const enhanceClient = (enhanceAdapter as any).client
+
+              if (enhanceClient) {
+                const deleteResult = await enhanceClient.deleteSubscription(
+                  hostingRecord.externalAccountId,
+                  subscriptionId
+                )
+
+                if (!deleteResult.success) {
+                  warning = `Không thể xóa subscription trên Control Panel: ${deleteResult.error || 'Unknown error'}. Hosting đã được xóa trong database.`
+                  console.error('[DeleteHosting] Failed to delete subscription:', deleteResult.error)
+                } else {
+                  console.log(`[DeleteHosting] Đã xóa subscription ${subscriptionId} trên Control Panel`)
+                  // Lưu thông tin thành công để trả về trong response
+                  // (sẽ được xử lý trong response message)
+                }
+              }
+            }
+          }
+        }
+      } catch (error: any) {
+        console.error('[DeleteHosting] Error deleting subscription from control panel:', error)
+        warning = `Lỗi khi xóa subscription trên Control Panel: ${error.message || 'Unknown error'}. Hosting đã được xóa trong database.`
+      }
+    }
+
     // Delete hosting plan
     await db
       .delete(hosting)
       .where(eq(hosting.id, id))
 
-    return createSuccessResponse(null, 'Xóa gói hosting thành công')
+    // Tạo response message dựa trên kết quả xóa subscription
+    let message: string
+    let subscriptionDeleted = false
+    
+    // Kiểm tra xem có subscription đã được xóa thành công không
+    if (hostingRecord.syncMetadata && hostingRecord.externalAccountId) {
+      try {
+        const metadata = typeof hostingRecord.syncMetadata === 'string' 
+          ? JSON.parse(hostingRecord.syncMetadata) 
+          : hostingRecord.syncMetadata
+        const subscriptionId = metadata.subscriptionId || metadata.externalSubscriptionId
+
+        if (subscriptionId) {
+          // Đã thử xóa subscription
+          if (warning) {
+            // Xóa subscription thất bại
+            message = `Xóa gói hosting thành công. Lưu ý: ${warning}`
+          } else {
+            // Xóa subscription thành công
+            subscriptionDeleted = true
+            message = `Xóa gói hosting thành công. Đã xóa subscription (ID: ${subscriptionId}) trên Control Panel.`
+          }
+        } else {
+          // Không có subscription để xóa
+          message = 'Xóa gói hosting thành công.'
+        }
+      } catch (e) {
+        message = warning ? `Xóa gói hosting thành công. Lưu ý: ${warning}` : 'Xóa gói hosting thành công.'
+      }
+    } else {
+      // Không có subscription để xóa
+      message = 'Xóa gói hosting thành công.'
+    }
+
+    if (warning) {
+      return createSuccessResponse(
+        { warning, subscriptionDeleted },
+        message
+      )
+    }
+
+    return createSuccessResponse(
+      { subscriptionDeleted },
+      message
+    )
   } catch (error) {
     console.error('Error deleting hosting:', error)
     return createErrorResponse('Không thể xóa gói hosting')

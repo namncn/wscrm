@@ -29,7 +29,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Pagination } from '@/components/ui/pagination'
 import { toastError, toastSuccess, toastFormError, toastFormSuccess } from '@/lib/toast'
-import { Plus, Search, Edit, Trash2, Eye, Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Eye, Loader2, CheckCircle2, XCircle, RefreshCw } from 'lucide-react'
 
 interface Customer {
   id: number
@@ -57,9 +57,11 @@ export default function CustomersPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isSyncCustomerDialogOpen, setIsSyncCustomerDialogOpen] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true)
+  const [syncingCustomerId, setSyncingCustomerId] = useState<number | null>(null)
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -249,6 +251,52 @@ export default function CustomersPage() {
     setIsDeleteDialogOpen(true)
   }
 
+  const handleSyncCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer)
+    setIsSyncCustomerDialogOpen(true)
+  }
+
+  const confirmSyncCustomer = async () => {
+    if (!selectedCustomer) return
+
+    try {
+      setSyncingCustomerId(selectedCustomer.id)
+      const response = await fetch('/api/customers/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: selectedCustomer.id,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        const action = data.data?.action || 'synced'
+        let message = `Đồng bộ customer "${selectedCustomer.name}" thành công!`
+        
+        if (action === 'created') {
+          message = `Đã tạo customer "${selectedCustomer.name}" trên control panel thành công!`
+        } else if (action === 'updated') {
+          message = `Đã cập nhật customer "${selectedCustomer.name}" trên control panel thành công!`
+        } else if (action === 'no_change') {
+          message = `Customer "${selectedCustomer.name}" đã tồn tại và không có thay đổi cần cập nhật.`
+        }
+        
+        toastSuccess(message)
+        setIsSyncCustomerDialogOpen(false)
+        setSelectedCustomer(null)
+      } else {
+        toastError(data.error || 'Không thể đồng bộ customer với control panel')
+      }
+    } catch (error: any) {
+      console.error('Error syncing customer:', error)
+      toastError('Có lỗi xảy ra khi đồng bộ customer: ' + error.message)
+    } finally {
+      setSyncingCustomerId(null)
+    }
+  }
+
   const confirmDeleteCustomer = async () => {
     if (!selectedCustomer) return
 
@@ -258,15 +306,21 @@ export default function CustomersPage() {
         method: 'DELETE',
       })
 
+      const data = await response.json()
+
       if (response.ok) {
+        // Check if there's a warning about control panel deletion
+        if (data.data?.warning) {
+          toastSuccess(`Đã xóa khách hàng "${selectedCustomer.name}" trong database. Lưu ý: ${data.data.warning}`)
+        } else {
         toastFormSuccess('Xóa khách hàng')
+        }
         setIsDeleteDialogOpen(false)
         setSelectedCustomer(null)
         // Refresh customers list
         await fetchCustomers()
       } else {
-        const error = await response.json()
-        toastFormError('Xóa khách hàng', error.error)
+        toastFormError('Xóa khách hàng', data.error || 'Có lỗi xảy ra')
       }
     } catch (error) {
       console.error('Error deleting customer:', error)
@@ -891,6 +945,71 @@ export default function CustomersPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Sync Customer Dialog */}
+        <Dialog open={isSyncCustomerDialogOpen} onOpenChange={setIsSyncCustomerDialogOpen}>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
+              <DialogTitle>Sync Customer lên Control Panel</DialogTitle>
+              <DialogDescription>
+                Bạn có chắc chắn muốn đồng bộ khách hàng này lên Control Panel không?
+              </DialogDescription>
+            </DialogHeader>
+            {selectedCustomer && (
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="py-4 space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                    <div className="text-sm font-medium text-blue-900 mb-2">Thông tin khách hàng:</div>
+                    <div className="space-y-1 text-sm text-blue-800">
+                      <div><span className="font-medium">Tên:</span> {selectedCustomer.name}</div>
+                      <div><span className="font-medium">Email:</span> {selectedCustomer.email}</div>
+                      {selectedCustomer.phone && (
+                        <div><span className="font-medium">Số điện thoại:</span> {selectedCustomer.phone}</div>
+                      )}
+                      {selectedCustomer.company && (
+                        <div><span className="font-medium">Công ty:</span> {selectedCustomer.company}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                    <div className="text-sm text-yellow-800">
+                      <strong>Lưu ý:</strong> Hành động này sẽ tạo hoặc cập nhật thông tin khách hàng trên Control Panel.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setIsSyncCustomerDialogOpen(false)
+                  setSelectedCustomer(null)
+                }}
+                disabled={syncingCustomerId === selectedCustomer?.id}
+              >
+                Hủy
+              </Button>
+              <Button 
+                onClick={confirmSyncCustomer}
+                disabled={syncingCustomerId === selectedCustomer?.id}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {syncingCustomerId === selectedCustomer?.id ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Đang sync...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    Xác nhận Sync
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Stats Cards */}
@@ -1013,6 +1132,20 @@ export default function CustomersPage() {
                     <TableRow key={customer.id}>
                       <TableCell className="w-fit">
                         <div className="flex gap-1">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => handleSyncCustomer(customer)}
+                            title="Đồng bộ với Control Panel"
+                            disabled={syncingCustomerId === customer.id}
+                          >
+                            {syncingCustomerId === customer.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4" />
+                            )}
+                          </Button>
                           <Button 
                             variant="outline" 
                             size="sm"

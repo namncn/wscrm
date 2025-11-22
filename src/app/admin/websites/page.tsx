@@ -28,9 +28,9 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Pagination } from '@/components/ui/pagination'
-import { Plus, Search, Eye, Edit, Trash2, Loader2, Globe, Server } from 'lucide-react'
+import { Plus, Search, Eye, Edit, Trash2, Loader2, Globe, Server, RefreshCw } from 'lucide-react'
 import DashboardLayout from '@/components/layout/dashboard-layout'
-import { toastSuccess, toastError } from '@/lib/toast'
+import { toastSuccess, toastError, toastWarning } from '@/lib/toast'
 import { CustomerCombobox } from '@/components/ui/customer-combobox'
 import { DomainCombobox } from '@/components/ui/domain-combobox'
 import { HostingCombobox } from '@/components/ui/hosting-combobox'
@@ -113,8 +113,10 @@ export default function WebsitesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isSyncWebsiteDialogOpen, setIsSyncWebsiteDialogOpen] = useState(false)
   const [selectedWebsite, setSelectedWebsite] = useState<Website | null>(null)
   const [isCreating, setIsCreating] = useState(false)
+  const [syncingWebsiteIds, setSyncingWebsiteIds] = useState<Set<number>>(new Set())
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -388,6 +390,69 @@ export default function WebsitesPage() {
     setIsDeleteDialogOpen(true)
   }
 
+  const handleSyncWebsite = (website: Website) => {
+    setSelectedWebsite(website)
+    setIsSyncWebsiteDialogOpen(true)
+  }
+
+  const confirmSyncWebsite = async () => {
+    if (!selectedWebsite) return
+
+    const websiteId = selectedWebsite.id
+    setSyncingWebsiteIds(prev => new Set(prev).add(websiteId))
+    setIsSyncWebsiteDialogOpen(false)
+    
+    try {
+      const response = await fetch('/api/websites/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ websiteId }),
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        // Kiểm tra xem website đã tồn tại hay chưa
+        if (result.data?.alreadyExists) {
+          // Kiểm tra các thay đổi
+          const hasUpdates = result.data?.domainUpdated || result.data?.subscriptionUpdated
+          
+          if (hasUpdates) {
+            // Có thay đổi, hiển thị message từ API (bao gồm cả domain và hosting)
+            toastSuccess(result.message || 'Website đã được cập nhật trên Control Panel')
+          } else if (result.data?.domainUpdateWarning) {
+            toastSuccess('Website đã tồn tại trên Control Panel')
+            toastWarning(result.data.domainUpdateWarning)
+          } else if (result.data?.updateWarning) {
+            toastSuccess('Website đã tồn tại trên Control Panel')
+            toastWarning(result.data.updateWarning)
+          } else {
+            // Sử dụng message từ API nếu có, nếu không thì dùng message mặc định
+            toastSuccess(result.message || 'Website đã tồn tại trên Control Panel')
+          }
+        } else {
+          toastSuccess(result.message || 'Tạo website trên Control Panel thành công!')
+        }
+        // Refresh websites list
+        await fetchWebsites()
+      } else {
+        toastError(result.error || 'Không thể tạo website trên Control Panel')
+      }
+    } catch (error: any) {
+      console.error('Error syncing website:', error)
+      toastError('Có lỗi xảy ra khi sync website')
+    } finally {
+      setSyncingWebsiteIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(websiteId)
+        return newSet
+      })
+      setSelectedWebsite(null)
+    }
+  }
+
   const confirmDeleteWebsite = async () => {
     if (!selectedWebsite) return
 
@@ -401,10 +466,18 @@ export default function WebsitesPage() {
       })
 
       if (response.ok) {
+        const result = await response.json()
         await fetchWebsites()
         setIsDeleteDialogOpen(false)
         setSelectedWebsite(null)
-        toastSuccess('Xóa website thành công!')
+        
+        // Check if there's a warning about control panel deletion
+        if (result.data?.warning) {
+          toastSuccess('Xóa website thành công!')
+          toastWarning(`Lưu ý: ${result.data.warning}`)
+        } else {
+          toastSuccess('Xóa website thành công!')
+        }
       } else {
         const errorData = await response.json()
         toastError(errorData.message || 'Không thể xóa website')
@@ -754,6 +827,20 @@ export default function WebsitesPage() {
                           <Button 
                             variant="outline" 
                             size="sm"
+                            className="w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => handleSyncWebsite(website)}
+                            title="Sync Website lên Control Panel"
+                            disabled={syncingWebsiteIds.has(website.id)}
+                          >
+                            {syncingWebsiteIds.has(website.id) ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
                             className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
                             onClick={() => handleDeleteWebsite(website)}
                             title="Xóa"
@@ -857,6 +944,79 @@ export default function WebsitesPage() {
             </Button>
             <Button variant="destructive" onClick={confirmDeleteWebsite}>
               Xóa
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sync Website Dialog */}
+      <Dialog open={isSyncWebsiteDialogOpen} onOpenChange={setIsSyncWebsiteDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4">
+            <DialogTitle>Sync Website lên Control Panel</DialogTitle>
+            <DialogDescription>
+              Bạn có chắc chắn muốn tạo website này trên Control Panel không?
+            </DialogDescription>
+          </DialogHeader>
+          {selectedWebsite && (
+            <div className="flex-1 overflow-y-auto px-6">
+              <div className="py-4 space-y-4">
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                  <div className="text-sm font-medium text-blue-900 mb-2">Thông tin website:</div>
+                  <div className="space-y-1 text-sm text-blue-800">
+                    <div><span className="font-medium">Tên:</span> {selectedWebsite.name}</div>
+                    {selectedWebsite.domainName && (
+                      <div><span className="font-medium">Tên miền:</span> {selectedWebsite.domainName}</div>
+                    )}
+                    {selectedWebsite.customerName && (
+                      <div><span className="font-medium">Khách hàng:</span> {selectedWebsite.customerName}</div>
+                    )}
+                    {selectedWebsite.hostingPlanName && (
+                      <div><span className="font-medium">Hosting:</span> {selectedWebsite.hostingPlanName}</div>
+                    )}
+                    {selectedWebsite.vpsPlanName && (
+                      <div><span className="font-medium">VPS:</span> {selectedWebsite.vpsPlanName}</div>
+                    )}
+                    <div><span className="font-medium">Trạng thái:</span> {selectedWebsite.status}</div>
+                  </div>
+                </div>
+                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                  <div className="text-sm text-yellow-800">
+                    <div className="font-medium mb-1">Lưu ý:</div>
+                    <ul className="list-disc list-inside space-y-1 text-xs">
+                      <li>Hệ thống sẽ tự động sync customer lên Control Panel nếu chưa có</li>
+                      <li>Website sẽ được tạo với domain đã liên kết</li>
+                      <li>Nếu có hosting/VPS, subscription sẽ được sử dụng nếu đã có</li>
+                      <li>Thông tin website sẽ được lưu vào website record</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="px-6 pt-4 pb-6 border-t">
+            <Button variant="outline" onClick={() => {
+              setIsSyncWebsiteDialogOpen(false)
+              setSelectedWebsite(null)
+            }}>
+              Hủy
+            </Button>
+            <Button 
+              onClick={confirmSyncWebsite}
+              disabled={syncingWebsiteIds.has(selectedWebsite?.id || 0)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {syncingWebsiteIds.has(selectedWebsite?.id || 0) ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Đang sync...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Xác nhận Sync
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

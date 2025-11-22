@@ -116,10 +116,12 @@ export default function HostingPage() {
   const [isViewHostingDialogOpen, setIsViewHostingDialogOpen] = useState(false)
   const [isEditHostingDialogOpen, setIsEditHostingDialogOpen] = useState(false)
   const [isDeleteHostingDialogOpen, setIsDeleteHostingDialogOpen] = useState(false)
+  const [isSyncSubscriptionDialogOpen, setIsSyncSubscriptionDialogOpen] = useState(false)
   const [selectedHosting, setSelectedHosting] = useState<Hosting | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [syncingHostingIds, setSyncingHostingIds] = useState<Set<number>>(new Set())
   const [customers, setCustomers] = useState<Array<{ id: number; name: string; email: string }>>([])
   const [domains, setDomains] = useState<Array<{ id: number; domainName: string; status?: string }>>([])
   const [hostingPackages, setHostingPackages] = useState<Array<{ id: number; planName: string; storage: number; bandwidth: number; price: string | number }>>([])
@@ -224,22 +226,48 @@ export default function HostingPage() {
 
   const fetchHostings = async () => {
     try {
+      // For packages tab, load from /api/hosting-packages
+      // For purchased tab, load from /api/hosting?purchased=all
       const [packagesRes, purchasedRes] = await Promise.all([
-        fetch('/api/hosting'),
-        fetch('/api/hosting?purchased=all')
+        fetch('/api/hosting-packages'), // Load hosting packages (catalog)
+        fetch('/api/hosting?purchased=all') // Load purchased hostings
       ])
 
       if (packagesRes.ok) {
         const result = await packagesRes.json()
-        if (result.success && result.data) setHostings(result.data)
-        else setHostings([])
-      } else setHostings([])
+        if (result.success && result.data) {
+          // Map hosting packages to Hosting format for display
+          setHostings(result.data.map((pkg: any) => ({
+            id: typeof pkg.id === 'string' ? parseInt(pkg.id, 10) : pkg.id,
+            planName: pkg.planName,
+            storage: pkg.storage || 0,
+            bandwidth: pkg.bandwidth || 0,
+            price: pkg.price,
+            status: pkg.status,
+            addonDomain: pkg.addonDomain,
+            subDomain: pkg.subDomain,
+            ftpAccounts: pkg.ftpAccounts,
+            databases: pkg.databases,
+            hostingType: pkg.hostingType,
+            operatingSystem: pkg.operatingSystem,
+            serverLocation: pkg.serverLocation,
+            createdAt: pkg.createdAt,
+            updatedAt: pkg.updatedAt,
+          })))
+        } else {
+          setHostings([])
+        }
+      } else {
+        setHostings([])
+      }
 
       if (purchasedRes.ok) {
         const result2 = await purchasedRes.json()
         if (result2.success && result2.data) setPurchasedHostings(result2.data)
         else setPurchasedHostings([])
-      } else setPurchasedHostings([])
+      } else {
+        setPurchasedHostings([])
+      }
     } catch (error) {
       setHostings([])
       setPurchasedHostings([])
@@ -259,26 +287,26 @@ export default function HostingPage() {
       
       let requestBody: any
       if (activeTab === 'packages') {
-        // Convert storage and bandwidth from MB (string) to GB (number)
-        const storageGB = newHosting.storage === '' || newHosting.storage.toLowerCase() === 'unlimited'
+        // Save value directly from input (no conversion)
+        const storageValue = newHosting.storage === '' || newHosting.storage.toLowerCase() === 'unlimited'
           ? 0
           : (() => {
               const parsed = parseFloat(newHosting.storage)
-              return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+              return isNaN(parsed) ? 0 : parsed
             })()
         
-        const bandwidthGB = newHosting.bandwidth === '' || newHosting.bandwidth.toLowerCase() === 'unlimited'
+        const bandwidthValue = newHosting.bandwidth === '' || newHosting.bandwidth.toLowerCase() === 'unlimited'
           ? 0
           : (() => {
               const parsed = parseFloat(newHosting.bandwidth)
-              return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+              return isNaN(parsed) ? 0 : parsed
             })()
         
         // Create hosting package
         requestBody = {
           planName: newHosting.planName,
-          storage: storageGB,
-          bandwidth: bandwidthGB,
+          storage: storageValue,
+          bandwidth: bandwidthValue,
           price: newHosting.price,
           status: newHosting.status,
           serverLocation: newHosting.serverLocation || null,
@@ -390,14 +418,14 @@ export default function HostingPage() {
 
   const handleEditHostingPackage = (hosting: Hosting) => {
     setSelectedHostingPackage(hosting)
-    // Convert storage and bandwidth from GB (number) to MB (string) for display
-    const storageMB = hosting.storage ? String(Math.round(hosting.storage * 1024)) : ''
-    const bandwidthMB = hosting.bandwidth ? String(Math.round(hosting.bandwidth * 1024)) : ''
+    // Display value directly from database (no conversion)
+    const storageValue = hosting.storage ? String(hosting.storage) : ''
+    const bandwidthValue = hosting.bandwidth ? String(hosting.bandwidth) : ''
     
     setEditHostingPackage({
       planName: hosting.planName || '',
-      storage: storageMB,
-      bandwidth: bandwidthMB,
+      storage: storageValue,
+      bandwidth: bandwidthValue,
       price: typeof hosting.price === 'string' ? parseFloat(hosting.price) : hosting.price || 0,
       status: (hosting.status === 'SUSPENDED' ? 'INACTIVE' : hosting.status) as 'ACTIVE' | 'INACTIVE',
       hostingTypeId: (hosting as any).hostingTypeId || null,
@@ -477,31 +505,76 @@ export default function HostingPage() {
     setIsDeleteHostingDialogOpen(true)
   }
 
+  const handleSyncSubscription = (hosting: Hosting) => {
+    setSelectedHosting(hosting)
+    setIsSyncSubscriptionDialogOpen(true)
+  }
+
+  const confirmSyncSubscription = async () => {
+    if (!selectedHosting) return
+
+    const hostingId = selectedHosting.id
+    setSyncingHostingIds(prev => new Set(prev).add(hostingId))
+    setIsSyncSubscriptionDialogOpen(false)
+    
+    try {
+      const response = await fetch('/api/hosting/sync-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ hostingId }),
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        // Sử dụng message từ API response thay vì hardcode
+        const message = result.message || 'Tạo subscription trên Control Panel thành công!'
+        toastSuccess(message)
+        // Refresh hosting list
+        await fetchHostings()
+      } else {
+        toastError(result.error || 'Không thể tạo subscription trên Control Panel')
+      }
+    } catch (error: any) {
+      console.error('Error syncing subscription:', error)
+      toastError('Có lỗi xảy ra khi sync subscription')
+    } finally {
+      setSyncingHostingIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(hostingId)
+        return newSet
+      })
+      setSelectedHosting(null)
+    }
+  }
+
   const updateHostingPackage = async () => {
     if (!selectedHostingPackage) return
     
     setIsUpdating(true)
     try {
-      // Convert storage and bandwidth from MB (string) to GB (number)
-      const storageGB = editHostingPackage.storage === '' || editHostingPackage.storage.toLowerCase() === 'unlimited'
+      // Save value directly from input (no conversion)
+      const storageValue = editHostingPackage.storage === '' || editHostingPackage.storage.toLowerCase() === 'unlimited'
         ? 0
         : (() => {
             const parsed = parseFloat(editHostingPackage.storage)
-            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+            return isNaN(parsed) ? 0 : parsed
           })()
       
-      const bandwidthGB = editHostingPackage.bandwidth === '' || editHostingPackage.bandwidth.toLowerCase() === 'unlimited'
+      const bandwidthValue = editHostingPackage.bandwidth === '' || editHostingPackage.bandwidth.toLowerCase() === 'unlimited'
         ? 0
         : (() => {
             const parsed = parseFloat(editHostingPackage.bandwidth)
-            return isNaN(parsed) ? 0 : Math.round(parsed / 1024 * 100) / 100
+            return isNaN(parsed) ? 0 : parsed
           })()
       
       const updateData = {
         id: selectedHostingPackage.id,
         planName: editHostingPackage.planName,
-        storage: storageGB,
-        bandwidth: bandwidthGB,
+        storage: storageValue,
+        bandwidth: bandwidthValue,
         price: editHostingPackage.price,
         status: editHostingPackage.status,
         serverLocation: editHostingPackage.serverLocation || null,
@@ -612,18 +685,36 @@ export default function HostingPage() {
     
     setIsDeleting(true)
     try {
-      const response = await fetch(`/api/hosting?id=${selectedHosting.id}`, {
+      // For packages tab, delete from /api/hosting-packages
+      // For purchased tab, delete from /api/hosting
+      const endpoint = activeTab === 'packages' 
+        ? `/api/hosting-packages?id=${selectedHosting.id}`
+        : `/api/hosting?id=${selectedHosting.id}`
+      
+      const response = await fetch(endpoint, {
         method: 'DELETE',
       })
 
       if (response.ok) {
+        const result = await response.json()
         await Promise.all([
           fetchHostings(),
           fetchHostingPackages() // Refresh packages list for combobox
         ])
         setIsDeleteHostingDialogOpen(false)
         setSelectedHosting(null)
-        toastSuccess('Xóa gói hosting thành công!')
+        
+        // Hiển thị thông báo chi tiết dựa trên response
+        if (result.data?.warning) {
+          // Có cảnh báo (xóa subscription thất bại)
+          toastError(result.message || 'Xóa gói hosting thành công nhưng có lỗi khi xóa subscription trên Control Panel')
+        } else if (result.data?.subscriptionDeleted) {
+          // Xóa subscription thành công
+          toastSuccess(result.message || 'Xóa gói hosting và subscription trên Control Panel thành công!')
+        } else {
+          // Xóa hosting thành công (không có subscription)
+          toastSuccess(result.message || 'Xóa gói hosting thành công!')
+        }
       } else {
         const errorData = await response.json()
         toastError(`Lỗi: ${errorData.error || 'Không thể xóa gói hosting'}`)
@@ -707,20 +798,22 @@ export default function HostingPage() {
     if (storage === 0 || storage === null || storage === undefined) {
       return 'Unlimited'
     }
-    if (storage >= 1024) {
-      return `${(storage / 1024).toFixed(1)}TB`
-    }
-    return `${storage}GB`
+    // Convert MB to GB (divide by 1024) and display with GB unit
+    const gb = storage / 1024
+    // Round to 1 decimal place if needed
+    const displayValue = gb % 1 === 0 ? gb : gb.toFixed(1)
+    return `${displayValue}GB`
   }
 
   const formatBandwidth = (bandwidth: number) => {
     if (bandwidth === 0 || bandwidth === null || bandwidth === undefined) {
       return 'Unlimited'
     }
-    if (bandwidth >= 1024) {
-      return `${(bandwidth / 1024).toFixed(1)}TB`
-    }
-    return `${bandwidth}GB`
+    // Convert MB to GB (divide by 1024) and display with GB unit
+    const gb = bandwidth / 1024
+    // Round to 1 decimal place if needed
+    const displayValue = gb % 1 === 0 ? gb : gb.toFixed(1)
+    return `${displayValue}GB`
   }
 
   return (
@@ -1372,6 +1465,20 @@ export default function HostingPage() {
                         <TableRow key={hosting.id}>
                           <TableCell>
                             <div className="flex gap-1">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50" 
+                                onClick={() => handleSyncSubscription(hosting)} 
+                                title="Sync Subscription lên Control Panel"
+                                disabled={syncingHostingIds.has(hosting.id)}
+                              >
+                                {syncingHostingIds.has(hosting.id) ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="h-4 w-4" />
+                                )}
+                              </Button>
                               <Button variant="outline" size="sm" className="w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteHosting(hosting)} title="Xóa">
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -2002,6 +2109,70 @@ export default function HostingPage() {
                   </>
                 ) : (
                   'Xóa'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Sync Subscription Dialog */}
+        <Dialog open={isSyncSubscriptionDialogOpen} onOpenChange={setIsSyncSubscriptionDialogOpen}>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4">
+              <DialogTitle>Sync Subscription lên Control Panel</DialogTitle>
+              <DialogDescription>
+                Bạn có chắc chắn muốn tạo subscription cho gói hosting này trên Control Panel không?
+              </DialogDescription>
+            </DialogHeader>
+            {selectedHosting && (
+              <div className="flex-1 overflow-y-auto px-6">
+                <div className="py-4 space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                    <div className="text-sm font-medium text-blue-900 mb-2">Thông tin gói hosting:</div>
+                    <div className="space-y-1 text-sm text-blue-800">
+                      <div><span className="font-medium">Gói:</span> {selectedHosting.planName || (selectedHosting.hostingTypeId ? hostingPackages.find(pkg => String(pkg.id) === String(selectedHosting.hostingTypeId))?.planName || '—' : '—')}</div>
+                      <div><span className="font-medium">Dung lượng:</span> {formatStorage(selectedHosting.storage)}</div>
+                      <div><span className="font-medium">Băng thông:</span> {formatBandwidth(selectedHosting.bandwidth)}</div>
+                      {selectedHosting.price && (
+                        <div><span className="font-medium">Giá:</span> {formatCurrency(selectedHosting.price)}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                    <div className="text-sm text-yellow-800">
+                      <div className="font-medium mb-1">Lưu ý:</div>
+                      <ul className="list-disc list-inside space-y-1 text-xs">
+                        <li>Hệ thống sẽ tự động sync customer lên Control Panel nếu chưa có</li>
+                        <li>Subscription sẽ được tạo với plan mapping đã cấu hình</li>
+                        <li>Thông tin subscription sẽ được lưu vào hosting record</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter className="px-6 pt-4 pb-6 border-t">
+              <Button variant="outline" onClick={() => {
+                setIsSyncSubscriptionDialogOpen(false)
+                setSelectedHosting(null)
+              }}>
+                Hủy
+              </Button>
+              <Button 
+                onClick={confirmSyncSubscription}
+                disabled={syncingHostingIds.has(selectedHosting?.id || 0)}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {syncingHostingIds.has(selectedHosting?.id || 0) ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Đang sync...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    Xác nhận Sync
+                  </>
                 )}
               </Button>
             </DialogFooter>
