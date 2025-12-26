@@ -205,12 +205,20 @@ NEXTAUTH_SECRET=your-super-secret-key-min-32-characters-long
 NEXT_PUBLIC_BRAND_NAME=WSCRM Platform
 
 # Database
+# Sử dụng TCP connection (mặc định)
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=crm_user
 DB_PASSWORD=your_strong_password_here
 DB_NAME=crm_db
 DB_CONNECTION_LIMIT=10
+
+# Nếu dùng Shared Hosting hoặc MySQL chỉ chấp nhận socket connection,
+# comment các dòng trên và sử dụng DB_SOCKET_PATH thay thế:
+# DB_SOCKET_PATH=/var/lib/mysql/mysql.sock
+# DB_USER=crm_user
+# DB_PASSWORD=your_strong_password_here
+# DB_NAME=crm_db
 
 # SMTP Configuration
 SMTP_HOST=smtp.gmail.com
@@ -244,6 +252,17 @@ npm run build
 
 ### 5. Đồng bộ database schema
 
+**Quan trọng:** Trước khi chạy `db:push`, hãy test kết nối database:
+
+```bash
+# Test kết nối database
+./scripts/test-db.sh
+# hoặc
+npm run db:test
+```
+
+Nếu test thành công, tiếp tục:
+
 ```bash
 # Sử dụng Drizzle để đồng bộ schema
 npm run db:push
@@ -251,6 +270,11 @@ npm run db:push
 # Hoặc import thủ công nếu có file SQL
 mysql -u crm_user -p crm_db < database/schema.sql
 ```
+
+**Nếu gặp lỗi ECONNREFUSED:**
+- Xem phần [Troubleshooting - Lỗi kết nối Database](#lỗi-kết-nối-database-econnrefused)
+- Kiểm tra MySQL/MariaDB có đang chạy không
+- Nếu dùng Shared Hosting, có thể cần dùng `DB_SOCKET_PATH` thay vì `DB_HOST`
 
 ### 6. Khởi động với PM2
 
@@ -700,16 +724,83 @@ cat /var/www/crm/.env
 mysql -u crm_user -p crm_db -e "SELECT 1;"
 ```
 
-### Lỗi kết nối Database
+### Lỗi kết nối Database (ECONNREFUSED)
 
+**Lỗi thường gặp:**
+```
+Error: connect ECONNREFUSED
+code: 'ECONNREFUSED'
+```
+
+**Các bước kiểm tra:**
+
+1. **Kiểm tra kết nối database bằng script test:**
 ```bash
-# Kiểm tra MySQL đang chạy
-sudo systemctl status mariadb
+# Cách 1: Sử dụng script bash (khuyến nghị)
+./scripts/test-db.sh
 
-# Kiểm tra user và quyền
+# Cách 2: Sử dụng Node.js script
+npm run db:test
+# hoặc
+node scripts/test-db-connection.js
+```
+
+2. **Kiểm tra MySQL/MariaDB đang chạy:**
+```bash
+# Ubuntu/Debian
+sudo systemctl status mariadb
+sudo systemctl status mysql
+
+# Nếu không chạy, khởi động:
+sudo systemctl start mariadb
+sudo systemctl enable mariadb
+```
+
+3. **Kiểm tra file .env có đúng cấu hình:**
+```bash
+cat .env | grep DB_
+```
+
+4. **Nếu dùng Shared Hosting (socket connection):**
+```bash
+# Tìm đường dẫn socket MySQL
+mysql_config --socket
+# hoặc
+cat /etc/mysql/my.cnf | grep socket
+
+# Cập nhật .env với DB_SOCKET_PATH
+# Ví dụ: DB_SOCKET_PATH=/var/lib/mysql/mysql.sock
+```
+
+5. **Kiểm tra user và quyền:**
+```bash
 sudo mysql -u root -p
 # Trong MySQL:
 SHOW GRANTS FOR 'crm_user'@'localhost';
+SELECT user, host FROM mysql.user WHERE user='crm_user';
+```
+
+6. **Test kết nối thủ công:**
+```bash
+# Với TCP connection
+mysql -h localhost -P 3306 -u crm_user -p crm_db
+
+# Với socket connection (nếu có DB_SOCKET_PATH)
+mysql -S /var/lib/mysql/mysql.sock -u crm_user -p crm_db
+```
+
+7. **Kiểm tra firewall:**
+```bash
+# Kiểm tra port 3306 có bị chặn không
+sudo ufw status
+sudo netstat -tulpn | grep 3306
+```
+
+8. **Kiểm tra database có tồn tại:**
+```bash
+mysql -u root -p -e "SHOW DATABASES LIKE 'crm_db';"
+# Nếu không có, tạo database:
+mysql -u root -p -e "CREATE DATABASE crm_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 ```
 
 ### Nginx không proxy được
