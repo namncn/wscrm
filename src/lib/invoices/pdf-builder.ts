@@ -426,7 +426,7 @@ export async function generateInvoicePdf(invoiceId: number): Promise<InvoicePdfR
           value = formatCurrency(unitPriceValue, invoiceRecord.currency || 'VND')
           break
         case 'tax':
-          value = item.taxLabel === 'KCT' ? 'Không chịu thuế' : `${Number(item.taxRate) || 0}%`
+          value = item.taxLabel === 'KCT' ? 'KCT' : `${Number(item.taxRate) || 0}%`
           break
         case 'amount':
           value = formatCurrency(unitPriceValue * quantityValue, invoiceRecord.currency || 'VND')
