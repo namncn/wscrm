@@ -6,7 +6,9 @@ import {
   orderItems,
   domain,
   hosting,
+  hostingPackages,
   vps,
+  vpsPackages,
 } from '@/lib/schema'
 import { eq, inArray } from 'drizzle-orm'
 import { PDFDocument, rgb } from 'pdf-lib'
@@ -161,14 +163,16 @@ export async function generateOrderPdf(orderId: number): Promise<GeneratedOrderP
       : [],
     hostingIds.length
       ? db
-          .select({ id: hosting.id, planName: hosting.planName })
+          .select({ id: hosting.id, planName: hostingPackages.planName })
           .from(hosting)
+          .leftJoin(hostingPackages, eq(hosting.hostingTypeId, hostingPackages.id))
           .where(inArray(hosting.id, hostingIds))
       : [],
     vpsIds.length
       ? db
-          .select({ id: vps.id, planName: vps.planName })
+          .select({ id: vps.id, planName: vpsPackages.planName })
           .from(vps)
+          .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
           .where(inArray(vps.id, vpsIds))
       : [],
   ])

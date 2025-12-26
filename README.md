@@ -294,9 +294,10 @@ curl -X POST "http://localhost:3000/api/invoices/cron?token=YOUR_EMAIL_CRON_SECR
 - Sử dụng `EMAIL_CRON_SECRET` mạnh (>= 32 ký tự random).
 
 ### Deploy gợi ý
-- Vercel / Next.js App Router (chạy tốt serverless, cần DB pooling: PlanetScale, Neon...).
-- Node server tự host: build `npm run build`, start `npm run start`.
-- Cron: dùng dịch vụ như `cron-job.org`, GitHub Actions, Cloudflare Workers Cron, hoặc server cá nhân chạy `crontab`.
+- **VPS tự quản lý**: Xem hướng dẫn chi tiết tại [DEPLOYMENT.md](./DEPLOYMENT.md) - bao gồm cài đặt VPS, Nginx, SSL, PM2, Cron jobs.
+- **Vercel / Next.js App Router**: Chạy tốt serverless, cần DB pooling (PlanetScale, Neon...).
+- **Node server tự host**: Build `npm run build`, start `npm run start`.
+- **Cron**: Dùng dịch vụ như `cron-job.org`, GitHub Actions, Cloudflare Workers Cron, hoặc server cá nhân chạy `crontab`.
 
 ---
 
