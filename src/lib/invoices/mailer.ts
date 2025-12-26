@@ -31,7 +31,7 @@ function buildInvoiceItemsHtml(
             currency
           )}</td>
           <td style="padding: 8px 12px; border: 1px solid #e2e8f0; text-align: right;">${
-            item.taxLabel === 'KCT' ? 'Không chịu thuế' : `${item.taxRate}%`
+            item.taxLabel === 'KCT' ? 'KCT' : `${item.taxRate}%`
           }</td>
         </tr>
       `
