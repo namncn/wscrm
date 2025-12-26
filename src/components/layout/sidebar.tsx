@@ -152,11 +152,18 @@ export function AppSidebar({ isOpen, setIsOpen }: SidebarProps) {
 
   // Filter navigation items based on user role
   // Show "Thành Viên" menu for both ADMIN and USER roles
-  // If session is loading, show all items (to prevent flash)
+  // Show "Control Panels" menu ONLY for ADMIN role
+  // If session is loading, hide restricted items (to prevent flash)
   const filteredSections = navigationSections
     .map((section) => ({
       label: section.label,
       items: section.items.filter((item) => {
+        // Control Panels - ONLY ADMIN
+        if (item.href === '/admin/control-panels') {
+          if (status === 'loading') return false
+          return userRole === 'ADMIN'
+        }
+        // Thành Viên - ADMIN and USER
         if (item.href === '/admin/users') {
           if (status === 'loading') return false
           return userRole === 'ADMIN' || userRole === 'USER'

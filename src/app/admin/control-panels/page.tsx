@@ -36,6 +36,12 @@ export default function ControlPanelsPage() {
       router.push('/auth/signin')
       return
     }
+    // Check if user is ADMIN
+    const userRole = (session.user as any)?.role
+    if (userRole !== 'ADMIN') {
+      router.push('/unauthorized')
+      return
+    }
     fetchEnhanceSettings()
   }, [session, status, router])
 
