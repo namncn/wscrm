@@ -82,6 +82,12 @@ export default function ApiTestPage() {
       router.push('/auth/signin')
       return
     }
+    // Check if user is ADMIN
+    const userRole = (session.user as any)?.role
+    if (userRole !== 'ADMIN') {
+      router.push('/unauthorized')
+      return
+    }
     // Load Enhance config from database on mount
     loadEnhanceConfig()
     // eslint-disable-next-line react-hooks/exhaustive-deps

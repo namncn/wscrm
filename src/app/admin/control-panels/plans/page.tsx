@@ -121,6 +121,12 @@ export default function PlanMappingsPage() {
       router.push('/auth/signin')
       return
     }
+    // Check if user is ADMIN
+    const userRole = (session.user as any)?.role
+    if (userRole !== 'ADMIN') {
+      router.push('/unauthorized')
+      return
+    }
     fetchData()
   }, [session, status, router])
 

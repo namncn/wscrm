@@ -257,8 +257,17 @@ export default withAuth(
       return NextResponse.next()
     }
     
+    // Control Panels routes - ONLY ADMIN can access (check before general admin routes)
+    const isControlPanelsRoute = pathname.startsWith('/admin/control-panels') || pathname.startsWith('/api/control-panels')
+    if (isControlPanelsRoute) {
+      if (!token || userType !== 'admin' || userRole !== 'ADMIN') {
+        return errorResponse('Chỉ quản trị viên mới có thể truy cập Control Panels', 403)
+      }
+      return NextResponse.next()
+    }
+    
     // Admin routes - only allow admin users (userType: 'admin')
-    else if (isAdminRoute) {
+    if (isAdminRoute) {
       // /api/users/me - allow for both admin and authenticated users (to get their own info)
       if (pathname === '/api/users/me') {
         if (!token) {
