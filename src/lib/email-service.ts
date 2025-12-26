@@ -1,5 +1,5 @@
 import { db } from './database'
-import { emailNotifications, settings, customers, domain, hosting, vps } from './schema'
+import { emailNotifications, settings, customers, domain, hosting, vps, hostingPackages, vpsPackages } from './schema'
 import { eq, and, gte, lte, inArray, isNotNull } from 'drizzle-orm'
 import { getBrandName } from './utils'
 
@@ -413,16 +413,25 @@ export async function scheduleExpiringEmails() {
     }
 
     // Check hosting
-    const hostings = await db.select().from(hosting).where(
-      and(
-        eq(hosting.status, 'ACTIVE'),
-        isNotNull(hosting.expiryDate),
-        gte(hosting.expiryDate, today),
-        lte(hosting.expiryDate, oneMonthFromNow)
+    const hostings = await db
+      .select({
+        hosting: hosting,
+        package: hostingPackages,
+      })
+      .from(hosting)
+      .leftJoin(hostingPackages, eq(hosting.hostingTypeId, hostingPackages.id))
+      .where(
+        and(
+          eq(hosting.status, 'ACTIVE'),
+          isNotNull(hosting.expiryDate),
+          gte(hosting.expiryDate, today),
+          lte(hosting.expiryDate, oneMonthFromNow)
+        )
       )
-    )
 
-    for (const host of hostings) {
+    for (const row of hostings) {
+      const host = row.hosting
+      const packageData = row.package
       if (!host.customerId || !host.expiryDate) continue
 
       const expiryDate = new Date(host.expiryDate)
@@ -431,10 +440,12 @@ export async function scheduleExpiringEmails() {
       const customer = await db.select().from(customers).where(eq(customers.id, host.customerId)).limit(1)
       if (customer.length === 0) continue
 
+      const planName = packageData?.planName || `Hosting #${host.id}`
+
       if (daysRemaining <= 30 && daysRemaining > 15) {
         const exists = await checkExistingNotification(host.customerId, host.id, 'EXPIRING_SOON_1')
         if (!exists) {
-          const template = getExpiringSoonEmailTemplate('HOSTING', host.planName, host.expiryDate ? host.expiryDate.toISOString().split('T')[0] : '', daysRemaining)
+          const template = getExpiringSoonEmailTemplate('HOSTING', planName, host.expiryDate ? host.expiryDate.toISOString().split('T')[0] : '', daysRemaining)
           await db.insert(emailNotifications).values({
             customerId: host.customerId,
             serviceId: host.id,
@@ -453,7 +464,7 @@ export async function scheduleExpiringEmails() {
       if (daysRemaining <= 15 && daysRemaining > 7) {
         const exists = await checkExistingNotification(host.customerId, host.id, 'EXPIRING_SOON_2')
         if (!exists) {
-          const template = getExpiringSoonEmailTemplate('HOSTING', host.planName, host.expiryDate ? host.expiryDate.toISOString().split('T')[0] : '', daysRemaining)
+          const template = getExpiringSoonEmailTemplate('HOSTING', planName, host.expiryDate ? host.expiryDate.toISOString().split('T')[0] : '', daysRemaining)
           await db.insert(emailNotifications).values({
             customerId: host.customerId,
             serviceId: host.id,
@@ -472,7 +483,7 @@ export async function scheduleExpiringEmails() {
       if (daysRemaining <= 7 && daysRemaining > 0) {
         const exists = await checkExistingNotification(host.customerId, host.id, 'EXPIRING_SOON_3')
         if (!exists) {
-          const template = getExpiringSoonEmailTemplate('HOSTING', host.planName, host.expiryDate ? host.expiryDate.toISOString().split('T')[0] : '', daysRemaining)
+          const template = getExpiringSoonEmailTemplate('HOSTING', planName, host.expiryDate ? host.expiryDate.toISOString().split('T')[0] : '', daysRemaining)
           await db.insert(emailNotifications).values({
             customerId: host.customerId,
             serviceId: host.id,
@@ -490,16 +501,25 @@ export async function scheduleExpiringEmails() {
     }
 
     // Check VPS
-    const vpsList = await db.select().from(vps).where(
-      and(
-        eq(vps.status, 'ACTIVE'),
-        isNotNull(vps.expiryDate),
-        gte(vps.expiryDate, today),
-        lte(vps.expiryDate, oneMonthFromNow)
+    const vpsList = await db
+      .select({
+        vps: vps,
+        package: vpsPackages,
+      })
+      .from(vps)
+      .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
+      .where(
+        and(
+          eq(vps.status, 'ACTIVE'),
+          isNotNull(vps.expiryDate),
+          gte(vps.expiryDate, today),
+          lte(vps.expiryDate, oneMonthFromNow)
+        )
       )
-    )
 
-    for (const v of vpsList) {
+    for (const row of vpsList) {
+      const v = row.vps
+      const packageData = row.package
       if (!v.customerId || !v.expiryDate) continue
 
       const expiryDate = new Date(v.expiryDate)
@@ -508,10 +528,12 @@ export async function scheduleExpiringEmails() {
       const customer = await db.select().from(customers).where(eq(customers.id, v.customerId)).limit(1)
       if (customer.length === 0) continue
 
+      const planName = packageData?.planName || `VPS #${v.id}`
+
       if (daysRemaining <= 30 && daysRemaining > 15) {
         const exists = await checkExistingNotification(v.customerId, v.id, 'EXPIRING_SOON_1')
         if (!exists) {
-          const template = getExpiringSoonEmailTemplate('VPS', v.planName, v.expiryDate ? v.expiryDate.toISOString().split('T')[0] : '', daysRemaining)
+          const template = getExpiringSoonEmailTemplate('VPS', planName, v.expiryDate ? v.expiryDate.toISOString().split('T')[0] : '', daysRemaining)
           await db.insert(emailNotifications).values({
             customerId: v.customerId,
             serviceId: v.id,
@@ -530,7 +552,7 @@ export async function scheduleExpiringEmails() {
       if (daysRemaining <= 15 && daysRemaining > 7) {
         const exists = await checkExistingNotification(v.customerId, v.id, 'EXPIRING_SOON_2')
         if (!exists) {
-          const template = getExpiringSoonEmailTemplate('VPS', v.planName, v.expiryDate ? v.expiryDate.toISOString().split('T')[0] : '', daysRemaining)
+          const template = getExpiringSoonEmailTemplate('VPS', planName, v.expiryDate ? v.expiryDate.toISOString().split('T')[0] : '', daysRemaining)
           await db.insert(emailNotifications).values({
             customerId: v.customerId,
             serviceId: v.id,
@@ -549,7 +571,7 @@ export async function scheduleExpiringEmails() {
       if (daysRemaining <= 7 && daysRemaining > 0) {
         const exists = await checkExistingNotification(v.customerId, v.id, 'EXPIRING_SOON_3')
         if (!exists) {
-          const template = getExpiringSoonEmailTemplate('VPS', v.planName, v.expiryDate ? v.expiryDate.toISOString().split('T')[0] : '', daysRemaining)
+          const template = getExpiringSoonEmailTemplate('VPS', planName, v.expiryDate ? v.expiryDate.toISOString().split('T')[0] : '', daysRemaining)
           await db.insert(emailNotifications).values({
             customerId: v.customerId,
             serviceId: v.id,
@@ -635,22 +657,32 @@ export async function scheduleExpiredEmails() {
     }
 
     // Check expired hosting
-    const expiredHostings = await db.select().from(hosting).where(
-      and(
-        eq(hosting.status, 'ACTIVE'),
-        isNotNull(hosting.expiryDate),
-        lte(hosting.expiryDate, today)
+    const expiredHostings = await db
+      .select({
+        hosting: hosting,
+        package: hostingPackages,
+      })
+      .from(hosting)
+      .leftJoin(hostingPackages, eq(hosting.hostingTypeId, hostingPackages.id))
+      .where(
+        and(
+          eq(hosting.status, 'ACTIVE'),
+          isNotNull(hosting.expiryDate),
+          lte(hosting.expiryDate, today)
+        )
       )
-    )
 
-    for (const host of expiredHostings) {
+    for (const row of expiredHostings) {
+      const host = row.hosting
+      const packageData = row.package
       if (!host.customerId || !host.expiryDate) continue
 
       const exists = await checkExistingNotification(host.customerId, host.id, 'EXPIRED')
       if (!exists) {
         const customer = await db.select().from(customers).where(eq(customers.id, host.customerId)).limit(1)
         if (customer.length > 0) {
-          const template = getExpiredEmailTemplate('HOSTING', host.planName, host.expiryDate ? host.expiryDate.toISOString().split('T')[0] : '')
+          const planName = packageData?.planName || `Hosting #${host.id}`
+          const template = getExpiredEmailTemplate('HOSTING', planName, host.expiryDate ? host.expiryDate.toISOString().split('T')[0] : '')
           await db.insert(emailNotifications).values({
             customerId: host.customerId,
             serviceId: host.id,
@@ -668,22 +700,32 @@ export async function scheduleExpiredEmails() {
     }
 
     // Check expired VPS
-    const expiredVPS = await db.select().from(vps).where(
-      and(
-        eq(vps.status, 'ACTIVE'),
-        isNotNull(vps.expiryDate),
-        lte(vps.expiryDate, today)
+    const expiredVPS = await db
+      .select({
+        vps: vps,
+        package: vpsPackages,
+      })
+      .from(vps)
+      .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
+      .where(
+        and(
+          eq(vps.status, 'ACTIVE'),
+          isNotNull(vps.expiryDate),
+          lte(vps.expiryDate, today)
+        )
       )
-    )
 
-    for (const v of expiredVPS) {
+    for (const row of expiredVPS) {
+      const v = row.vps
+      const packageData = row.package
       if (!v.customerId || !v.expiryDate) continue
 
       const exists = await checkExistingNotification(v.customerId, v.id, 'EXPIRED')
       if (!exists) {
         const customer = await db.select().from(customers).where(eq(customers.id, v.customerId)).limit(1)
         if (customer.length > 0) {
-          const template = getExpiredEmailTemplate('VPS', v.planName, v.expiryDate ? v.expiryDate.toISOString().split('T')[0] : '')
+          const planName = packageData?.planName || `VPS #${v.id}`
+          const template = getExpiredEmailTemplate('VPS', planName, v.expiryDate ? v.expiryDate.toISOString().split('T')[0] : '')
           await db.insert(emailNotifications).values({
             customerId: v.customerId,
             serviceId: v.id,
@@ -774,22 +816,32 @@ export async function scheduleDeletionWarningEmails() {
     }
 
     // Check hosting that expired 7 days ago
-    const hostingsToDelete = await db.select().from(hosting).where(
-      and(
-        eq(hosting.status, 'ACTIVE'),
-        isNotNull(hosting.expiryDate),
-        lte(hosting.expiryDate, new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000))
+    const hostingsToDelete = await db
+      .select({
+        hosting: hosting,
+        package: hostingPackages,
+      })
+      .from(hosting)
+      .leftJoin(hostingPackages, eq(hosting.hostingTypeId, hostingPackages.id))
+      .where(
+        and(
+          eq(hosting.status, 'ACTIVE'),
+          isNotNull(hosting.expiryDate),
+          lte(hosting.expiryDate, new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000))
+        )
       )
-    )
 
-    for (const host of hostingsToDelete) {
+    for (const row of hostingsToDelete) {
+      const host = row.hosting
+      const packageData = row.package
       if (!host.customerId || !host.expiryDate) continue
 
       const exists = await checkExistingNotification(host.customerId, host.id, 'DELETION_WARNING')
       if (!exists) {
         const customer = await db.select().from(customers).where(eq(customers.id, host.customerId)).limit(1)
         if (customer.length > 0) {
-          const template = getDeletionWarningEmailTemplate('HOSTING', host.planName, host.expiryDate ? host.expiryDate.toISOString().split('T')[0] : '', deletionDate.toISOString().split('T')[0])
+          const planName = packageData?.planName || `Hosting #${host.id}`
+          const template = getDeletionWarningEmailTemplate('HOSTING', planName, host.expiryDate ? host.expiryDate.toISOString().split('T')[0] : '', deletionDate.toISOString().split('T')[0])
           await db.insert(emailNotifications).values({
             customerId: host.customerId,
             serviceId: host.id,
@@ -807,22 +859,32 @@ export async function scheduleDeletionWarningEmails() {
     }
 
     // Check VPS that expired 7 days ago
-    const vpsToDelete = await db.select().from(vps).where(
-      and(
-        eq(vps.status, 'ACTIVE'),
-        isNotNull(vps.expiryDate),
-        lte(vps.expiryDate, new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000))
+    const vpsToDelete = await db
+      .select({
+        vps: vps,
+        package: vpsPackages,
+      })
+      .from(vps)
+      .leftJoin(vpsPackages, eq(vps.vpsTypeId, vpsPackages.id))
+      .where(
+        and(
+          eq(vps.status, 'ACTIVE'),
+          isNotNull(vps.expiryDate),
+          lte(vps.expiryDate, new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000))
+        )
       )
-    )
 
-    for (const v of vpsToDelete) {
+    for (const row of vpsToDelete) {
+      const v = row.vps
+      const packageData = row.package
       if (!v.customerId || !v.expiryDate) continue
 
       const exists = await checkExistingNotification(v.customerId, v.id, 'DELETION_WARNING')
       if (!exists) {
         const customer = await db.select().from(customers).where(eq(customers.id, v.customerId)).limit(1)
         if (customer.length > 0) {
-          const template = getDeletionWarningEmailTemplate('VPS', v.planName, v.expiryDate ? v.expiryDate.toISOString().split('T')[0] : '', deletionDate.toISOString().split('T')[0])
+          const planName = packageData?.planName || `VPS #${v.id}`
+          const template = getDeletionWarningEmailTemplate('VPS', planName, v.expiryDate ? v.expiryDate.toISOString().split('T')[0] : '', deletionDate.toISOString().split('T')[0])
           await db.insert(emailNotifications).values({
             customerId: v.customerId,
             serviceId: v.id,
