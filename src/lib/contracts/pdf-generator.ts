@@ -184,7 +184,6 @@ export async function generateContractPdf(contractId: number): Promise<Generated
             registrationDate: domain.registrationDate,
             expiryDate: domain.expiryDate,
             status: domain.status,
-            price: domain.price,
           })
           .from(domain)
           .where(inArray(domain.id, domainIds))
@@ -193,13 +192,9 @@ export async function generateContractPdf(contractId: number): Promise<Generated
       ? db
           .select({
             id: hosting.id,
-            planName: hosting.planName,
-            storage: hosting.storage,
-            bandwidth: hosting.bandwidth,
-            price: hosting.price,
             status: hosting.status,
             expiryDate: hosting.expiryDate,
-            serverLocation: hosting.serverLocation,
+            ipAddress: hosting.ipAddress,
           })
           .from(hosting)
           .where(inArray(hosting.id, hostingIds))
@@ -208,15 +203,8 @@ export async function generateContractPdf(contractId: number): Promise<Generated
       ? db
           .select({
             id: vps.id,
-            planName: vps.planName,
-            cpu: vps.cpu,
-            ram: vps.ram,
-            storage: vps.storage,
-            bandwidth: vps.bandwidth,
-            price: vps.price,
             status: vps.status,
             expiryDate: vps.expiryDate,
-            os: vps.os,
             ipAddress: vps.ipAddress,
           })
           .from(vps)
@@ -617,29 +605,25 @@ export async function generateContractPdf(contractId: number): Promise<Generated
     lines: [
       `Registrar: ${item.registrar ?? 'N/A'}`,
       `Hiệu lực: ${formatDate(item.registrationDate)} - ${formatDate(item.expiryDate)}`,
-      `Giá: ${formatCurrency(item.price)}`,
     ],
   }))
 
   const hostingCards = formattedContract.hostings.map((item) => ({
-    title: item.planName,
+    title: `Hosting #${item.id}`,
     tag: formatBadge(item.status),
     lines: [
-      `Cấu hình: ${item.storage ? `${item.storage} GB` : 'N/A'} lưu trữ • ${item.bandwidth ? `${item.bandwidth} GB` : 'N/A'} băng thông`,
-      `Ngày hết hạn: ${formatDate(item.expiryDate)}`,
-      `Giá: ${formatCurrency(item.price)}`,
-    ],
+      item.ipAddress ? `IP Address: ${item.ipAddress}` : null,
+      item.expiryDate ? `Ngày hết hạn: ${formatDate(item.expiryDate)}` : null,
+    ].filter(Boolean) as string[],
   }))
 
   const vpsCards = formattedContract.vpss.map((item) => ({
-    title: item.planName,
+    title: `VPS #${item.id}`,
     tag: formatBadge(item.status),
     lines: [
-      `CPU ${item.cpu ?? 'N/A'} • RAM ${item.ram ?? 'N/A'} GB • Storage ${item.storage ?? 'N/A'} GB • Băng thông ${item.bandwidth ?? 'N/A'} GB`,
-      `OS: ${item.os ?? 'N/A'} • IP: ${item.ipAddress ?? 'N/A'}`,
-      `Ngày hết hạn: ${formatDate(item.expiryDate)}`,
-      `Giá: ${formatCurrency(item.price)}`,
-    ],
+      item.ipAddress ? `IP Address: ${item.ipAddress}` : null,
+      item.expiryDate ? `Ngày hết hạn: ${formatDate(item.expiryDate)}` : null,
+    ].filter(Boolean) as string[],
   }))
 
   const drawServiceSection = (
