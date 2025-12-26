@@ -126,6 +126,17 @@ CREATE TABLE IF NOT EXISTS hosting_packages (
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+-- Control Panels table (must be created before hosting table due to foreign key)
+CREATE TABLE IF NOT EXISTS control_panels (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  type ENUM('ENHANCE', 'CPANEL', 'PLESK', 'DIRECTADMIN') NOT NULL UNIQUE,
+  enabled ENUM('YES', 'NO') DEFAULT 'YES',
+  config JSON NOT NULL,
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_control_panel_type (type)
+);
+
 -- Hosting table (customer registered hosting)
 CREATE TABLE IF NOT EXISTS hosting (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -409,16 +420,7 @@ CREATE TABLE IF NOT EXISTS websites (
   FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE
 );
 
--- Control Panels table
-CREATE TABLE IF NOT EXISTS control_panels (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  type ENUM('ENHANCE', 'CPANEL', 'PLESK', 'DIRECTADMIN') NOT NULL UNIQUE,
-  enabled ENUM('YES', 'NO') DEFAULT 'YES',
-  config JSON NOT NULL,
-  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY unique_control_panel_type (type)
-);
+-- Control Panels table (moved up - already created before hosting table)
 
 -- Control Panel Plans table - Maps local plans to control panel plans
 CREATE TABLE IF NOT EXISTS control_panel_plans (

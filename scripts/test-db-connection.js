@@ -71,19 +71,42 @@ async function testConnection() {
     
     console.log('✅ Connection successful!\n');
     
-    // Test query
-    const [rows] = await connection.execute('SELECT 1 as test, DATABASE() as current_db, USER() as current_user');
-    console.log('📊 Test query result:');
-    console.log(rows);
-    console.log('');
+    // Test query - sử dụng query đơn giản để tương thích với mọi version MariaDB/MySQL
+    try {
+      const [rows] = await connection.execute('SELECT 1 as test, DATABASE() as current_db');
+      console.log('📊 Test query result:');
+      console.log(rows);
+      console.log('');
+      
+      // Thử lấy user info riêng (không bắt buộc)
+      try {
+        const [userRows] = await connection.execute('SELECT CURRENT_USER() as current_user');
+        if (userRows && userRows.length > 0) {
+          console.log('👤 Current user:', userRows[0].current_user);
+          console.log('');
+        }
+      } catch (userError) {
+        // Bỏ qua nếu không lấy được user info
+      }
+    } catch (queryError) {
+      // Nếu query đơn giản cũng lỗi, chỉ cần connection thành công là đủ
+      console.log('⚠️  Could not execute test query, but connection is successful');
+      console.log('   Error:', queryError.message);
+      console.log('');
+    }
     
     // Check if database exists and show tables
-    const [tables] = await connection.execute('SHOW TABLES');
-    console.log(`📋 Tables in database: ${tables.length}`);
-    if (tables.length > 0) {
-      console.log('   Tables:', tables.map(t => Object.values(t)[0]).join(', '));
-    } else {
-      console.log('   ⚠️  No tables found. Database might be empty.');
+    try {
+      const [tables] = await connection.execute('SHOW TABLES');
+      console.log(`📋 Tables in database: ${tables.length}`);
+      if (tables.length > 0) {
+        console.log('   Tables:', tables.map(t => Object.values(t)[0]).join(', '));
+      } else {
+        console.log('   ⚠️  No tables found. Database might be empty.');
+        console.log('   💡 Run: npm run db:push');
+      }
+    } catch (tableError) {
+      console.log('⚠️  Could not list tables, but connection is successful');
     }
     
     await connection.end();
@@ -116,6 +139,11 @@ async function testConnection() {
       console.error('  2. Find correct socket path:');
       console.error('     mysql_config --socket');
       console.error('     or check /etc/mysql/my.cnf');
+    } else if (error.code === 'ER_PARSE_ERROR') {
+      console.error('  1. SQL syntax error detected');
+      console.error('  2. This might be a compatibility issue with MariaDB version');
+      console.error('  3. Connection was successful, but test query failed');
+      console.error('  4. You can proceed with: npm run db:push');
     }
     
     process.exit(1);
