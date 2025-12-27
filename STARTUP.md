@@ -94,7 +94,7 @@ npm run start
 
 ## Yêu cầu hệ thống
 
-- Node.js >= 18 LTS
+- Node.js >= 20 LTS (khuyến nghị Node.js 20.x - phiên bản tối ưu và ổn định nhất)
 - npm hoặc pnpm
 - MySQL/MariaDB >= 10.3
 - SMTP server (Gmail, SendGrid, etc.)

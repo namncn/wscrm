@@ -99,7 +99,7 @@ flowchart LR
 ---
 
 ## Yêu cầu hệ thống
-- Node.js >= 18 LTS.
+- Node.js >= 20 LTS (khuyến nghị Node.js 20.x - phiên bản tối ưu và ổn định nhất).
 - npm hoặc pnpm (khuyến nghị pnpm).
 - MariaDB/MySQL >= 10.3 (utf8mb4).
 - SMTP Provider (Gmail App Password, SendGrid...).

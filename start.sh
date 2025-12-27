@@ -39,13 +39,14 @@ echo ""
 # Check Node.js
 print_info "Checking Node.js installation..."
 if ! command -v node &> /dev/null; then
-    print_error "Node.js is not installed. Please install Node.js >= 18 LTS"
+    print_error "Node.js is not installed. Please install Node.js >= 20 LTS (khuyến nghị Node.js 20.x)"
     exit 1
 fi
 
 NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 18 ]; then
-    print_error "Node.js version must be >= 18. Current version: $(node -v)"
+if [ "$NODE_VERSION" -lt 20 ]; then
+    print_error "Node.js version must be >= 20. Current version: $(node -v)"
+    print_error "Khuyến nghị sử dụng Node.js 20.x LTS để có hiệu năng và bảo mật tốt nhất"
     exit 1
 fi
 
