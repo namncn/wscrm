@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import MemberLayout from '@/components/layout/member-layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -43,10 +45,13 @@ interface HostingProduct {
 
 export default function HostingPage() {
   const { data: session, status } = useSession()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   // Hosting page is public - no authentication required
   const [isLoading, setIsLoading] = useState(false)
   const [hostingProducts, setHostingProducts] = useState<HostingProduct[]>([])
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
+  const [processedCartId, setProcessedCartId] = useState<string | null>(null)
 
   // Fetch hosting products from API (public access)
   useEffect(() => {
@@ -63,8 +68,22 @@ export default function HostingPage() {
               price: parseFloat(hosting.price) || 0,
               description: hosting.description || `Gói hosting ${hosting.planName}`,
               features: {
-                storage: `${hosting.storage}GB SSD`,
-                bandwidth: `${hosting.bandwidth}GB/tháng`,
+                storage: hosting.storage === 0 || hosting.storage === null || hosting.storage === undefined
+                  ? 'Unlimited'
+                  : (() => {
+                      // Convert MB to GB (divide by 1024)
+                      const gb = hosting.storage / 1024
+                      const displayValue = gb % 1 === 0 ? gb : gb.toFixed(1)
+                      return `${displayValue}GB NVME`
+                    })(),
+                bandwidth: hosting.bandwidth === 0 || hosting.bandwidth === null || hosting.bandwidth === undefined 
+                  ? 'Unlimited' 
+                  : (() => {
+                      // Convert MB to GB (divide by 1024)
+                      const gb = hosting.bandwidth / 1024
+                      const displayValue = gb % 1 === 0 ? gb : gb.toFixed(1)
+                      return `${displayValue}GB/tháng`
+                    })(),
                 domain: 'Unlimited',
                 databases: hosting.databases || 'Unlimited',
                 emails: 'Unlimited',
@@ -89,17 +108,7 @@ export default function HostingPage() {
     fetchHostingProducts()
   }, [])
 
-  if (isLoadingProducts) {
-    return (
-      <MemberLayout title="Hosting">
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      </MemberLayout>
-    )
-  }
-
-  const handlePurchase = async (hosting: HostingProduct) => {
+  const handlePurchase = useCallback(async (hosting: HostingProduct) => {
     setIsLoading(true)
     try {
       const cartData = {
@@ -166,10 +175,131 @@ export default function HostingPage() {
       }
     } catch (error: any) {
       toastError(`Lỗi: ${error.message || 'Có lỗi xảy ra khi thêm vào giỏ hàng'}`)
-      console.error('Error adding to cart:', error)
     } finally {
       setIsLoading(false)
     }
+  }, [status, session])
+
+  // Handle add_to_cart query parameter (for external links)
+  useEffect(() => {
+    const productId = searchParams.get('add_to_cart')
+    
+    // Only process if we have products loaded
+    if (!productId) {
+      return
+    }
+    
+    if (isLoadingProducts) {
+      return
+    }
+    
+    // Use processedCartId to prevent duplicate processing (don't check isLoading)
+    if (productId === processedCartId) {
+      return
+    }
+    
+    if (hostingProducts.length === 0) {
+      return
+    }
+    
+    // Try to find product - handle both string and number IDs
+    const product = hostingProducts.find(p => 
+      String(p.id) === String(productId) || p.id === productId
+    )
+    if (!product) {
+      return
+    }
+    
+    setProcessedCartId(productId)
+    
+    // Directly add to cart (same logic as handlePurchase)
+    const addToCart = async () => {
+      setIsLoading(true)
+      try {
+        const cartData = {
+          id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          serviceId: product.id,
+          serviceType: 'HOSTING',
+          serviceName: product.name,
+          quantity: 1,
+          price: product.price.toString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+
+        // If user is logged in, use API
+        if (status === 'authenticated' && session?.user) {
+          const response = await fetch('/api/cart', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              serviceId: product.id,
+              serviceType: 'HOSTING',
+              serviceName: product.name,
+              quantity: 1,
+              price: product.price
+            }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.error || 'Không thể thêm vào giỏ hàng')
+          }
+
+          window.dispatchEvent(new Event('cartUpdated'))
+          toastSuccess('Đã thêm vào giỏ hàng!')
+          
+          // Remove query parameters
+          router.replace('/hosting', { scroll: false })
+          setTimeout(() => setProcessedCartId(null), 2000)
+        } else {
+          // If not logged in, use localStorage
+          const existingCart = localStorage.getItem('cart')
+          const cartItems = existingCart ? JSON.parse(existingCart) : []
+          
+          // Check if item already exists
+          const existingIndex = cartItems.findIndex(
+            (item: any) => item.serviceId === product.id && item.serviceType === 'HOSTING'
+          )
+          
+          if (existingIndex >= 0) {
+            cartItems[existingIndex].quantity += 1
+            cartItems[existingIndex].updatedAt = new Date().toISOString()
+          } else {
+            cartItems.push(cartData)
+          }
+          
+          localStorage.setItem('cart', JSON.stringify(cartItems))
+          
+          window.dispatchEvent(new Event('cartUpdated'))
+          toastSuccess('Đã thêm vào giỏ hàng!')
+          
+          // Remove query parameters
+          router.replace('/hosting', { scroll: false })
+          setTimeout(() => setProcessedCartId(null), 2000)
+        }
+      } catch (error: any) {
+        toastError(`Lỗi: ${error.message || 'Có lỗi xảy ra khi thêm vào giỏ hàng'}`)
+        setProcessedCartId(null)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    // Call addToCart immediately
+    addToCart()
+  }, [searchParams, hostingProducts, isLoadingProducts, isLoading, processedCartId, status, session, router])
+
+  if (isLoadingProducts) {
+    return (
+      <MemberLayout title="Hosting">
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      </MemberLayout>
+    )
   }
 
   const formatCurrency = (amount: number) => {
@@ -268,23 +398,13 @@ export default function HostingPage() {
                         </div>
                       </div>
                       
-                      <Button
-                        className="w-full mt-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300" 
-                        onClick={() => handlePurchase(hosting)}
-                        disabled={isLoading}
+                      <Link
+                        href={`/hosting?add_to_cart=${hosting.id}`}
+                        className="w-full mt-4 inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all cursor-pointer disabled:pointer-events-none disabled:opacity-50 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 h-9 px-4 py-2"
                       >
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Đang xử lý...
-                          </>
-                        ) : (
-                          <>
-                            <ShoppingCart className="h-4 w-4" />
-                            Đăng ký ngay
-                          </>
-                        )}
-                      </Button>
+                        <ShoppingCart className="h-4 w-4" />
+                        Đăng ký ngay
+                      </Link>
                     </div>
                   </CardContent>
                 </Card>

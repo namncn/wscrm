@@ -72,7 +72,6 @@ export async function GET(req: NextRequest) {
     const websitesWithDetails = await db
       .select({
         id: websites.id,
-        name: websites.name,
         domainId: websites.domainId,
         hostingId: websites.hostingId,
         vpsId: websites.vpsId,
@@ -127,15 +126,14 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
-    const { name, domainId, hostingId, vpsId, contractId, orderId, customerId, status, description, notes } = body
+    const { domainId, hostingId, vpsId, contractId, orderId, customerId, status, description, notes, syncWebsiteId } = body
 
-    if (!name || !customerId) {
-      return createErrorResponse('Tên website và khách hàng là bắt buộc', 400)
+    if (!customerId) {
+      return createErrorResponse('Khách hàng là bắt buộc', 400)
     }
 
     // Create website
-    await db.insert(websites).values({
-      name,
+    const result = await db.insert(websites).values({
       domainId: domainId || null,
       hostingId: hostingId || null,
       vpsId: vpsId || null,
@@ -145,13 +143,13 @@ export async function POST(req: Request) {
       status: status || 'LIVE',
       description: description || null,
       notes: notes || null,
+      syncWebsiteId: syncWebsiteId || null,
     })
 
     // Get the created website with related data
     const createdWebsite = await db
       .select({
         id: websites.id,
-        name: websites.name,
         domainId: websites.domainId,
         hostingId: websites.hostingId,
         vpsId: websites.vpsId,
@@ -180,7 +178,7 @@ export async function POST(req: Request) {
       .leftJoin(contracts, eq(websites.contractId, contracts.id))
       .leftJoin(orders, eq(websites.orderId, orders.id))
       .leftJoin(customers, eq(websites.customerId, customers.id))
-      .where(eq(websites.name, name))
+      .where(eq(websites.id, result[0].insertId))
       .limit(1)
 
     // Format orderNumber
@@ -206,7 +204,7 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json()
-    const { id, name, domainId, hostingId, vpsId, contractId, orderId, customerId, status, description, notes } = body
+    const { id, domainId, hostingId, vpsId, contractId, orderId, customerId, status, description, notes, syncWebsiteId, username, password } = body
 
     if (!id) {
       return createErrorResponse('ID website là bắt buộc', 400)
@@ -227,7 +225,6 @@ export async function PUT(req: Request) {
     await db
       .update(websites)
       .set({
-        name: name || existingWebsite[0].name,
         domainId: domainId !== undefined ? domainId : existingWebsite[0].domainId,
         hostingId: hostingId !== undefined ? hostingId : existingWebsite[0].hostingId,
         vpsId: vpsId !== undefined ? vpsId : existingWebsite[0].vpsId,
@@ -237,6 +234,9 @@ export async function PUT(req: Request) {
         status: status || existingWebsite[0].status,
         description: description !== undefined ? description : existingWebsite[0].description,
         notes: notes !== undefined ? notes : existingWebsite[0].notes,
+        syncWebsiteId: syncWebsiteId !== undefined ? (syncWebsiteId || null) : existingWebsite[0].syncWebsiteId,
+        username: username !== undefined ? (username || null) : existingWebsite[0].username,
+        password: password !== undefined ? (password || null) : existingWebsite[0].password,
         updatedAt: new Date(),
       })
       .where(eq(websites.id, id))
@@ -245,7 +245,6 @@ export async function PUT(req: Request) {
     const updatedWebsite = await db
       .select({
         id: websites.id,
-        name: websites.name,
         domainId: websites.domainId,
         hostingId: websites.hostingId,
         vpsId: websites.vpsId,
@@ -255,6 +254,9 @@ export async function PUT(req: Request) {
         status: websites.status,
         description: websites.description,
         notes: websites.notes,
+        syncWebsiteId: websites.syncWebsiteId,
+        username: websites.username,
+        password: websites.password,
         createdAt: websites.createdAt,
         updatedAt: websites.updatedAt,
         domainName: domain.domainName,
@@ -368,33 +370,25 @@ export async function DELETE(req: Request) {
             // Use enhance client directly
             const enhanceClient = (enhanceAdapter as any).client
             if (enhanceClient) {
-              // Get customer external ID from hosting if available
+              // Get customer external ID from customer table (externalAccountId moved from hosting to customers)
               let customerExternalId: string | undefined
-              if (website.hostingId) {
-                const hostingData = await db
-                  .select()
-                  .from(hosting)
-                  .where(eq(hosting.id, website.hostingId))
-                  .limit(1)
-
-                if (hostingData.length > 0 && hostingData[0].externalAccountId) {
-                  customerExternalId = hostingData[0].externalAccountId
-                }
-              }
-
-              // If no customer external ID from hosting, try to find customer on control panel
-              if (!customerExternalId && website.customerId) {
+              if (website.customerId) {
                 const customerData = await db
-                  .select()
+                  .select({ externalAccountId: customers.externalAccountId, email: customers.email })
                   .from(customers)
                   .where(eq(customers.id, website.customerId))
                   .limit(1)
 
-                if (customerData.length > 0 && customerData[0].email) {
-                  const findResult = await controlPanelInstance.findCustomerByEmail(customerData[0].email)
+                if (customerData.length > 0) {
+                  customerExternalId = customerData[0].externalAccountId || undefined
                   
-                  if (findResult.success && findResult.data) {
-                    customerExternalId = findResult.data.id
+                  // If no externalAccountId in customer, try to find customer on control panel
+                  if (!customerExternalId && customerData[0].email) {
+                    const findResult = await controlPanelInstance.findCustomerByEmail(customerData[0].email)
+                    
+                    if (findResult.success && findResult.data) {
+                      customerExternalId = findResult.data.id
+                    }
                   }
                 }
               }

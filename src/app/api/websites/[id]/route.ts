@@ -22,7 +22,6 @@ export async function GET(
     const website = await db
       .select({
         id: websites.id,
-        name: websites.name,
         domainId: websites.domainId,
         hostingId: websites.hostingId,
         vpsId: websites.vpsId,
@@ -32,6 +31,9 @@ export async function GET(
         status: websites.status,
         description: websites.description,
         notes: websites.notes,
+        syncWebsiteId: websites.syncWebsiteId,
+        username: websites.username,
+        password: websites.password,
         createdAt: websites.createdAt,
         updatedAt: websites.updatedAt,
         domainName: domain.domainName,
@@ -62,7 +64,7 @@ export async function GET(
     const formattedWebsite = {
       ...website[0],
       orderNumber: (website[0] as any).orderNumberRaw ? `ORD-${(website[0] as any).orderNumberRaw}` : null,
-      orderNumberRaw: undefined
+      orderNumberRaw: undefined,
     }
 
     return createSuccessResponse(formattedWebsite, 'Tải website thành công')

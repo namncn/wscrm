@@ -31,6 +31,7 @@ import {
   X,
   NotebookText,
   Network,
+  FlaskConical,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -86,6 +87,7 @@ const navigationSections: NavigationSection[] = [
     items: [
       { name: 'Thành Viên', href: '/admin/users', icon: Shield, color: 'text-red-600' },
       { name: 'Control Panels', href: '/admin/control-panels', icon: Network, color: 'text-violet-600' },
+      { name: 'Test', href: '/admin/test/hosting-flow', icon: FlaskConical, color: 'text-rose-600' },
       { name: 'Hồ Sơ', href: '/admin/profile', icon: User, color: 'text-teal-600' },
       { name: 'Cài Đặt', href: '/admin/settings', icon: Settings, color: 'text-gray-600' },
     ],
@@ -163,6 +165,11 @@ export function AppSidebar({ isOpen, setIsOpen }: SidebarProps) {
           if (status === 'loading') return false
           return userRole === 'ADMIN'
         }
+        // Test - ONLY ADMIN
+        if (item.href === '/admin/test/hosting-flow') {
+          if (status === 'loading') return false
+          return userRole === 'ADMIN'
+        }
         // Thành Viên - ADMIN and USER
         if (item.href === '/admin/users') {
           if (status === 'loading') return false
@@ -221,7 +228,8 @@ export function AppSidebar({ isOpen, setIsOpen }: SidebarProps) {
                       pathname === item.href ||
                       (item.href === '/admin/invoices' && pathname.startsWith('/admin/invoice/')) ||
                       (item.href === '/admin/contracts' &&
-                        (pathname.startsWith('/admin/contract/') || pathname.startsWith('/contract/')))
+                        (pathname.startsWith('/admin/contract/') || pathname.startsWith('/contract/'))) ||
+                      (item.href === '/admin/test/hosting-flow' && pathname.startsWith('/admin/test/'))
 
                     return (
                       <div key={item.name} className="relative group">

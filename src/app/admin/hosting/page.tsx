@@ -56,6 +56,7 @@ interface Hosting {
   databases?: string
   hostingType?: string
   operatingSystem?: string
+  subscriptionId?: number | null
 }
 
 // Helper function to format date to YYYY-MM-DD in local timezone
@@ -167,6 +168,7 @@ export default function HostingPage() {
     customerId: null as number | null,
     registrationDate: undefined as Date | undefined,
     expiryDate: undefined as Date | undefined,
+    subscriptionId: null as number | null,
   })
 
   // Form state for edit hosting package
@@ -496,6 +498,7 @@ export default function HostingPage() {
       customerId: customerId ? (typeof customerId === 'number' ? customerId : parseInt(String(customerId), 10)) : null,
       registrationDate: registrationDate,
       expiryDate: expiryDate,
+      subscriptionId: (hosting as any).subscriptionId ? parseInt(String((hosting as any).subscriptionId), 10) : null,
     })
     setIsEditHostingDialogOpen(true)
   }
@@ -643,6 +646,7 @@ export default function HostingPage() {
         ipAddress: (editHosting as any).ipAddress || null,
         expiryDate: formatDateForAPI(editHosting.expiryDate),
         createdAt: formatDateForAPI(editHosting.registrationDate),
+        subscriptionId: editHosting.subscriptionId || null,
       }
       
       const response = await fetch('/api/hosting', {
@@ -666,6 +670,7 @@ export default function HostingPage() {
           customerId: null,
           registrationDate: undefined,
           expiryDate: undefined,
+          subscriptionId: null,
         })
         toastSuccess('Cập nhật gói hosting thành công!')
       } else {
@@ -1389,7 +1394,14 @@ export default function HostingPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="font-medium">{hosting.planName}</span>
+                          <div className="space-y-1">
+                            <span className="font-medium">{hosting.planName}</span>
+                            {hosting.subscriptionId && (
+                              <div className="text-xs text-gray-500">
+                                Subscription ID: <span className="font-mono text-blue-600">{hosting.subscriptionId}</span>
+                              </div>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-1">
@@ -1583,6 +1595,16 @@ export default function HostingPage() {
                     </div>
                   )}
                 </div>
+                {(selectedHosting as any).customerId && (selectedHosting as any).subscriptionId && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="font-medium mb-2 block">Subscription ID</Label>
+                      <div className="text-sm text-gray-600">
+                        <span className="font-mono text-blue-600">{(selectedHosting as any).subscriptionId}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {(selectedHosting as any).customerId && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -1836,6 +1858,23 @@ export default function HostingPage() {
                         placeholder="192.168.1.1"
                         value={(editHosting as any).ipAddress || ''}
                         onChange={(e) => setEditHosting({ ...editHosting, ipAddress: e.target.value } as any)}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-subscriptionId" className="text-right">
+                      Subscription ID
+                    </Label>
+                    <div className="col-span-3">
+                      <Input
+                        id="edit-subscriptionId"
+                        type="number"
+                        placeholder="Nhập Subscription ID"
+                        value={editHosting.subscriptionId || ''}
+                        onChange={(e) => setEditHosting({ 
+                          ...editHosting, 
+                          subscriptionId: e.target.value ? parseInt(e.target.value, 10) : null 
+                        })}
                       />
                     </div>
                   </div>

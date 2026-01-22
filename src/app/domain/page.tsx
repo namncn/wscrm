@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import MemberLayout from '@/components/layout/member-layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -36,6 +38,8 @@ interface DomainProduct {
 
 export default function DomainPage() {
   const { data: session, status } = useSession()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   // Domain page is public - no authentication required
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -44,6 +48,7 @@ export default function DomainPage() {
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
   const [isDomainDialogOpen, setIsDomainDialogOpen] = useState(false)
   const [domainNameInput, setDomainNameInput] = useState('')
+  const [processedCartId, setProcessedCartId] = useState<string | null>(null)
 
   // Fetch domain types from API (public access)
   useEffect(() => {
@@ -132,6 +137,46 @@ export default function DomainPage() {
 
     fetchDomainTypes()
   }, [])
+
+  // Handle add_to_cart query parameter (for external links)
+  useEffect(() => {
+    const productId = searchParams.get('add_to_cart')
+    const domainName = searchParams.get('domain_name')
+    
+    // Only process if we have products loaded
+    if (!productId || isLoadingProducts || productId === processedCartId) {
+      return
+    }
+    
+    if (domainProducts.length === 0) {
+      return
+    }
+    
+    // Try to find product - handle both string and number IDs
+    const product = domainProducts.find(p => 
+      String(p.id) === String(productId) || p.id === productId
+    )
+    if (!product) {
+      return
+    }
+    
+    setProcessedCartId(productId)
+    
+    // Open dialog with selected domain and pre-fill domain name if provided
+    setSelectedDomain(product)
+    if (domainName) {
+      setDomainNameInput(domainName)
+    } else {
+      setDomainNameInput('')
+    }
+    setIsDomainDialogOpen(true)
+    
+    // Remove query parameters after opening dialog
+    setTimeout(() => {
+      router.replace('/domain', { scroll: false })
+      setTimeout(() => setProcessedCartId(null), 2000)
+    }, 100)
+  }, [searchParams, domainProducts, isLoadingProducts, processedCartId, router])
 
   if (isLoadingProducts) {
     return (
@@ -235,7 +280,6 @@ export default function DomainPage() {
       }
     } catch (error: any) {
       toastError(`Lỗi: ${error.message || 'Có lỗi xảy ra khi thêm vào giỏ hàng'}`)
-      console.error('Error adding to cart:', error)
     } finally {
       setIsLoading(false)
     }
@@ -306,23 +350,13 @@ export default function DomainPage() {
                         )}
                       </div>
                       
-                      <Button 
-                        className="w-full mt-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300" 
-                        onClick={() => handlePurchaseClick(domain)}
-                        disabled={isLoading}
+                      <Link
+                        href={`/domain?add_to_cart=${domain.id}`}
+                        className="w-full mt-4 inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all cursor-pointer disabled:pointer-events-none disabled:opacity-50 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 h-9 px-4 py-2"
                       >
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Đang xử lý...
-                          </>
-                        ) : (
-                          <>
-                            <ShoppingCart className="h-4 w-4" />
-                            Đăng ký ngay
-                          </>
-                        )}
-                      </Button>
+                        <ShoppingCart className="h-4 w-4" />
+                        Đăng ký ngay
+                      </Link>
                     </div>
                   </CardContent>
                 </Card>

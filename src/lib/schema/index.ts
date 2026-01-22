@@ -39,6 +39,7 @@ export const customers = mysqlTable('customers', {
   companyTaxCode: varchar('companyTaxCode', { length: 50 }),
   status: mysqlEnum('status', ['ACTIVE', 'INACTIVE', 'SUSPENDED']).default('ACTIVE'),
   userId: int('userId'),
+  externalAccountId: varchar('externalAccountId', { length: 255 }),
   emailVerified: mysqlEnum('emailVerified', ['YES', 'NO']).default('NO'),
   verificationToken: varchar('verificationToken', { length: 255 }),
   pendingEmail: varchar('pendingEmail', { length: 255 }),
@@ -107,9 +108,7 @@ export const hosting = mysqlTable('hosting', {
   ipAddress: varchar('ipAddress', { length: 45 }),
   expiryDate: date('expiryDate'),
   // Control Panel fields
-  controlPanelId: int('controlPanelId'),
-  externalAccountId: varchar('externalAccountId', { length: 255 }),
-  externalWebsiteId: varchar('externalWebsiteId', { length: 255 }),
+  subscriptionId: int('subscriptionId'),
   syncStatus: mysqlEnum('syncStatus', ['PENDING', 'SYNCED', 'FAILED', 'SYNCING']).default('PENDING'),
   syncError: text('syncError'),
   lastSyncedAt: timestamp('lastSyncedAt'),
@@ -329,7 +328,6 @@ export const emailNotifications = mysqlTable('email_notifications', {
 // Websites table
 export const websites = mysqlTable('websites', {
   id: int('id').primaryKey().notNull().autoincrement(),
-  name: varchar('name', { length: 255 }).notNull(),
   domainId: int('domainId'),
   hostingId: int('hostingId'),
   vpsId: int('vpsId'),
@@ -339,6 +337,9 @@ export const websites = mysqlTable('websites', {
   status: mysqlEnum('status', ['LIVE', 'DOWN', 'MAINTENANCE']).default('LIVE'),
   description: text('description'),
   notes: text('notes'),
+  syncWebsiteId: varchar('syncWebsiteId', { length: 255 }),
+  username: varchar('username', { length: 255 }),
+  password: varchar('password', { length: 255 }),
   createdAt: timestamp('createdAt').defaultNow(),
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow(),
 })
@@ -518,10 +519,7 @@ export const controlPanelPlansRelations = relations(controlPanelPlans, ({ one })
 }))
 
 export const hostingRelations = relations(hosting, ({ one }) => ({
-  controlPanel: one(controlPanels, {
-    fields: [hosting.controlPanelId],
-    references: [controlPanels.id],
-  }),
+  // Relations removed - controlPanelId no longer exists
 }))
 
 // Export types

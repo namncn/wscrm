@@ -260,32 +260,48 @@ export class EnhanceAdapter extends BaseControlPanel implements IControlPanel {
         }
       }
 
-      // 3. Tạo website/hosting
-      const websiteResult = await this.client.createWebsite({
-        customerId,
-        planId: params.planId,
-        subscriptionId,
-        domain: params.domain,
-      })
+      // 3. Tạo website/hosting (nếu có domain)
+      let websiteId: string | undefined
+      let websiteData: any = {}
+      
+      if (params.domain) {
+        const websiteResult = await this.client.createWebsite({
+          customerId,
+          planId: params.planId,
+          subscriptionId,
+          domain: params.domain,
+        })
 
-      if (!websiteResult.success || !websiteResult.data) {
-        return this.createErrorResponse(websiteResult.error || 'Failed to create hosting')
+        if (websiteResult.success && websiteResult.data) {
+          websiteId = websiteResult.data.id
+          
+          // Lấy thông tin đầy đủ của website vừa tạo
+          const websiteInfo = await this.client.getWebsite(websiteId, customerId)
+          websiteData = websiteInfo.data || {}
+        } else {
+          this.logger.warn('Failed to create website (domain may be required):', websiteResult.error)
+          // Tiếp tục mà không có website, subscription đã được tạo
+        }
+      } else {
+        this.logger.warn('No domain provided, skipping website creation. Subscription has been created.')
       }
 
-      // 4. Lấy thông tin đầy đủ của website vừa tạo
-      // Website was created in customer org context, so get it from there
-      const websiteInfo = await this.client.getWebsite(websiteResult.data.id, customerId)
-      const websiteData = websiteInfo.data || {}
-
+      // 4. Trả về kết quả với subscriptionId (ngay cả khi không có website)
+      // Điều này đảm bảo subscriptionId được lưu vào database
       return this.createSuccessResponse({
-        id: websiteResult.data.id,
+        id: websiteId || `subscription-${subscriptionId || 'unknown'}`,
         customerId,
         planId: params.planId || '',
-        domain: params.domain,
+        domain: params.domain || '',
         status: websiteData.status || 'ACTIVE',
         ipAddress: websiteData.ipAddress,
-        createdAt: websiteData.createdAt,
-        metadata: websiteData,
+        createdAt: websiteData.createdAt || new Date().toISOString(),
+        metadata: {
+          ...websiteData,
+          subscriptionId: subscriptionId ? parseInt(subscriptionId, 10) : undefined,
+          websiteCreated: !!websiteId,
+          note: websiteId ? undefined : 'Website not created (domain required), but subscription was created successfully',
+        },
       })
     } catch (error: any) {
       this.logger.error('Error in createHosting:', error)

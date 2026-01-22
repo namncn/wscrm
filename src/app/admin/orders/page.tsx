@@ -301,7 +301,7 @@ export default function OrdersPage() {
     
     // Add hosting items
     for (const hostingId of newOrder.hostingIds) {
-      const hostingPlan = hostings.find(h => h.id === hostingId)
+      const hostingPlan = hostings.find(h => String(h.id) === String(hostingId))
       if (hostingPlan) {
         items.push({
           serviceType: 'HOSTING',
@@ -315,7 +315,7 @@ export default function OrdersPage() {
     
     // Add VPS items
     for (const vpsId of newOrder.vpsIds) {
-      const vpsPlan = vps.find(v => v.id === vpsId)
+      const vpsPlan = vps.find(v => String(v.id) === String(vpsId))
       if (vpsPlan) {
         items.push({
           serviceType: 'VPS',
@@ -866,15 +866,16 @@ export default function OrdersPage() {
                               h.planName?.toLowerCase().includes(hostingSearchValue.toLowerCase())
                             )
                             .map((h) => {
-                              const isSelected = newOrder.hostingIds.includes(h.id)
+                              const isSelected = newOrder.hostingIds.some(id => String(id) === String(h.id))
                               return (
                                 <div
                                   key={h.id}
                                   className="px-3 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between text-sm"
                                   onClick={() => {
+                                    const hostingId = String(h.id)
                                     const newIds = isSelected
-                                      ? newOrder.hostingIds.filter(id => id !== h.id)
-                                      : [...newOrder.hostingIds, h.id]
+                                      ? newOrder.hostingIds.filter(id => String(id) !== hostingId)
+                                      : [...newOrder.hostingIds, hostingId]
                                     setNewOrder({
                                       ...newOrder,
                                       hostingIds: newIds
@@ -907,7 +908,7 @@ export default function OrdersPage() {
                 </div>
                 {/* Display selected hostings */}
                 {newOrder.hostingIds.map((hostingId) => {
-                  const hostingPlan = hostings.find(h => h.id === hostingId)
+                  const hostingPlan = hostings.find(h => String(h.id) === String(hostingId))
                   if (!hostingPlan) return null
                   return (
                     <div key={hostingId} className="grid grid-cols-4 items-center gap-4">
@@ -976,15 +977,16 @@ export default function OrdersPage() {
                               v.planName?.toLowerCase().includes(vpsSearchValue.toLowerCase())
                             )
                             .map((v) => {
-                              const isSelected = newOrder.vpsIds.includes(v.id)
+                              const isSelected = newOrder.vpsIds.some(id => String(id) === String(v.id))
                               return (
                                 <div
                                   key={v.id}
                                   className="px-3 py-2 cursor-pointer hover:bg-gray-100 flex items-center justify-between text-sm"
                                   onClick={() => {
+                                    const vpsId = String(v.id)
                                     const newIds = isSelected
-                                      ? newOrder.vpsIds.filter(id => id !== v.id)
-                                      : [...newOrder.vpsIds, v.id]
+                                      ? newOrder.vpsIds.filter(id => String(id) !== vpsId)
+                                      : [...newOrder.vpsIds, vpsId]
                                     setNewOrder({
                                       ...newOrder,
                                       vpsIds: newIds
@@ -1017,7 +1019,7 @@ export default function OrdersPage() {
                 </div>
                 {/* Display selected VPS */}
                 {newOrder.vpsIds.map((vpsId) => {
-                  const vpsPlan = vps.find(v => v.id === vpsId)
+                  const vpsPlan = vps.find(v => String(v.id) === String(vpsId))
                   if (!vpsPlan) return null
                   return (
                     <div key={vpsId} className="grid grid-cols-4 items-center gap-4">
@@ -1047,19 +1049,41 @@ export default function OrdersPage() {
                 })}
                 {/* Total price display */}
                 {(() => {
-                  const totalPrice = 
-                    newOrder.domainTypeIds.reduce((sum, id) => {
-                      const dt = domainTypes.find(d => d.id === id)
-                      return sum + (dt?.price || 0)
-                    }, 0) +
-                    newOrder.hostingIds.reduce((sum, id) => {
-                      const h = hostings.find(host => host.id === id)
-                      return sum + parseFloat(h?.price || '0')
-                    }, 0) +
-                    newOrder.vpsIds.reduce((sum, id) => {
-                      const v = vps.find(vpsItem => vpsItem.id === id)
-                      return sum + parseFloat(v?.price || '0')
-                    }, 0)
+                  const domainTotal = newOrder.domainTypeIds.reduce((sum, id) => {
+                    const dt = domainTypes.find(d => String(d.id) === String(id))
+                    const price = parseFloat(String(dt?.price || '0'))
+                    return sum + price
+                  }, 0)
+                  
+                  const hostingTotal = newOrder.hostingIds.reduce((sum, id) => {
+                    const h = hostings.find(host => {
+                      const hostId = String(host.id)
+                      const searchId = String(id)
+                      return hostId === searchId
+                    })
+                    if (!h) {
+                      console.warn('[TotalPrice] Hosting not found:', { searchId: id, hostingIds: newOrder.hostingIds, availableIds: hostings.map(h => h.id) })
+                      return sum
+                    }
+                    const price = parseFloat(String(h.price || '0'))
+                    return sum + price
+                  }, 0)
+                  
+                  const vpsTotal = newOrder.vpsIds.reduce((sum, id) => {
+                    const v = vps.find(vpsItem => {
+                      const vpsId = String(vpsItem.id)
+                      const searchId = String(id)
+                      return vpsId === searchId
+                    })
+                    if (!v) {
+                      console.warn('[TotalPrice] VPS not found:', { searchId: id, vpsIds: newOrder.vpsIds, availableIds: vps.map(v => v.id) })
+                      return sum
+                    }
+                    const price = parseFloat(String(v.price || '0'))
+                    return sum + price
+                  }, 0)
+                  
+                  const totalPrice = Math.round(domainTotal + hostingTotal + vpsTotal)
                   
                   if (totalPrice > 0) {
                     return (
@@ -1070,7 +1094,7 @@ export default function OrdersPage() {
                         <div className="col-span-3">
                           <div className="p-2 bg-blue-50 border border-blue-200 rounded">
                             <div className="text-lg font-bold text-blue-700">
-                              {new Intl.NumberFormat('vi-VN').format(totalPrice)} VNĐ
+                              {formatCurrency(totalPrice)}
                             </div>
                           </div>
                         </div>
