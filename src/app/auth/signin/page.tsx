@@ -64,6 +64,39 @@ export default function SignInPage() {
         if (session?.user) {
           const userType = (session.user as any).userType
           if (userType === 'customer') {
+            // Sync cart from localStorage to database (only if database cart is empty)
+            try {
+              const localCart = localStorage.getItem('cart')
+              if (localCart) {
+                const cartItems = JSON.parse(localCart)
+                if (Array.isArray(cartItems) && cartItems.length > 0) {
+                  // Sync cart to database
+                  const syncResponse = await fetch('/api/cart/sync', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ items: cartItems }),
+                  })
+
+                  if (syncResponse.ok) {
+                    const syncData = await syncResponse.json()
+                    // Only clear localStorage if items were actually synced
+                    if (syncData.success && syncData.data.synced > 0) {
+                      localStorage.removeItem('cart')
+                      // Dispatch event to update cart count
+                      window.dispatchEvent(new Event('cartUpdated'))
+                    }
+                    // If database already has items, keep localStorage for now
+                    // User can manually merge if needed
+                  }
+                }
+              }
+            } catch (syncError) {
+              console.error('Error syncing cart:', syncError)
+              // Continue anyway - don't block login
+            }
+            
             router.push('/profile')
           } else {
             router.push('/')

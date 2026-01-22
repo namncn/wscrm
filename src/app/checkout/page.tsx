@@ -93,6 +93,10 @@ export default function CheckoutPage() {
     phone: '',
     address: '',
     company: '',
+    taxCode: '',
+    companyEmail: '',
+    companyAddress: '',
+    companyPhone: '',
     paymentMethod: 'BANK_TRANSFER',
     notes: ''
   })
@@ -106,6 +110,7 @@ export default function CheckoutPage() {
   })
   
   const [isRegistering, setIsRegistering] = useState(false)
+  const [needVAT, setNeedVAT] = useState(false)
 
   useEffect(() => {
     // Fetch cart items always (public) - from localStorage if not logged in, from API if logged in
@@ -158,6 +163,10 @@ export default function CheckoutPage() {
                 phone: (currentCustomer.phone && currentCustomer.phone.trim() !== '') ? currentCustomer.phone : '',
                 address: (currentCustomer.address && currentCustomer.address.trim() !== '') ? currentCustomer.address : '',
                 company: (currentCustomer.company && currentCustomer.company.trim() !== '') ? currentCustomer.company : '',
+                taxCode: (currentCustomer.taxCode && currentCustomer.taxCode.trim() !== '') ? currentCustomer.taxCode : '',
+                companyEmail: (currentCustomer.companyEmail && currentCustomer.companyEmail.trim() !== '') ? currentCustomer.companyEmail : '',
+                companyAddress: (currentCustomer.companyAddress && currentCustomer.companyAddress.trim() !== '') ? currentCustomer.companyAddress : '',
+                companyPhone: (currentCustomer.companyPhone && currentCustomer.companyPhone.trim() !== '') ? currentCustomer.companyPhone : '',
                 paymentMethod: prev.paymentMethod || 'E_WALLET',
                 notes: prev.notes || ''
               }))
@@ -248,18 +257,104 @@ export default function CheckoutPage() {
         throw new Error(errorData.error || 'Không thể đăng ký tài khoản')
       }
 
-      toastSuccess('Đăng ký thành công, vui lòng click vào link xác nhận tài khoản đã được gửi vào trong Email.')
+      toastSuccess('Đăng ký thành công! Đang đăng nhập...')
       
-      // Reset registration form
-      setRegisterData({
-        name: '',
-        email: '',
-        password: '',
-        confirmPassword: ''
-      })
-      
-      // Reload page to show login form instead
-      window.location.reload()
+      // Auto sign in after successful registration
+      try {
+        const signInResult = await signIn('customer', {
+          email: registerData.email,
+          password: registerData.password,
+          redirect: false,
+        })
+
+        if (signInResult?.error) {
+          // If auto sign-in fails, show message but don't reload
+          toastError('Đăng ký thành công nhưng không thể tự động đăng nhập. Vui lòng đăng nhập thủ công.')
+          // Reset registration form
+          setRegisterData({
+            name: '',
+            email: '',
+            password: '',
+            confirmPassword: ''
+          })
+          // Reload page to show login form
+          window.location.reload()
+        } else {
+          // Sign in successful - check if email is verified
+          // Wait a bit for session to update
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          // Check session to see if email is verified
+          const sessionResponse = await fetch('/api/auth/session')
+          const sessionData = await sessionResponse.json()
+          const emailVerified = (sessionData?.user as any)?.emailVerified
+          
+          // Sync cart from localStorage to database (only if database cart is empty)
+          try {
+            const localCart = localStorage.getItem('cart')
+            if (localCart) {
+              const cartItems = JSON.parse(localCart)
+              if (Array.isArray(cartItems) && cartItems.length > 0) {
+                // Sync cart to database
+                const syncResponse = await fetch('/api/cart/sync', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ items: cartItems }),
+                })
+
+                if (syncResponse.ok) {
+                  const syncData = await syncResponse.json()
+                  // Only clear localStorage if items were actually synced
+                  if (syncData.success && syncData.data.synced > 0) {
+                    localStorage.removeItem('cart')
+                    // Dispatch event to update cart count
+                    window.dispatchEvent(new Event('cartUpdated'))
+                  }
+                  // If database already has items, keep localStorage for now
+                  // User can manually merge if needed
+                }
+              }
+            }
+          } catch (syncError) {
+            console.error('Error syncing cart:', syncError)
+            // Continue anyway - don't block registration
+          }
+          
+          if (emailVerified !== 'YES') {
+            // Redirect to verify email page
+            toastSuccess('Đăng ký và đăng nhập thành công! Vui lòng xác nhận email của bạn.')
+            router.push('/verify-email-required')
+            return
+          }
+          
+          toastSuccess('Đăng ký và đăng nhập thành công!')
+          
+          // Reset registration form
+          setRegisterData({
+            name: '',
+            email: '',
+            password: '',
+            confirmPassword: ''
+          })
+          
+          // Reload page to refresh session and show customer info
+          window.location.reload()
+        }
+      } catch (signInError: any) {
+        console.error('Error during auto sign-in:', signInError)
+        toastError('Đăng ký thành công nhưng không thể tự động đăng nhập. Vui lòng đăng nhập thủ công.')
+        // Reset registration form
+        setRegisterData({
+          name: '',
+          email: '',
+          password: '',
+          confirmPassword: ''
+        })
+        // Reload page to show login form
+        window.location.reload()
+      }
     } catch (error: any) {
       toastError(`Lỗi: ${error.message || 'Có lỗi xảy ra khi đăng ký'}`)
       console.error('Error during registration:', error)
@@ -275,8 +370,8 @@ export default function CheckoutPage() {
       return
     }
 
-    if (!formData.name || !formData.phone || !formData.address) {
-      toastError('Vui lòng điền đầy đủ thông tin bắt buộc')
+    if (!formData.name) {
+      toastError('Vui lòng điền họ và tên')
       return
     }
 
@@ -307,7 +402,11 @@ export default function CheckoutPage() {
           name: formData.name,
           phone: formData.phone,
           address: formData.address,
-          company: formData.company
+          company: formData.company,
+          taxCode: formData.taxCode,
+          companyEmail: formData.companyEmail,
+          companyAddress: formData.companyAddress,
+          companyPhone: formData.companyPhone
         }
       }
 
@@ -590,34 +689,20 @@ export default function CheckoutPage() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="phone" className="font-medium mb-2 block">
-                      Số điện thoại *
-                    </Label>
-                    <Input
-                      id="phone"
-                      value={formData.phone}
-                      onChange={(e) => handleInputChange('phone', e.target.value)}
-                      placeholder="Nhập số điện thoại"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="company" className="font-medium mb-2 block">
-                      Công ty
-                    </Label>
-                    <Input
-                      id="company"
-                      value={formData.company}
-                      onChange={(e) => handleInputChange('company', e.target.value)}
-                      placeholder="Nhập tên công ty"
-                    />
-                  </div>
+                <div>
+                  <Label htmlFor="phone" className="font-medium mb-2 block">
+                    Số điện thoại
+                  </Label>
+                  <Input
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange('phone', e.target.value)}
+                    placeholder="Nhập số điện thoại"
+                  />
                 </div>
                 <div>
                   <Label htmlFor="address" className="font-medium mb-2 block">
-                    Địa chỉ *
+                    Địa chỉ
                   </Label>
                   <Textarea
                     id="address"
@@ -625,8 +710,89 @@ export default function CheckoutPage() {
                     onChange={(e) => handleInputChange('address', e.target.value)}
                     placeholder="Nhập địa chỉ chi tiết"
                     rows={3}
-                    required
                   />
+                </div>
+                
+                {/* Company Information Section */}
+                <div className="pt-4 border-t">
+                  <div className="flex items-center space-x-2 mb-4">
+                    <input
+                      type="checkbox"
+                      id="needVAT"
+                      checked={needVAT}
+                      onChange={(e) => setNeedVAT(e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                    />
+                    <Label htmlFor="needVAT" className="text-base font-medium cursor-pointer">
+                      Quý khách muốn lấy VAT?
+                    </Label>
+                  </div>
+                  {needVAT && (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold mb-4">Thông tin xuất hoá đơn VAT</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="company" className="font-medium mb-2 block">
+                            Tên công ty
+                          </Label>
+                          <Input
+                            id="company"
+                            value={formData.company}
+                            onChange={(e) => handleInputChange('company', e.target.value)}
+                            placeholder="Nhập tên công ty"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="companyEmail" className="font-medium mb-2 block">
+                            Email công ty
+                          </Label>
+                          <Input
+                            id="companyEmail"
+                            type="email"
+                            value={formData.companyEmail}
+                            onChange={(e) => handleInputChange('companyEmail', e.target.value)}
+                            placeholder="Nhập email công ty"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="taxCode" className="font-medium mb-2 block">
+                            Mã số thuế
+                          </Label>
+                          <Input
+                            id="taxCode"
+                            value={formData.taxCode}
+                            onChange={(e) => handleInputChange('taxCode', e.target.value)}
+                            placeholder="Nhập mã số thuế"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="companyPhone" className="font-medium mb-2 block">
+                            Số điện thoại công ty
+                          </Label>
+                          <Input
+                            id="companyPhone"
+                            value={formData.companyPhone}
+                            onChange={(e) => handleInputChange('companyPhone', e.target.value)}
+                            placeholder="Nhập số điện thoại công ty"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="companyAddress" className="font-medium mb-2 block">
+                          Địa chỉ công ty
+                        </Label>
+                        <Textarea
+                          id="companyAddress"
+                          value={formData.companyAddress}
+                          onChange={(e) => handleInputChange('companyAddress', e.target.value)}
+                          placeholder="Nhập địa chỉ công ty"
+                          rows={2}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

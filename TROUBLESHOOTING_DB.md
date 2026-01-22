@@ -217,7 +217,7 @@ DB_NAME=crm_db
 
 2. **Kiểm tra version compatibility:**
    ```bash
-   node -v  # Phải >= 18
+   node -v  # Phải >= 20 (khuyến nghị Node.js 20.x)
    mysql --version
    npm list drizzle-kit mysql2
    ```

@@ -40,7 +40,6 @@ import { OrderCombobox } from '@/components/ui/order-combobox'
 
 interface Website {
   id: number
-  name: string
   domainId: number | null
   hostingId: number | null
   vpsId: number | null
@@ -124,7 +123,6 @@ export default function WebsitesPage() {
 
   // Form state for new website
   const [newWebsite, setNewWebsite] = useState({
-    name: '',
     domainId: null as number | null,
     hostingId: null as number | null,
     vpsId: null as number | null,
@@ -134,6 +132,7 @@ export default function WebsitesPage() {
     status: 'LIVE' as 'LIVE' | 'DOWN' | 'MAINTENANCE',
     description: '',
     notes: '',
+    syncWebsiteId: '',
   })
 
   // Combobox search states
@@ -308,8 +307,8 @@ export default function WebsitesPage() {
   }
 
   const createWebsite = async () => {
-    if (!newWebsite.name || !newWebsite.customerId) {
-      toastError('Tên website và khách hàng là bắt buộc')
+    if (!newWebsite.customerId) {
+      toastError('Khách hàng là bắt buộc')
       return
     }
     
@@ -335,7 +334,6 @@ export default function WebsitesPage() {
         await fetchWebsites()
         setIsAddDialogOpen(false)
         setNewWebsite({
-          name: '',
           domainId: null,
           hostingId: null,
           vpsId: null,
@@ -345,6 +343,7 @@ export default function WebsitesPage() {
           status: 'LIVE',
           description: '',
           notes: '',
+          syncWebsiteId: '',
         })
         toastSuccess('Tạo website thành công!')
       } else {
@@ -503,7 +502,6 @@ export default function WebsitesPage() {
   }
 
   const filteredWebsites = websites.filter(website =>
-    website.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (website.customerName && website.customerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (website.domainName && website.domainName.toLowerCase().includes(searchTerm.toLowerCase()))
   )
@@ -541,7 +539,6 @@ export default function WebsitesPage() {
             if (!open) {
               // Reset form when dialog closes
               setNewWebsite({
-                name: '',
                 domainId: null,
                 hostingId: null,
                 vpsId: null,
@@ -551,6 +548,7 @@ export default function WebsitesPage() {
                 status: 'LIVE',
                 description: '',
                 notes: '',
+                syncWebsiteId: '',
               })
               // Clear lists when dialog closes
               setDomains([])
@@ -573,18 +571,6 @@ export default function WebsitesPage() {
               </DialogHeader>
               <div className="flex-1 overflow-y-auto px-6">
                 <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="text-right">
-                    Tên website <span className="text-red-500">*</span>
-                  </Label>
-                  <Input 
-                    id="name" 
-                    className="col-span-3" 
-                    placeholder="Nhập tên website"
-                    value={newWebsite.name}
-                    onChange={(e) => setNewWebsite({...newWebsite, name: e.target.value})}
-                  />
-                </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="customerId" className="text-right">
                     Khách hàng <span className="text-red-500">*</span>
@@ -689,6 +675,18 @@ export default function WebsitesPage() {
                     placeholder="Mô tả website"
                     value={newWebsite.description}
                     onChange={(e) => setNewWebsite({...newWebsite, description: e.target.value})}
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="syncWebsiteId" className="text-right">
+                    SYNC Website ID
+                  </Label>
+                  <Input
+                    id="syncWebsiteId"
+                    className="col-span-3"
+                    placeholder="Nhập ID website từ Enhance Control Panel"
+                    value={newWebsite.syncWebsiteId}
+                    onChange={(e) => setNewWebsite({...newWebsite, syncWebsiteId: e.target.value})}
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -810,7 +808,7 @@ export default function WebsitesPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-fit">Thao Tác</TableHead>
-                    <TableHead>Tên Website</TableHead>
+                    <TableHead>Tên website</TableHead>
                     <TableHead>Khách Hàng</TableHead>
                     <TableHead>Tên Miền</TableHead>
                     <TableHead>Hosting</TableHead>
@@ -829,7 +827,7 @@ export default function WebsitesPage() {
                             size="sm"
                             className="w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                             onClick={() => handleSyncWebsite(website)}
-                            title="Sync Website lên Control Panel"
+                            title="Đồng bộ Website từ Control Panel"
                             disabled={syncingWebsiteIds.has(website.id)}
                           >
                             {syncingWebsiteIds.has(website.id) ? (
@@ -868,7 +866,7 @@ export default function WebsitesPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">{website.name}</div>
+                        <div className="font-medium">{website.domainName || '-'}</div>
                         <div className="text-xs text-gray-500">ID: {website.id}</div>
                       </TableCell>
                       <TableCell>
@@ -935,7 +933,7 @@ export default function WebsitesPage() {
           <DialogHeader className="px-6 pt-6 pb-4">
             <DialogTitle>Xác nhận xóa website</DialogTitle>
             <DialogDescription>
-              Bạn có chắc chắn muốn xóa website <strong>{selectedWebsite?.name}</strong>? Hành động này không thể hoàn tác.
+              Bạn có chắc chắn muốn xóa website này? Hành động này không thể hoàn tác.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="px-6 pt-4 pb-6 border-t">
@@ -953,9 +951,9 @@ export default function WebsitesPage() {
       <Dialog open={isSyncWebsiteDialogOpen} onOpenChange={setIsSyncWebsiteDialogOpen}>
         <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="px-6 pt-6 pb-4">
-            <DialogTitle>Sync Website lên Control Panel</DialogTitle>
+            <DialogTitle>Đồng bộ Website từ Control Panel</DialogTitle>
             <DialogDescription>
-              Bạn có chắc chắn muốn tạo website này trên Control Panel không?
+              Bạn có chắc chắn muốn đồng bộ thông tin website từ Enhance Control Panel không?
             </DialogDescription>
           </DialogHeader>
           {selectedWebsite && (
@@ -964,7 +962,9 @@ export default function WebsitesPage() {
                 <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
                   <div className="text-sm font-medium text-blue-900 mb-2">Thông tin website:</div>
                   <div className="space-y-1 text-sm text-blue-800">
-                    <div><span className="font-medium">Tên:</span> {selectedWebsite.name}</div>
+                    {selectedWebsite.domainName && (
+                      <div><span className="font-medium">Domain:</span> {selectedWebsite.domainName}</div>
+                    )}
                     {selectedWebsite.domainName && (
                       <div><span className="font-medium">Tên miền:</span> {selectedWebsite.domainName}</div>
                     )}
@@ -984,10 +984,10 @@ export default function WebsitesPage() {
                   <div className="text-sm text-yellow-800">
                     <div className="font-medium mb-1">Lưu ý:</div>
                     <ul className="list-disc list-inside space-y-1 text-xs">
-                      <li>Hệ thống sẽ tự động sync customer lên Control Panel nếu chưa có</li>
-                      <li>Website sẽ được tạo với domain đã liên kết</li>
-                      <li>Nếu có hosting/VPS, subscription sẽ được sử dụng nếu đã có</li>
-                      <li>Thông tin website sẽ được lưu vào website record</li>
+                      <li>Hệ thống sẽ đọc thông tin website từ Enhance Control Panel</li>
+                      <li>Website phải đã tồn tại trên Enhance Control Panel (có SYNC Website ID hoặc tìm thấy theo domain)</li>
+                      <li>Thông tin từ Enhance sẽ được lưu vào database: domain, hosting, status, syncWebsiteId</li>
+                      <li>Không tạo hoặc cập nhật website lên Enhance Control Panel</li>
                     </ul>
                   </div>
                 </div>

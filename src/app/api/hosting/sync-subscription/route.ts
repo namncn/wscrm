@@ -96,9 +96,11 @@ export async function POST(req: NextRequest) {
       return createErrorResponse('orgId là bắt buộc. Vui lòng cấu hình orgId trong Control Panels settings hoặc ENHANCE_ORG_ID environment variable.', 400)
     }
 
-    // 3. Sync customer to Enhance nếu chưa có externalAccountId
-    let customerExternalId: string | undefined
-    if (!hostingRecord.externalAccountId) {
+    // 3. Lấy externalAccountId từ customer (không còn ở hosting nữa)
+    let customerExternalId: string | undefined = customerData.externalAccountId || undefined
+    
+    // Nếu customer chưa có externalAccountId, sync customer trước
+    if (!customerExternalId) {
       const syncResult = await ControlPanelSyncService.syncCustomerToControlPanel(
         {
           name: customerData.name,
@@ -117,8 +119,14 @@ export async function POST(req: NextRequest) {
       }
 
       customerExternalId = syncResult.externalAccountId
-    } else {
-      customerExternalId = hostingRecord.externalAccountId
+      
+      // Lưu externalAccountId vào customer
+      await db.update(customers)
+        .set({
+          externalAccountId: customerExternalId,
+          updatedAt: new Date(),
+        })
+        .where(eq(customers.id, customerData.id))
     }
 
     // 4. Lấy plan mapping
@@ -150,23 +158,8 @@ export async function POST(req: NextRequest) {
       return createErrorResponse('Không thể truy cập Enhance client', 500)
     }
 
-    // 5. Kiểm tra xem hosting đã có subscription ID trong syncMetadata chưa
-    let existingSubscriptionId: number | undefined
-    if (hostingRecord.syncMetadata) {
-      try {
-        const metadata = typeof hostingRecord.syncMetadata === 'string' 
-          ? JSON.parse(hostingRecord.syncMetadata) 
-          : hostingRecord.syncMetadata
-        const subscriptionIdValue = metadata.subscriptionId || metadata.externalSubscriptionId
-        if (subscriptionIdValue) {
-          existingSubscriptionId = typeof subscriptionIdValue === 'string' 
-            ? parseInt(subscriptionIdValue, 10) 
-            : subscriptionIdValue
-        }
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
+    // 5. Kiểm tra xem hosting đã có subscription ID chưa (từ cột mới)
+    const existingSubscriptionId: number | undefined = hostingRecord.subscriptionId || undefined
 
     // 6. Nếu không có subscription ID trong syncMetadata, tạo subscription mới
     // Không tìm subscription đã có để gán vào - mỗi hosting cần subscription riêng
@@ -277,6 +270,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 6. Update hosting record với subscription info
+    // Lưu subscriptionId vào cột mới, sử dụng lastSyncedAt cho tất cả sync operations
+    // Giữ syncMetadata cho các thông tin khác (retryCount, nextRetryAt, lastError, etc.)
     let currentMetadata: any = {}
     try {
       if (hostingRecord.syncMetadata) {
@@ -291,20 +286,16 @@ export async function POST(req: NextRequest) {
       currentMetadata = {}
     }
 
-    const updatedMetadata = {
-      ...currentMetadata,
-      subscriptionId: subscriptionId,
-      externalSubscriptionId: subscriptionId,
-      subscriptionSyncedAt: new Date().toISOString(),
-    }
+    // Loại bỏ subscriptionId và subscriptionSyncedAt khỏi syncMetadata (đã lưu vào cột riêng)
+    const { subscriptionId: _, externalSubscriptionId: __, subscriptionSyncedAt: ___, ...cleanMetadata } = currentMetadata
 
     try {
       await db.update(hosting)
         .set({
-          externalAccountId: customerExternalId,
+          subscriptionId: subscriptionId,
           syncStatus: 'SYNCED',
           lastSyncedAt: new Date(),
-          syncMetadata: updatedMetadata,
+          syncMetadata: Object.keys(cleanMetadata).length > 0 ? cleanMetadata : null,
         })
         .where(eq(hosting.id, hostingId))
     } catch (dbError: any) {

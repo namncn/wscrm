@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { ArrowLeft, Globe, Server, FileText, ShoppingCart, Users, Edit, Loader2, Activity, AlertCircle, Wrench } from 'lucide-react'
+import { ArrowLeft, Globe, Server, FileText, ShoppingCart, Users, Edit, Loader2, Activity, AlertCircle, Wrench, Link, User, Lock } from 'lucide-react'
 import DashboardLayout from '@/components/layout/dashboard-layout'
 import { toastError } from '@/lib/toast'
 
@@ -23,6 +23,9 @@ interface Website {
   status: 'LIVE' | 'DOWN' | 'MAINTENANCE'
   description: string | null
   notes: string | null
+  syncWebsiteId: string | null
+  username: string | null
+  password: string | null
   createdAt: string
   updatedAt: string
   domainName: string | null
@@ -131,16 +134,16 @@ export default function WebsiteViewPage() {
     <DashboardLayout>
       <div className="space-y-4">
         {/* Header */}
-        <div className="flex justify-between items-start">
-          <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={() => router.push('/admin/websites')}>
-              <ArrowLeft className="h-4 w-4" />
-              Quay lại
-            </Button>
+        <div className="space-y-4">
+          <Button variant="outline" onClick={() => router.push('/admin/websites')}>
+            <ArrowLeft className="h-4 w-4" />
+            Quay lại
+          </Button>
+          <div className="flex justify-between items-start">
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  {website.name}
+                  Chi tiết Website
                 </h1>
                 {getStatusBadge(website.status)}
               </div>
@@ -148,45 +151,14 @@ export default function WebsiteViewPage() {
                 <p className="text-sm text-gray-500 mt-1">{website.domainName}</p>
               )}
             </div>
+            <Button onClick={() => router.push(`/admin/websites/${website.id}/edit`)}>
+              <Edit className="h-4 w-4" />
+              Chỉnh sửa
+            </Button>
           </div>
-          <Button onClick={() => router.push(`/admin/websites/${website.id}/edit`)}>
-            <Edit className="h-4 w-4" />
-            Chỉnh sửa
-          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Basic Information */}
-          <Card>
-            <CardHeader className="gap-0">
-              <CardTitle className="text-base">Thông tin cơ bản</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div>
-                <label className="text-xs font-medium text-gray-500">Tên website</label>
-                <p className="mt-0.5">{website.name}</p>
-              </div>
-              {website.description && (
-                <>
-                  <Separator className="my-2" />
-                  <div>
-                    <label className="text-xs font-medium text-gray-500">Mô tả</label>
-                    <p className="mt-0.5">{website.description}</p>
-                  </div>
-                </>
-              )}
-              {website.notes && (
-                <>
-                  <Separator className="my-2" />
-                  <div>
-                    <label className="text-xs font-medium text-gray-500">Ghi chú</label>
-                    <p className="mt-0.5">{website.notes}</p>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
           {/* Customer Information */}
           <Card>
             <CardHeader className="gap-0">
@@ -312,6 +284,71 @@ export default function WebsiteViewPage() {
                 <label className="text-xs font-medium text-gray-500">Cập nhật</label>
                 <p className="mt-0.5">{new Date(website.updatedAt).toLocaleString('vi-VN')}</p>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* SYNC Website ID */}
+          <Card>
+            <CardHeader className="gap-0">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Link className="h-4 w-4 text-blue-600" />
+                <span>SYNC Website ID</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm">
+              {website.syncWebsiteId ? (
+                <p>{website.syncWebsiteId}</p>
+              ) : (
+                <p className="text-gray-400 text-xs">Chưa có SYNC Website ID</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Username */}
+          <Card>
+            <CardHeader className="gap-0">
+              <CardTitle className="text-base flex items-center gap-2">
+                <User className="h-4 w-4 text-green-600" />
+                <span>Tên đăng nhập</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm">
+              {website.username ? (
+                <p>{website.username}</p>
+              ) : (
+                <p className="text-gray-400 text-xs">Chưa có tên đăng nhập</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Password */}
+          <Card>
+            <CardHeader className="gap-0">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Lock className="h-4 w-4 text-red-600" />
+                <span>Mật khẩu</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm">
+              {website.password ? (
+                <p className="font-mono">{website.password}</p>
+              ) : (
+                <p className="text-gray-400 text-xs">Chưa có mật khẩu</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Notes */}
+          <Card>
+            <CardHeader className="gap-0">
+              <CardTitle className="text-base">Ghi chú</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm">
+              {website.notes ? (
+                <p className="whitespace-pre-wrap">{website.notes}</p>
+              ) : (
+                <p className="text-gray-400 text-xs">Chưa có ghi chú</p>
+              )}
             </CardContent>
           </Card>
         </div>

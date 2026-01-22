@@ -44,6 +44,7 @@ export default withAuth(
       '/auth/forgot-password',
       '/auth/reset-password',
       '/auth/verify',
+      '/verify-email-required',
       '/about',
       '/careers',
       '/news',
@@ -129,6 +130,7 @@ export default withAuth(
       publicRoutes.has(pathname) ||
       publicRoutePrefixes.some((route) => pathname.startsWith(route))
     const isCustomerRoute = customerRoutes.some(route => pathname.startsWith(route))
+    const isVerifyEmailRequiredRoute = pathname === '/verify-email-required'
     const isSharedMemberRoute = sharedMemberRoutes.some(route => pathname.startsWith(route))
     const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route))
     const isProductAPI = productAPIs.some(route => pathname.startsWith(route))
@@ -157,9 +159,26 @@ export default withAuth(
       }
     }
 
-    // Allow auth pages and register API for everyone
-    if (pathname.startsWith('/auth/') || isRegisterAPI) {
+    // Allow auth pages, register API, and verify-email-required page for everyone
+    if (pathname.startsWith('/auth/') || isRegisterAPI || isVerifyEmailRequiredRoute) {
       return NextResponse.next()
+    }
+
+    // Check if customer needs to verify email
+    if (token && userType === 'customer') {
+      const emailVerified = (token as any).emailVerified || 'NO'
+      
+      // If email is not verified and trying to access customer routes or checkout, redirect to verify page
+      if (emailVerified !== 'YES' && (isCustomerRoute || pathname === '/checkout')) {
+        if (!isApiRoute) {
+          return NextResponse.redirect(new URL('/verify-email-required', req.url))
+        }
+        // For API routes, return error
+        return NextResponse.json(
+          { error: 'Email chưa được xác nhận. Vui lòng xác nhận email trước khi tiếp tục.' },
+          { status: 403 }
+        )
+      }
     }
 
     // Check specific routes FIRST before general route checks
@@ -417,6 +436,7 @@ export default withAuth(
         '/auth/forgot-password',
         '/auth/reset-password',
         '/auth/verify',
+        '/verify-email-required',
         '/about',
         '/careers',
         '/news',

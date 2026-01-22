@@ -787,6 +787,135 @@ export class EnhanceClient {
   }
 
   /**
+   * Get SSO One-Time-Password link for a member
+   * Endpoint: GET /orgs/{org_id}/members/{member_id}/sso
+   * Returns a one-time password link that can be used to login
+   */
+  async getMemberSSO(orgId: string, memberId: string): Promise<EnhanceApiResponse<{ link: string }>> {
+    if (!orgId || !memberId) {
+      return {
+        success: false,
+        error: 'orgId and memberId are required',
+        statusCode: 400,
+      }
+    }
+
+    const endpoint = `/orgs/${orgId}/members/${memberId}/sso`
+    const url = `${this.baseUrl}${endpoint}`
+    
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`,
+      }
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout)
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+        redirect: 'manual', // Don't follow redirects automatically
+      })
+
+      clearTimeout(timeoutId)
+
+      // Check for redirect (302, 301, etc.)
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location')
+        if (location) {
+          return {
+            success: true,
+            data: { link: location },
+            statusCode: response.status,
+          }
+        }
+      }
+
+      const contentType = response.headers.get('content-type')
+      let data: any
+
+      if (contentType?.includes('application/json')) {
+        data = await response.json()
+      } else {
+        data = await response.text()
+      }
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.message || data.error || `HTTP ${response.status}: ${response.statusText}`,
+          statusCode: response.status,
+        }
+      }
+
+      // Parse response - SSO endpoint might return different formats
+      if (data) {
+        // If response is a string URL directly
+        if (typeof data === 'string' && (data.startsWith('http') || data.startsWith('https'))) {
+          return {
+            success: true,
+            data: { link: data },
+            statusCode: response.status,
+          }
+        }
+
+        // If response is an object, try different field names
+        if (typeof data === 'object' && !Array.isArray(data)) {
+          const link = data.link || data.url || data.loginUrl || data.ssoUrl || data.oneTimePasswordLink || data.oneTimePassword
+          
+          if (link && typeof link === 'string') {
+            return {
+              success: true,
+              data: { link },
+              statusCode: response.status,
+            }
+          }
+        }
+      }
+      
+      console.error('[getMemberSSO] Unexpected response format:', data)
+      return {
+        success: false,
+        error: 'SSO response does not contain a valid link',
+        statusCode: response.status || 500,
+      }
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        return {
+          success: false,
+          error: 'Request timeout',
+        }
+      }
+      console.error('[getMemberSSO] Request failed:', error)
+      return {
+        success: false,
+        error: error.message || 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Get members of an organization
+   * Endpoint: GET /orgs/{org_id}/members
+   */
+  async getMembers(orgId: string): Promise<EnhanceApiResponse<any[]>> {
+    if (!orgId) {
+      return {
+        success: false,
+        error: 'orgId is required',
+        statusCode: 400,
+      }
+    }
+
+    const endpoint = `/orgs/${orgId}/members`
+    const result = await this.request<any[]>(endpoint, 'GET')
+    
+    return result
+  }
+
+  /**
    * Get website by ID
    * Endpoint: GET /orgs/{org_id}/websites/{website_id}
    * Note: Website can be accessed from parent org or the org where it was created

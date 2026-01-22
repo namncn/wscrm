@@ -2,6 +2,8 @@
 
 Hướng dẫn chi tiết để deploy ứng dụng CRM lên VPS tự quản lý (Ubuntu/Debian).
 
+> **💡 Lưu ý**: Nếu bạn đang sử dụng **CyberPanel**, vui lòng xem hướng dẫn riêng tại [DEPLOYMENT_CYBERPANEL.md](./DEPLOYMENT_CYBERPANEL.md) để tận dụng tối đa các tính năng của CyberPanel.
+
 ---
 
 ## 📋 Mục lục
@@ -32,7 +34,7 @@ Hướng dẫn chi tiết để deploy ứng dụng CRM lên VPS tự quản lý
 
 ### Phần mềm
 - **OS**: Ubuntu 20.04+ hoặc Debian 11+
-- **Node.js**: >= 18 LTS
+- **Node.js**: >= 20 LTS (khuyến nghị Node.js 20.x - phiên bản tối ưu và ổn định nhất)
 - **MySQL/MariaDB**: >= 10.3
 - **Nginx**: Latest stable
 - **PM2**: Process manager
@@ -75,16 +77,31 @@ su - crmuser
 
 ## Cài đặt phần mềm cần thiết
 
-### 1. Cài đặt Node.js 18 LTS
+### 1. Cài đặt Node.js 20 LTS (Khuyến nghị)
+
+**Lưu ý:** Node.js 20 LTS là phiên bản tối ưu nhất hiện tại với hiệu năng tốt hơn, bảo mật cao hơn và hỗ trợ dài hạn đến năm 2026.
 
 ```bash
-# Cài đặt Node.js qua NodeSource
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+# Cài đặt Node.js 20 LTS qua NodeSource
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
 # Kiểm tra phiên bản
-node -v  # Phải >= 18.x
+node -v  # Phải >= 20.x
 npm -v
+```
+
+**Nâng cấp từ Node.js 18 (nếu đã cài đặt):**
+```bash
+# Xóa Node.js cũ (nếu cần)
+sudo apt-get remove -y nodejs
+
+# Cài đặt Node.js 20 LTS
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Kiểm tra lại
+node -v  # Phải >= 20.x
 ```
 
 ### 2. Cài đặt MySQL/MariaDB
@@ -875,7 +892,7 @@ mysql -u crm_user -p -e "SHOW PROCESSLIST;" crm_db
 ## Checklist Deploy
 
 - [ ] VPS đã được cấu hình và cập nhật
-- [ ] Node.js >= 18 đã được cài đặt
+- [ ] Node.js >= 20 LTS đã được cài đặt (khuyến nghị Node.js 20.x)
 - [ ] MySQL/MariaDB đã được cài đặt và cấu hình
 - [ ] Database và user đã được tạo
 - [ ] Nginx đã được cài đặt và cấu hình
