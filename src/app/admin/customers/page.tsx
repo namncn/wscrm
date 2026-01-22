@@ -48,6 +48,7 @@ interface Customer {
   updatedAt: string
   userId: string
   emailVerified?: 'YES' | 'NO'
+  externalAccountId?: string | null
 }
 
 export default function CustomersPage() {
@@ -91,7 +92,8 @@ export default function CustomersPage() {
     companyPhone: '',
     companyTaxCode: '',
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED',
-    password: ''
+    password: '',
+    externalAccountId: ''
   })
 
   // Fetch customers from API
@@ -188,7 +190,8 @@ export default function CustomersPage() {
       companyPhone: customer.companyPhone || '',
       companyTaxCode: customer.companyTaxCode || '',
       status: customer.status,
-      password: ''
+      password: '',
+      externalAccountId: customer.externalAccountId || ''
     })
     setIsEditDialogOpen(true)
   }
@@ -213,7 +216,8 @@ export default function CustomersPage() {
         companyAddress: editCustomer.companyAddress || null,
         companyPhone: editCustomer.companyPhone || null,
         companyTaxCode: editCustomer.companyTaxCode || null,
-        status: editCustomer.status
+        status: editCustomer.status,
+        externalAccountId: editCustomer.externalAccountId || null
       }
 
       // Only include password if it's provided
@@ -273,19 +277,15 @@ export default function CustomersPage() {
 
       if (response.ok && data.success) {
         const action = data.data?.action || 'synced'
-        let message = `Đồng bộ customer "${selectedCustomer.name}" thành công!`
-        
-        if (action === 'created') {
-          message = `Đã tạo customer "${selectedCustomer.name}" trên control panel thành công!`
-        } else if (action === 'updated') {
-          message = `Đã cập nhật customer "${selectedCustomer.name}" trên control panel thành công!`
-        } else if (action === 'no_change') {
-          message = `Customer "${selectedCustomer.name}" đã tồn tại và không có thay đổi cần cập nhật.`
-        }
+        // Use the message from API response which is more accurate
+        const apiMessage = data.message || ''
+        let message = apiMessage || `Đồng bộ customer "${selectedCustomer.name}" thành công!`
         
         toastSuccess(message)
         setIsSyncCustomerDialogOpen(false)
         setSelectedCustomer(null)
+        // Refresh customers list to show updated data
+        await fetchCustomers()
       } else {
         toastError(data.error || 'Không thể đồng bộ customer với control panel')
       }
@@ -588,7 +588,7 @@ export default function CustomersPage() {
 
         {/* View Customer Dialog */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+          <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col p-0">
             <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Chi Tiết Khách Hàng</DialogTitle>
               <DialogDescription>
@@ -686,6 +686,10 @@ export default function CustomersPage() {
                         <div className="col-span-3 text-sm">{selectedCustomer.userId || 'Chưa có'}</div>
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
+                        <Label className="text-right font-medium">SYNC Customer ID</Label>
+                        <div className="col-span-3 text-sm">{selectedCustomer.externalAccountId || 'Chưa có'}</div>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label className="text-right font-medium">Ngày tạo</Label>
                         <div className="col-span-3 text-sm">
                           {new Date(selectedCustomer.createdAt).toLocaleDateString('vi-VN', { 
@@ -725,7 +729,7 @@ export default function CustomersPage() {
 
         {/* Edit Customer Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+          <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col p-0">
             <DialogHeader className="px-6 pt-6 pb-4">
               <DialogTitle>Chỉnh Sửa Khách Hàng</DialogTitle>
               <DialogDescription>
@@ -905,6 +909,18 @@ export default function CustomersPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="edit-externalAccountId" className="text-right">
+                        SYNC Customer ID
+                      </Label>
+                      <Input 
+                        id="edit-externalAccountId" 
+                        className="col-span-3" 
+                        placeholder="Nhập ID customer từ Enhance Control Panel"
+                        value={editCustomer.externalAccountId}
+                        onChange={(e) => setEditCustomer({...editCustomer, externalAccountId: e.target.value})}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -950,9 +966,9 @@ export default function CustomersPage() {
         <Dialog open={isSyncCustomerDialogOpen} onOpenChange={setIsSyncCustomerDialogOpen}>
           <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
             <DialogHeader className="px-6 pt-6 pb-4">
-              <DialogTitle>Sync Customer lên Control Panel</DialogTitle>
+              <DialogTitle>Đồng bộ Customer từ Control Panel</DialogTitle>
               <DialogDescription>
-                Bạn có chắc chắn muốn đồng bộ khách hàng này lên Control Panel không?
+                Đồng bộ thông tin khách hàng từ Enhance Control Panel vào database
               </DialogDescription>
             </DialogHeader>
             {selectedCustomer && (
@@ -969,11 +985,29 @@ export default function CustomersPage() {
                       {selectedCustomer.company && (
                         <div><span className="font-medium">Công ty:</span> {selectedCustomer.company}</div>
                       )}
+                      {selectedCustomer.externalAccountId && (
+                        <div><span className="font-medium">SYNC Customer ID:</span> {selectedCustomer.externalAccountId}</div>
+                      )}
                     </div>
                   </div>
                   <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
                     <div className="text-sm text-yellow-800">
-                      <strong>Lưu ý:</strong> Hành động này sẽ tạo hoặc cập nhật thông tin khách hàng trên Control Panel.
+                      <div className="font-medium mb-1">Lưu ý:</div>
+                      <ul className="list-disc list-inside space-y-1 text-xs">
+                        {selectedCustomer.externalAccountId ? (
+                          <>
+                            <li>Hệ thống sẽ lấy thông tin customer từ Enhance Control Panel bằng SYNC Customer ID</li>
+                            <li>Nếu có sự khác biệt, thông tin từ Enhance sẽ được cập nhật vào database</li>
+                            <li>Nếu customer không tồn tại trên Enhance, hệ thống sẽ tạo customer mới</li>
+                          </>
+                        ) : (
+                          <>
+                            <li>Customer chưa có SYNC Customer ID</li>
+                            <li>Hệ thống sẽ tạo customer mới trên Enhance Control Panel</li>
+                            <li>SYNC Customer ID sẽ được lưu vào database sau khi tạo thành công</li>
+                          </>
+                        )}
+                      </ul>
                     </div>
                   </div>
                 </div>

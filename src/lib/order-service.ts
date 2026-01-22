@@ -153,25 +153,25 @@ async function createHostingService(item: any, customerId: number): Promise<bool
       .limit(1)
 
     if (createdHosting[0]) {
-      // Sync với control panel (async, không block)
-      // Không await để không block order completion
-      ControlPanelSyncService.syncHostingToControlPanel(createdHosting[0].id)
-        .then(result => {
-          if (result.success) {
-            console.log(`[OrderService] Hosting ${createdHosting[0].id} synced to control panel successfully`)
-          } else {
-            console.error(`[OrderService] Failed to sync hosting ${createdHosting[0].id}:`, result.error)
-            // Add to retry queue
-            RetryQueue.addToQueue(createdHosting[0].id, result.error || 'Unknown error')
-              .catch(err => console.error(`[OrderService] Error adding to retry queue:`, err))
-          }
-        })
-        .catch(error => {
-          console.error(`[OrderService] Error syncing hosting ${createdHosting[0].id}:`, error)
+      // Sync với control panel để tạo customer và subscription lên Enhance
+      // Await để đảm bảo externalAccountId và subscriptionId được lưu
+      try {
+        const syncResult = await ControlPanelSyncService.syncHostingToControlPanel(createdHosting[0].id)
+        if (syncResult.success) {
+          console.log(`[OrderService] Hosting ${createdHosting[0].id} synced to control panel successfully`)
+          console.log(`[OrderService] Customer externalAccountId: ${syncResult.externalAccountId}`)
+        } else {
+          console.error(`[OrderService] Failed to sync hosting ${createdHosting[0].id}:`, syncResult.error)
           // Add to retry queue
-          RetryQueue.addToQueue(createdHosting[0].id, error.message || 'Unknown error')
+          RetryQueue.addToQueue(createdHosting[0].id, syncResult.error || 'Unknown error')
             .catch(err => console.error(`[OrderService] Error adding to retry queue:`, err))
-        })
+        }
+      } catch (error: any) {
+        console.error(`[OrderService] Error syncing hosting ${createdHosting[0].id}:`, error)
+        // Add to retry queue
+        RetryQueue.addToQueue(createdHosting[0].id, error.message || 'Unknown error')
+          .catch(err => console.error(`[OrderService] Error adding to retry queue:`, err))
+      }
     }
 
     return true

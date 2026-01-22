@@ -77,13 +77,9 @@ export const authOptions: NextAuthOptions = {
             return null
           }
 
-          // Check if email is verified
+          // Allow login even if email is not verified
           // emailVerified can be 'YES', 'NO', or might not exist (default to 'NO')
           const emailVerified = customer.emailVerified || 'NO'
-          if (emailVerified !== 'YES') {
-            // Throw error to prevent login, NextAuth will handle this
-            throw new Error('EMAIL_NOT_VERIFIED')
-          }
 
           return {
             id: customer.id,
@@ -92,7 +88,8 @@ export const authOptions: NextAuthOptions = {
             role: 'CUSTOMER',
             userType: 'customer',
             customerId: customer.id,
-            userId: customer.userId
+            userId: customer.userId,
+            emailVerified: emailVerified // Include email verification status in session
           }
         } catch (error: any) {
           // Re-throw email verification error
@@ -128,6 +125,7 @@ export const authOptions: NextAuthOptions = {
         token.userId = (user as any).userId
         token.email = (user as any).email
         token.name = (user as any).name
+        token.emailVerified = (user as any).emailVerified || 'NO'
       }
       
       // Fetch fresh user data from database when:
@@ -171,14 +169,14 @@ export const authOptions: NextAuthOptions = {
           let customerData = null
           if (token.id) {
             customerData = await Database.queryOne(
-              'SELECT id, name, email FROM customers WHERE id = ?',
+              'SELECT id, name, email, emailVerified FROM customers WHERE id = ?',
               [token.id]
             )
           }
           // Fallback to email if ID not found
           if (!customerData && token.email) {
             customerData = await Database.queryOne(
-              'SELECT id, name, email FROM customers WHERE email = ?',
+              'SELECT id, name, email, emailVerified FROM customers WHERE email = ?',
               [token.email]
             )
           }
@@ -186,6 +184,7 @@ export const authOptions: NextAuthOptions = {
             token.name = customerData.name
             token.email = customerData.email
             token.id = customerData.id
+            token.emailVerified = customerData.emailVerified || 'NO'
           }
         } catch (error) {
           console.error('Error fetching updated customer data:', error)
@@ -202,6 +201,7 @@ export const authOptions: NextAuthOptions = {
         ;(session.user as any).userType = token.userType as string
         ;(session.user as any).customerId = token.customerId as string
         ;(session.user as any).userId = token.userId as string
+        ;(session.user as any).emailVerified = token.emailVerified as string || 'NO'
         // Update name and email from token (ensure we use the latest values)
         if (token.name) {
           session.user.name = token.name as string

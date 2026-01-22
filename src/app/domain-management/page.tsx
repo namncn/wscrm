@@ -165,7 +165,6 @@ export default function DomainManagementPage() {
                   placeholder="Tìm kiếm tên miền..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-md"
                 />
               </div>
             </CardContent>

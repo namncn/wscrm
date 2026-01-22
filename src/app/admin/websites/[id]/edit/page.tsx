@@ -21,7 +21,6 @@ import { toastSuccess, toastError } from '@/lib/toast'
 
 interface Website {
   id: number
-  name: string
   domainId: number | null
   hostingId: number | null
   vpsId: number | null
@@ -87,7 +86,6 @@ export default function WebsiteEditPage() {
 
 
   const [formData, setFormData] = useState({
-    name: '',
     domainId: null as number | null,
     hostingId: null as number | null,
     vpsId: null as number | null,
@@ -97,6 +95,9 @@ export default function WebsiteEditPage() {
     status: 'LIVE' as 'LIVE' | 'DOWN' | 'MAINTENANCE',
     description: '',
     notes: '',
+    syncWebsiteId: '',
+    username: '',
+    password: '',
   })
 
   // Check authentication and redirect if needed
@@ -149,7 +150,6 @@ export default function WebsiteEditPage() {
           const data = result.data
           setWebsite(data)
           setFormData({
-            name: data.name || '',
             domainId: data.domainId || null,
             hostingId: data.hostingId || null,
             vpsId: data.vpsId || null,
@@ -159,6 +159,9 @@ export default function WebsiteEditPage() {
             status: data.status || 'LIVE',
             description: data.description || '',
             notes: data.notes || '',
+            syncWebsiteId: data.syncWebsiteId || '',
+            username: data.username || '',
+            password: data.password || '',
           })
         } else {
           toastError('Không thể tải thông tin website')
@@ -279,8 +282,8 @@ export default function WebsiteEditPage() {
   const handleSave = async () => {
     if (!website?.id) return
 
-    if (!formData.name || !formData.customerId) {
-      toastError('Tên website và khách hàng là bắt buộc')
+    if (!formData.customerId) {
+      toastError('Khách hàng là bắt buộc')
       return
     }
 
@@ -374,17 +377,6 @@ export default function WebsiteEditPage() {
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="name">
-                  Tên website <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  placeholder="Nhập tên website"
-                />
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="customerId">
                   Khách hàng <span className="text-red-500">*</span>
                 </Label>
@@ -403,7 +395,7 @@ export default function WebsiteEditPage() {
                   value={formData.status}
                   onValueChange={(value: 'LIVE' | 'DOWN' | 'MAINTENANCE') => setFormData({...formData, status: value})}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -457,6 +449,35 @@ export default function WebsiteEditPage() {
                   orders={orders}
                   value={formData.orderId}
                   onValueChange={(value) => setFormData({...formData, orderId: value || ''})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="syncWebsiteId">SYNC Website ID</Label>
+                <Input
+                  id="syncWebsiteId"
+                  placeholder="Nhập ID website từ Enhance Control Panel"
+                  value={formData.syncWebsiteId}
+                  onChange={(e) => setFormData({...formData, syncWebsiteId: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="username">Tên đăng nhập</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="Nhập tên đăng nhập"
+                  value={formData.username}
+                  onChange={(e) => setFormData({...formData, username: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Mật khẩu</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Nhập mật khẩu"
+                  value={formData.password}
+                  onChange={(e) => setFormData({...formData, password: e.target.value})}
                 />
               </div>
             </div>

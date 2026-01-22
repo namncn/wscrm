@@ -568,6 +568,34 @@ export async function POST(req: Request) {
           updateData.company = customerInfo.company
         }
         
+        // Update taxCode if provided
+        if (customerInfo.taxCode && 
+            (customerInfo.taxCode !== customer[0].taxCode) &&
+            (!customer[0].taxCode || (typeof customer[0].taxCode === 'string' && customer[0].taxCode.trim() === ''))) {
+          updateData.taxCode = customerInfo.taxCode
+        }
+        
+        // Update companyEmail if provided
+        if (customerInfo.companyEmail && 
+            (customerInfo.companyEmail !== customer[0].companyEmail) &&
+            (!customer[0].companyEmail || (typeof customer[0].companyEmail === 'string' && customer[0].companyEmail.trim() === ''))) {
+          updateData.companyEmail = customerInfo.companyEmail
+        }
+        
+        // Update companyAddress if provided
+        if (customerInfo.companyAddress && 
+            (customerInfo.companyAddress !== customer[0].companyAddress) &&
+            (!customer[0].companyAddress || (typeof customer[0].companyAddress === 'string' && customer[0].companyAddress.trim() === ''))) {
+          updateData.companyAddress = customerInfo.companyAddress
+        }
+        
+        // Update companyPhone if provided
+        if (customerInfo.companyPhone && 
+            (customerInfo.companyPhone !== customer[0].companyPhone) &&
+            (!customer[0].companyPhone || (typeof customer[0].companyPhone === 'string' && customer[0].companyPhone.trim() === ''))) {
+          updateData.companyPhone = customerInfo.companyPhone
+        }
+        
         if (Object.keys(updateData).length > 0) {
           updateData.updatedAt = new Date()
           await db

@@ -170,7 +170,6 @@ export default function VPSManagementPage() {
                   placeholder="Tìm kiếm VPS..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-md"
                 />
               </div>
             </CardContent>

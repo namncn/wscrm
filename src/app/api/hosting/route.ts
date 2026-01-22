@@ -292,7 +292,7 @@ export async function PUT(req: Request) {
   try {
     const body = await req.json()
     const { 
-      id, hostingTypeId, customerId, status, ipAddress, expiryDate, createdAt
+      id, hostingTypeId, customerId, status, ipAddress, expiryDate, createdAt, subscriptionId
     } = body
 
     if (!id) {
@@ -321,6 +321,7 @@ export async function PUT(req: Request) {
     if (ipAddress !== undefined) updateData.ipAddress = ipAddress || null
     if (expiryDate !== undefined) updateData.expiryDate = expiryDate ? expiryDate.split('T')[0] : null
     if (createdAt !== undefined) updateData.createdAt = createdAt ? new Date(createdAt.split('T')[0]) : existingHosting[0].createdAt
+    if (subscriptionId !== undefined) updateData.subscriptionId = subscriptionId ? parseInt(String(subscriptionId), 10) : null
 
     await db
       .update(hosting)
@@ -401,52 +402,57 @@ export async function DELETE(req: Request) {
 
     // Nếu hosting đã được sync và có subscription ID, xóa subscription trên Control Panel trước
     let warning: string | undefined
-    if (hostingRecord.syncMetadata && hostingRecord.externalAccountId) {
+    
+    // Lấy externalAccountId từ customer (không còn ở hosting nữa)
+    const customerData = await db.select({ externalAccountId: customers.externalAccountId })
+      .from(customers)
+      .where(eq(customers.id, hostingRecord.customerId))
+      .limit(1)
+    
+    const customerExternalId = customerData[0]?.externalAccountId
+    
+    // Sử dụng subscriptionId từ cột mới (không còn lấy từ syncMetadata)
+    const subscriptionId = hostingRecord.subscriptionId
+
+    if (subscriptionId && customerExternalId) {
       try {
-        const metadata = typeof hostingRecord.syncMetadata === 'string' 
-          ? JSON.parse(hostingRecord.syncMetadata) 
-          : hostingRecord.syncMetadata
-        const subscriptionId = metadata.subscriptionId || metadata.externalSubscriptionId
+        // Lấy control panel config
+        const controlPanel = await db.select()
+          .from(controlPanels)
+          .where(and(
+            eq(controlPanels.enabled, 'YES'),
+            eq(controlPanels.type, 'ENHANCE')
+          ))
+          .limit(1)
 
-        if (subscriptionId) {
-          // Lấy control panel config
-          const controlPanel = await db.select()
-            .from(controlPanels)
-            .where(and(
-              eq(controlPanels.enabled, 'YES'),
-              eq(controlPanels.type, 'ENHANCE')
-            ))
-            .limit(1)
-
-          if (controlPanel.length > 0) {
-            let config: any = controlPanel[0].config
-            if (typeof config === 'string') {
-              try {
-                config = JSON.parse(config)
-              } catch (parseError) {
-                config = {}
-              }
+        if (controlPanel.length > 0) {
+          let config: any = controlPanel[0].config
+          if (typeof config === 'string') {
+            try {
+              config = JSON.parse(config)
+            } catch (parseError) {
+              config = {}
             }
+          }
 
-            if (!config.orgId && process.env.ENHANCE_ORG_ID) {
-              config.orgId = process.env.ENHANCE_ORG_ID
-            }
+          if (!config.orgId && process.env.ENHANCE_ORG_ID) {
+            config.orgId = process.env.ENHANCE_ORG_ID
+          }
 
-            if (config.orgId) {
-              const controlPanelInstance = ControlPanelFactory.create(controlPanel[0].type as ControlPanelType, config)
-              const enhanceAdapter = controlPanelInstance as any
-              const enhanceClient = (enhanceAdapter as any).client
+          if (config.orgId) {
+            const controlPanelInstance = ControlPanelFactory.create(controlPanel[0].type as ControlPanelType, config)
+            const enhanceAdapter = controlPanelInstance as any
+            const enhanceClient = (enhanceAdapter as any).client
 
-              if (enhanceClient) {
-                const deleteResult = await enhanceClient.deleteSubscription(
-                  hostingRecord.externalAccountId,
-                  subscriptionId
-                )
+            if (enhanceClient) {
+              const deleteResult = await enhanceClient.deleteSubscription(
+                customerExternalId,
+                subscriptionId
+              )
 
-                if (!deleteResult.success) {
-                  warning = `Không thể xóa subscription trên Control Panel: ${deleteResult.error || 'Unknown error'}. Hosting đã được xóa trong database.`
-                  console.error('[DeleteHosting] Failed to delete subscription:', deleteResult.error)
-                }
+              if (!deleteResult.success) {
+                warning = `Không thể xóa subscription trên Control Panel: ${deleteResult.error || 'Unknown error'}. Hosting đã được xóa trong database.`
+                console.error('[DeleteHosting] Failed to delete subscription:', deleteResult.error)
               }
             }
           }
@@ -467,13 +473,11 @@ export async function DELETE(req: Request) {
     let subscriptionDeleted = false
     
     // Kiểm tra xem có subscription đã được xóa thành công không
-    if (hostingRecord.syncMetadata && hostingRecord.externalAccountId) {
+    // Sử dụng subscriptionId từ cột mới
+    if (hostingRecord.subscriptionId && customerExternalId) {
+      const subscriptionId = hostingRecord.subscriptionId
+      
       try {
-        const metadata = typeof hostingRecord.syncMetadata === 'string' 
-          ? JSON.parse(hostingRecord.syncMetadata) 
-          : hostingRecord.syncMetadata
-        const subscriptionId = metadata.subscriptionId || metadata.externalSubscriptionId
-
         if (subscriptionId) {
           // Đã thử xóa subscription
           if (warning) {

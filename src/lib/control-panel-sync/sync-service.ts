@@ -18,7 +18,6 @@ export interface SyncResult {
   success: boolean
   error?: string
   externalAccountId?: string
-  externalWebsiteId?: string
 }
 
 export class ControlPanelSyncService {
@@ -44,17 +43,28 @@ export class ControlPanelSyncService {
 
       const hostingRecord = hostingData[0]
 
-      // 2. Kiểm tra nếu đã sync thành công rồi
-      if (hostingRecord.syncStatus === 'SYNCED' && hostingRecord.externalWebsiteId) {
+      // 2. Lấy customer info để kiểm tra externalAccountId
+      const customerData = await db.select()
+        .from(customers)
+        .where(eq(customers.id, hostingRecord.customerId))
+        .limit(1)
+
+      if (!customerData[0]) {
+        return { success: false, error: 'Customer not found' }
+      }
+
+      const customer = customerData[0]
+
+      // 3. Kiểm tra nếu đã sync thành công rồi (chỉ dựa vào syncStatus và subscriptionId)
+      if (hostingRecord.syncStatus === 'SYNCED' && hostingRecord.subscriptionId) {
         console.log(`[ControlPanelSync] Hosting ${hostingId} already synced`)
         return {
           success: true,
-          externalAccountId: hostingRecord.externalAccountId || undefined,
-          externalWebsiteId: hostingRecord.externalWebsiteId || undefined,
+          externalAccountId: customer.externalAccountId || undefined,
         }
       }
 
-      // 3. Update sync status to SYNCING
+      // 4. Update sync status to SYNCING
       await db.update(hosting)
         .set({
           syncStatus: 'SYNCING',
@@ -62,8 +72,8 @@ export class ControlPanelSyncService {
         })
         .where(eq(hosting.id, hostingId))
 
-      // 4. Lấy control panel (default hoặc specified)
-      let cpId = controlPanelId || hostingRecord.controlPanelId
+      // 5. Lấy control panel (default hoặc specified)
+      let cpId = controlPanelId
       if (!cpId) {
         const defaultCp = await ControlPanelFactory.getDefault()
         if (!defaultCp) {
@@ -110,24 +120,48 @@ export class ControlPanelSyncService {
         return { success: false, error: 'Control panel not found or inactive' }
       }
 
-      // 5. Lấy customer info
-      const customer = await db.select()
-        .from(customers)
-        .where(eq(customers.id, hostingRecord.customerId))
-        .limit(1)
+      // 6. Kiểm tra và sync customer nếu chưa có externalAccountId
+      let customerExternalId = customer.externalAccountId
+      
+      if (!customerExternalId) {
+        console.log(`[ControlPanelSync] Customer ${customer.id} chưa có externalAccountId, đang sync customer...`)
+        
+        const syncCustomerResult = await this.syncCustomerToControlPanel(
+          {
+            name: customer.name,
+            email: customer.email,
+            phone: customer.phone || undefined,
+            company: customer.company || undefined,
+          },
+          cpId
+        )
 
-      if (!customer[0]) {
-        await db.update(hosting)
+        if (!syncCustomerResult.success || !syncCustomerResult.externalAccountId) {
+          await db.update(hosting)
+            .set({
+              syncStatus: 'FAILED',
+              syncError: `Không thể sync customer: ${syncCustomerResult.error || 'Unknown error'}`,
+              lastSyncedAt: new Date(),
+            })
+            .where(eq(hosting.id, hostingId))
+          return { 
+            success: false, 
+            error: `Không thể sync customer: ${syncCustomerResult.error || 'Unknown error'}` 
+          }
+        }
+
+        customerExternalId = syncCustomerResult.externalAccountId
+        
+        // Lưu externalAccountId vào customer
+        await db.update(customers)
           .set({
-            syncStatus: 'FAILED',
-            syncError: 'Customer not found',
-            lastSyncedAt: new Date(),
+            externalAccountId: customerExternalId,
+            updatedAt: new Date(),
           })
-          .where(eq(hosting.id, hostingId))
-        return { success: false, error: 'Customer not found' }
+          .where(eq(customers.id, customer.id))
       }
 
-      // 6. Lấy hosting package để map plan
+      // 7. Lấy hosting package để map plan
       const hostingPackage = await db.select()
         .from(hostingPackages)
         .where(eq(hostingPackages.id, hostingRecord.hostingTypeId))
@@ -144,7 +178,7 @@ export class ControlPanelSyncService {
         return { success: false, error: 'Hosting package not found' }
       }
 
-      // 7. Map plan từ local → control panel
+      // 8. Map plan từ local → control panel
       const planMapping = await this.getPlanMapping(
         cpId,
         'HOSTING',
@@ -156,16 +190,42 @@ export class ControlPanelSyncService {
         // Có thể tiếp tục mà không có plan mapping, tùy vào control panel
       }
 
-      // 8. Tạo hosting trên control panel
+      // 9. Tạo hosting trên control panel
+      // Lưu ý: Nếu không có domain, vẫn có thể tạo subscription và lưu subscriptionId
       const result = await controlPanel.createHosting({
-        customerId: customer[0].id.toString(), // Tạm thời dùng local ID
+        customerId: customerExternalId, // Sử dụng externalAccountId từ customer
         planId: planMapping?.externalPlanId || '',
-        email: customer[0].email,
-        // domain có thể lấy từ hosting record hoặc từ order item
+        email: customer.email,
+        // domain có thể lấy từ hosting record hoặc từ order item (optional)
+        // Nếu không có domain, vẫn tạo subscription nhưng không tạo website
       })
 
-      if (!result.success || !result.data) {
-        // Update sync status to FAILED
+      const hostingAccount = result.data
+
+      // 10. Extract subscriptionId from metadata (ngay cả khi createWebsite fail)
+      const subscriptionId = hostingAccount?.metadata?.subscriptionId || 
+                            (hostingAccount?.metadata as any)?.subscription?.id ||
+                            undefined
+
+      // 11. Nếu có subscriptionId, lưu vào database ngay (ngay cả khi createWebsite fail)
+      if (subscriptionId) {
+        await db.update(hosting)
+          .set({
+            syncStatus: 'SYNCED',
+            lastSyncedAt: new Date(),
+            subscriptionId: parseInt(String(subscriptionId), 10),
+            syncMetadata: hostingAccount?.metadata || {},
+            syncError: result.success ? null : (result.error || null), // Lưu lỗi nếu có nhưng vẫn đánh dấu SYNCED vì subscription đã được tạo
+          })
+          .where(eq(hosting.id, hostingId))
+
+        console.log(`[ControlPanelSync] Subscription ID ${subscriptionId} saved to hosting ${hostingId}`)
+        
+        if (!result.success) {
+          console.warn(`[ControlPanelSync] Website creation failed but subscription was created: ${result.error}`)
+        }
+      } else if (!result.success) {
+        // Nếu không có subscriptionId và createHosting fail, đánh dấu FAILED
         await db.update(hosting)
           .set({
             syncStatus: 'FAILED',
@@ -175,28 +235,23 @@ export class ControlPanelSyncService {
           .where(eq(hosting.id, hostingId))
 
         return { success: false, error: result.error }
+      } else {
+        // Nếu thành công nhưng không có subscriptionId (không có planId)
+        await db.update(hosting)
+          .set({
+            syncStatus: 'SYNCED',
+            lastSyncedAt: new Date(),
+            subscriptionId: null,
+            syncMetadata: hostingAccount?.metadata || {},
+          })
+          .where(eq(hosting.id, hostingId))
       }
-
-      const hostingAccount = result.data
-
-      // 9. Update hosting record với sync info
-      await db.update(hosting)
-        .set({
-          controlPanelId: cpId,
-          externalAccountId: hostingAccount.customerId,
-          externalWebsiteId: hostingAccount.id,
-          syncStatus: 'SYNCED',
-          lastSyncedAt: new Date(),
-          syncMetadata: hostingAccount.metadata || {},
-        })
-        .where(eq(hosting.id, hostingId))
 
       console.log(`[ControlPanelSync] Successfully synced hosting ${hostingId} to control panel`)
 
       return {
         success: true,
-        externalAccountId: hostingAccount.customerId,
-        externalWebsiteId: hostingAccount.id,
+        externalAccountId: customerExternalId,
       }
     } catch (error: any) {
       console.error(`[ControlPanelSync] Error syncing hosting ${hostingId}:`, error)

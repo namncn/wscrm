@@ -213,7 +213,6 @@ export default function WebsiteManagementPage() {
                   placeholder="Tìm kiếm website..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-md"
                 />
               </div>
             </CardContent>

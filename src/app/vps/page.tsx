@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import MemberLayout from '@/components/layout/member-layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -35,10 +37,13 @@ interface VpsProduct {
 
 export default function VpsPage() {
   const { data: session, status } = useSession()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   // VPS page is public - no authentication required
   const [isLoading, setIsLoading] = useState(false)
   const [vpsProducts, setVpsProducts] = useState<VpsProduct[]>([])
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
+  const [processedCartId, setProcessedCartId] = useState<string | null>(null)
 
   // Fetch VPS products from API (public access)
   useEffect(() => {
@@ -76,17 +81,7 @@ export default function VpsPage() {
     fetchVpsProducts()
   }, [])
 
-  if (isLoadingProducts) {
-    return (
-      <MemberLayout title="VPS">
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      </MemberLayout>
-    )
-  }
-
-  const handlePurchase = async (vps: VpsProduct) => {
+  const handlePurchase = useCallback(async (vps: VpsProduct) => {
     setIsLoading(true)
     try {
       const cartData = {
@@ -147,16 +142,128 @@ export default function VpsPage() {
         
         // Dispatch custom event to update cart count in header
         window.dispatchEvent(new Event('cartUpdated'))
-        
+
         toastSuccess('Đã thêm vào giỏ hàng! Chuyển đến trang giỏ hàng.')
         window.location.href = '/cart'
       }
     } catch (error: any) {
       toastError(`Lỗi: ${error.message || 'Có lỗi xảy ra khi thêm vào giỏ hàng'}`)
-      console.error('Error adding to cart:', error)
     } finally {
       setIsLoading(false)
     }
+  }, [status, session])
+
+  // Handle add_to_cart query parameter (for external links)
+  useEffect(() => {
+    const productId = searchParams.get('add_to_cart')
+    
+    // Only process if we have products loaded
+    if (!productId || isLoadingProducts || productId === processedCartId) {
+      return
+    }
+    
+    if (vpsProducts.length === 0) {
+      return
+    }
+    
+    // Try to find product - handle both string and number IDs
+    const product = vpsProducts.find(p => 
+      String(p.id) === String(productId) || p.id === productId
+    )
+    if (!product) {
+      return
+    }
+    
+    setProcessedCartId(productId)
+    
+    // Directly add to cart
+    const addToCart = async () => {
+      setIsLoading(true)
+      try {
+        const cartData = {
+          id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          serviceId: product.id,
+          serviceType: 'VPS',
+          serviceName: product.name,
+          quantity: 1,
+          price: product.price.toString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+
+        // If user is logged in, use API
+        if (status === 'authenticated' && session?.user) {
+          const response = await fetch('/api/cart', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              serviceId: product.id,
+              serviceType: 'VPS',
+              serviceName: product.name,
+              quantity: 1,
+              price: product.price
+            }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.error || 'Không thể thêm vào giỏ hàng')
+          }
+
+          window.dispatchEvent(new Event('cartUpdated'))
+          toastSuccess('Đã thêm vào giỏ hàng!')
+          
+          // Remove query parameters
+          router.replace('/vps', { scroll: false })
+          setTimeout(() => setProcessedCartId(null), 2000)
+        } else {
+          // If not logged in, use localStorage
+          const existingCart = localStorage.getItem('cart')
+          const cartItems = existingCart ? JSON.parse(existingCart) : []
+          
+          // Check if item already exists
+          const existingIndex = cartItems.findIndex(
+            (item: any) => item.serviceId === product.id && item.serviceType === 'VPS'
+          )
+          
+          if (existingIndex >= 0) {
+            cartItems[existingIndex].quantity += 1
+            cartItems[existingIndex].updatedAt = new Date().toISOString()
+          } else {
+            cartItems.push(cartData)
+          }
+          
+          localStorage.setItem('cart', JSON.stringify(cartItems))
+          
+          window.dispatchEvent(new Event('cartUpdated'))
+          toastSuccess('Đã thêm vào giỏ hàng!')
+          
+          // Remove query parameters
+          router.replace('/vps', { scroll: false })
+          setTimeout(() => setProcessedCartId(null), 2000)
+        }
+      } catch (error: any) {
+        toastError(`Lỗi: ${error.message || 'Có lỗi xảy ra khi thêm vào giỏ hàng'}`)
+        setProcessedCartId(null)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    // Call addToCart immediately
+    addToCart()
+  }, [searchParams, vpsProducts, isLoadingProducts, processedCartId, status, session, router])
+
+  if (isLoadingProducts) {
+    return (
+      <MemberLayout title="VPS">
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      </MemberLayout>
+    )
   }
 
   const formatCurrency = (amount: number) => {
@@ -235,23 +342,13 @@ export default function VpsPage() {
                         </div>
                       </div>
                       
-                      <Button 
-                        className="w-full mt-4 bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-slate-700 text-white shadow-md hover:shadow-lg transition-all duration-300" 
-                        onClick={() => handlePurchase(vps)}
-                        disabled={isLoading}
+                      <Link
+                        href={`/vps?add_to_cart=${vps.id}`}
+                        className="w-full mt-4 inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all cursor-pointer disabled:pointer-events-none disabled:opacity-50 bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-slate-700 text-white shadow-md hover:shadow-lg transition-all duration-300 h-9 px-4 py-2"
                       >
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Đang xử lý...
-                          </>
-                        ) : (
-                          <>
-                            <ShoppingCart className="h-4 w-4" />
-                            Đăng ký ngay
-                          </>
-                        )}
-                      </Button>
+                        <ShoppingCart className="h-4 w-4" />
+                        Đăng ký ngay
+                      </Link>
                     </div>
                   </CardContent>
                 </Card>

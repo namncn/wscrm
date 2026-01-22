@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS customers (
   companyTaxCode VARCHAR(50),
   status ENUM('ACTIVE', 'INACTIVE', 'SUSPENDED') DEFAULT 'ACTIVE',
   userId INT,
+  externalAccountId VARCHAR(255),
   emailVerified ENUM('YES', 'NO') DEFAULT 'NO',
   verificationToken VARCHAR(255),
   pendingEmail VARCHAR(255),
@@ -146,9 +147,7 @@ CREATE TABLE IF NOT EXISTS hosting (
   ipAddress VARCHAR(45),
   expiryDate DATE,
   -- Control Panel fields
-  controlPanelId INT NULL,
-  externalAccountId VARCHAR(255),
-  externalWebsiteId VARCHAR(255),
+  subscriptionId INT NULL,
   syncStatus ENUM('PENDING', 'SYNCED', 'FAILED', 'SYNCING') DEFAULT 'PENDING',
   syncError TEXT,
   lastSyncedAt TIMESTAMP NULL,
@@ -156,8 +155,7 @@ CREATE TABLE IF NOT EXISTS hosting (
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (hostingTypeId) REFERENCES hosting_packages(id) ON DELETE RESTRICT,
-  FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE,
-  FOREIGN KEY (controlPanelId) REFERENCES control_panels(id) ON DELETE SET NULL
+  FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE
 );
 
 -- VPS Packages table (pre-defined packages, no customer assignment)
@@ -400,7 +398,6 @@ CREATE TABLE IF NOT EXISTS email_notifications (
 -- Websites table
 CREATE TABLE IF NOT EXISTS websites (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
   domainId INT,
   hostingId INT,
   vpsId INT,
@@ -410,6 +407,9 @@ CREATE TABLE IF NOT EXISTS websites (
   status ENUM('LIVE','DOWN','MAINTENANCE') DEFAULT 'LIVE',
   description TEXT,
   notes TEXT,
+  syncWebsiteId VARCHAR(255),
+  username VARCHAR(255),
+  password VARCHAR(255),
   createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (domainId) REFERENCES domain(id) ON DELETE SET NULL,
@@ -712,6 +712,7 @@ INSERT IGNORE INTO email_notifications (customerId, serviceId, serviceType, noti
 -- Note: MySQL/MariaDB does not support CREATE INDEX IF NOT EXISTS syntax
 CREATE INDEX idx_customers_email ON customers(email);
 CREATE INDEX idx_customers_userId ON customers(userId);
+CREATE INDEX idx_customers_externalAccountId ON customers(externalAccountId);
 CREATE INDEX idx_orders_customerId ON orders(customerId);
 CREATE INDEX idx_orders_userId ON orders(userId);
 CREATE INDEX idx_order_items_orderId ON order_items(orderId);
@@ -738,12 +739,13 @@ CREATE INDEX idx_websites_vpsId ON websites(vpsId);
 CREATE INDEX idx_websites_contractId ON websites(contractId);
 CREATE INDEX idx_websites_orderId ON websites(orderId);
 CREATE INDEX idx_websites_status ON websites(status);
+CREATE INDEX idx_websites_syncWebsiteId ON websites(syncWebsiteId);
 CREATE INDEX idx_domain_domainTypeId ON domain(domainTypeId);
 CREATE INDEX idx_domain_customerId ON domain(customerId);
 CREATE INDEX idx_hosting_hostingTypeId ON hosting(hostingTypeId);
 CREATE INDEX idx_hosting_customerId ON hosting(customerId);
-CREATE INDEX idx_hosting_controlPanelId ON hosting(controlPanelId);
 CREATE INDEX idx_hosting_syncStatus ON hosting(syncStatus);
+CREATE INDEX idx_hosting_subscriptionId ON hosting(subscriptionId);
 CREATE INDEX idx_vps_vpsTypeId ON vps(vpsTypeId);
 CREATE INDEX idx_vps_customerId ON vps(customerId);
 CREATE INDEX idx_control_panels_enabled ON control_panels(enabled);

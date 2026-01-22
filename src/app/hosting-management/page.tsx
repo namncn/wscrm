@@ -11,9 +11,15 @@ import {
   Server,
   Search,
   Calendar,
-  MapPin
+  MapPin,
+  HardDrive,
+  Zap,
+  CalendarCheck,
+  Network,
+  ExternalLink
 } from 'lucide-react'
-import { toastError } from '@/lib/toast'
+import { toastError, toastSuccess } from '@/lib/toast'
+import { Button } from '@/components/ui/button'
 
 interface RegisteredHosting {
   id: string
@@ -25,6 +31,8 @@ interface RegisteredHosting {
   status: string
   expiryDate?: string
   serverLocation?: string
+  createdAt?: string
+  ipAddress?: string
 }
 
 export default function HostingManagementPage() {
@@ -167,7 +175,6 @@ export default function HostingManagementPage() {
                   placeholder="Tìm kiếm hosting..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-md"
                 />
               </div>
             </CardContent>
@@ -202,34 +209,109 @@ export default function HostingManagementPage() {
                   <CardContent>
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Dung lượng:</span>
-                        <span className="font-medium">{h.storage}GB SSD</span>
+                        <div className="flex items-center space-x-2">
+                          <HardDrive className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm text-gray-600">Dung lượng:</span>
+                        </div>
+                        <span className="text-sm font-medium">
+                          {h.storage === 0 || h.storage === null || h.storage === undefined
+                            ? 'Unlimited'
+                            : (() => {
+                                // Convert MB to GB (divide by 1024)
+                                const gb = h.storage / 1024
+                                const displayValue = gb % 1 === 0 ? gb : gb.toFixed(1)
+                                return `${displayValue}GB NVME`
+                              })()}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Băng thông:</span>
-                        <span className="font-medium">{h.bandwidth}GB/tháng</span>
+                        <div className="flex items-center space-x-2">
+                          <Zap className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm text-gray-600">Băng thông:</span>
+                        </div>
+                        <span className="text-sm font-medium">
+                          {h.bandwidth === 0 || h.bandwidth === null || h.bandwidth === undefined 
+                            ? 'Unlimited' 
+                            : (() => {
+                                // Convert MB to GB (divide by 1024)
+                                const gb = h.bandwidth / 1024
+                                const displayValue = gb % 1 === 0 ? gb : gb.toFixed(1)
+                                return `${displayValue}GB/tháng`
+                              })()}
+                        </span>
                       </div>
                       {h.serverLocation && (
-                        <div className="flex items-center space-x-2">
-                          <MapPin className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm text-gray-600">{h.serverLocation}</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <MapPin className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-gray-600">Vị trí server:</span>
+                          </div>
+                          <span className="text-sm font-medium">{h.serverLocation}</span>
+                        </div>
+                      )}
+                      {h.ipAddress && (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Network className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-gray-600">IP Address:</span>
+                          </div>
+                          <span className="text-sm font-medium">{h.ipAddress}</span>
+                        </div>
+                      )}
+                      {h.createdAt && (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <CalendarCheck className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-gray-600">Ngày đăng ký:</span>
+                          </div>
+                          <span className="text-sm font-medium">{formatDate(h.createdAt)}</span>
                         </div>
                       )}
                       {h.expiryDate && (
-                        <div className="flex items-center space-x-2">
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm text-gray-600">
-                            Hết hạn: {formatDate(h.expiryDate)}
-                          </span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Calendar className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-gray-600">Hết hạn:</span>
+                          </div>
+                          <span className="text-sm font-medium">{formatDate(h.expiryDate)}</span>
                         </div>
                       )}
                       <div className="pt-3 border-t">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between mb-3">
                           <span className="text-sm text-gray-600">Giá:</span>
                           <span className="text-lg font-bold text-green-600">
                             {formatCurrency(parseFloat(h.price.toString()))}
                           </span>
                         </div>
+                        <Button
+                          onClick={async () => {
+                            try {
+                              const response = await fetch(`/api/hosting/${h.id}/login-control-panel`)
+                              const result = await response.json()
+                              
+                              if (result.success && result.data) {
+                                // Try different possible field names
+                                const loginUrl = result.data.loginUrl || result.data.link || result.data.url
+                                
+                                if (loginUrl) {
+                                  window.open(loginUrl, '_blank', 'noopener,noreferrer')
+                                } else {
+                                  toastError('Không tìm thấy login URL trong response')
+                                }
+                              } else {
+                                toastError(result.message || 'Không thể tạo login URL')
+                              }
+                            } catch (error) {
+                              console.error('Error opening control panel:', error)
+                              toastError('Có lỗi xảy ra khi mở Control Panel')
+                            }
+                          }}
+                          className="w-full"
+                          variant="outline"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          Đăng nhập Control Panel
+                        </Button>
                       </div>
                     </div>
                   </CardContent>

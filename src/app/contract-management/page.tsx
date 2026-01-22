@@ -331,7 +331,6 @@ export default function ContractManagementPage() {
                   placeholder="Tìm kiếm hợp đồng..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-md"
                 />
               </div>
             </CardContent>

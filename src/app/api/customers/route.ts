@@ -54,6 +54,7 @@ export async function GET(req: Request) {
         status: customers.status,
         userId: customers.userId,
         emailVerified: customers.emailVerified,
+        externalAccountId: customers.externalAccountId,
         createdAt: customers.createdAt,
         updatedAt: customers.updatedAt,
         userName: users.name,
@@ -101,6 +102,7 @@ export async function GET(req: Request) {
             companyTaxCode: customers.companyTaxCode,
             status: customers.status,
             userId: customers.userId,
+            externalAccountId: customers.externalAccountId,
             createdAt: customers.createdAt,
             updatedAt: customers.updatedAt,
             userName: users.name,
@@ -243,7 +245,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { id, name, email, phone, address, company, taxCode, companyEmail, companyAddress, companyPhone, companyTaxCode, status, password } = body
+    const { id, name, email, phone, address, company, taxCode, companyEmail, companyAddress, companyPhone, companyTaxCode, status, password, externalAccountId } = body
 
     if (!id) {
       return createErrorResponse('ID khách hàng là bắt buộc', 400)
@@ -348,6 +350,7 @@ export async function PUT(request: NextRequest) {
       companyAddress: companyAddress || null,
       companyPhone: companyPhone || null,
       companyTaxCode: companyTaxCode || null,
+      externalAccountId: externalAccountId || null,
       updatedAt: new Date(),
     }
 
@@ -434,22 +437,6 @@ export async function PUT(request: NextRequest) {
       .from(customers)
       .where(eq(customers.id, id))
       .limit(1)
-
-    // Try to sync customer to control panel (Enhance) asynchronously
-    // Use the original email for sync (not pendingEmail) since email change is pending verification
-    const emailForSync = emailChanged ? existingCustomer[0].email : email
-    if (emailForSync) {
-      const { ControlPanelSyncService } = await import('@/lib/control-panel-sync/sync-service')
-      ControlPanelSyncService.syncCustomerToControlPanel({
-        name: updatedCustomer[0].name,
-        email: emailForSync,
-        phone: updatedCustomer[0].phone,
-        company: updatedCustomer[0].company,
-      }).catch((syncError) => {
-        console.error('[Customer Update] Failed to sync customer to control panel:', syncError)
-        // Don't throw - customer was updated successfully in database
-      })
-    }
 
     const message = emailChanged
       ? 'Đã gửi email xác thực đến địa chỉ mới. Vui lòng kiểm tra hộp thư để hoàn tất thay đổi.'

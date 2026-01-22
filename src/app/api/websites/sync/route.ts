@@ -99,13 +99,11 @@ export async function POST(req: NextRequest) {
       return createErrorResponse('orgId là bắt buộc. Vui lòng cấu hình orgId trong Control Panels settings hoặc ENHANCE_ORG_ID environment variable.', 400)
     }
 
-    // 3. Sync customer to Control Panel nếu chưa có externalAccountId
-    let customerExternalId: string | undefined
-    // Kiểm tra từ hosting trước (vì externalAccountId được lưu trong hosting)
-    if (hostingData?.externalAccountId) {
-      customerExternalId = hostingData.externalAccountId
-    } else {
-      // Sync customer nếu chưa có
+    // 3. Lấy externalAccountId từ customer (không còn ở hosting nữa)
+    let customerExternalId: string | undefined = customerData.externalAccountId || undefined
+    
+    // Nếu customer chưa có externalAccountId, sync customer trước
+    if (!customerExternalId) {
       const syncResult = await ControlPanelSyncService.syncCustomerToControlPanel(
         {
           name: customerData.name,
@@ -124,14 +122,28 @@ export async function POST(req: NextRequest) {
       }
 
       customerExternalId = syncResult.externalAccountId
+      
+      // Lưu externalAccountId vào customer
+      await db.update(customers)
+        .set({
+          externalAccountId: customerExternalId,
+          updatedAt: new Date(),
+        })
+        .where(eq(customers.id, customerData.id))
     }
 
-    // 4. Kiểm tra xem website đã được sync chưa (có externalWebsiteId trong notes)
-    let existingExternalWebsiteId: string | undefined
-    if (websiteRecord.notes) {
+    // 4. Kiểm tra xem website đã được sync chưa (có syncWebsiteId)
+    let existingExternalWebsiteId: string | undefined = websiteRecord.syncWebsiteId || undefined
+    
+    // Fallback: Nếu chưa có syncWebsiteId, thử lấy từ notes (backward compatibility)
+    if (!existingExternalWebsiteId && websiteRecord.notes) {
       const syncMatch = websiteRecord.notes.match(/External Website ID:\s*([a-f0-9-]+)/i)
       if (syncMatch && syncMatch[1]) {
         existingExternalWebsiteId = syncMatch[1]
+        // Migrate từ notes sang syncWebsiteId
+        await db.update(websites)
+          .set({ syncWebsiteId: existingExternalWebsiteId })
+          .where(eq(websites.id, websiteId))
       }
     }
 
@@ -145,333 +157,171 @@ export async function POST(req: NextRequest) {
       return createErrorResponse('Không thể truy cập Enhance client', 500)
     }
 
-    // 6. Nếu đã có externalWebsiteId, kiểm tra xem website còn tồn tại trên Control Panel không
+    // Helper function to sync website data from Enhance to database
+    const syncWebsiteFromEnhance = async (enhanceWebsiteId: string, orgId: string) => {
+      const websiteResult = await enhanceClient.getWebsite(enhanceWebsiteId, orgId)
+      if (!websiteResult.success || !websiteResult.data) {
+        return { success: false, error: websiteResult.error || 'Không thể lấy thông tin website từ Enhance' }
+      }
+
+      const enhanceData = websiteResult.data
+
+      // Extract primary domain
+      let primaryDomain = enhanceData.domain || enhanceData.primaryDomain || ''
+      if (typeof primaryDomain !== 'string') {
+        if (Array.isArray(primaryDomain) && primaryDomain.length > 0) {
+          primaryDomain = primaryDomain[0].domain || primaryDomain[0].name || primaryDomain[0]
+        } else if (primaryDomain.domain) {
+          primaryDomain = primaryDomain.domain
+        } else if (primaryDomain.name) {
+          primaryDomain = primaryDomain.name
+        } else {
+          primaryDomain = String(primaryDomain)
+        }
+      }
+
+      // Find or create domain record for primary domain
+      let domainId: number | null = null
+      if (primaryDomain) {
+        let domainRecord = await db.select()
+          .from(domain)
+          .where(eq(domain.domainName, primaryDomain))
+          .limit(1)
+
+        if (domainRecord.length === 0) {
+          // Create new domain record if not exists
+          await db.insert(domain).values({
+            domainName: primaryDomain,
+            customerId: customerData.id,
+            domainTypeId: 1, // Default domain type, adjust as needed
+            status: 'ACTIVE',
+          })
+          // Get the inserted domain
+          const newDomainRecord = await db.select()
+            .from(domain)
+            .where(eq(domain.domainName, primaryDomain))
+            .limit(1)
+          domainId = newDomainRecord[0].id
+        } else {
+          domainId = domainRecord[0].id
+        }
+      }
+
+      // Extract subscription ID
+      const subscriptionId = enhanceData.subscriptionId || enhanceData.subscription?.id
+
+      // Extract status
+      let status: 'LIVE' | 'DOWN' | 'MAINTENANCE' = 'LIVE'
+      if (enhanceData.status) {
+        const enhanceStatus = String(enhanceData.status).toUpperCase()
+        if (enhanceStatus === 'DOWN' || enhanceStatus === 'MAINTENANCE') {
+          status = enhanceStatus as 'LIVE' | 'DOWN' | 'MAINTENANCE'
+        }
+      }
+
+      // Find hosting by subscriptionId if available
+      let hostingId: number | null = null
+      if (subscriptionId) {
+        const hostingRecords = await db.select()
+          .from(hosting)
+          .where(eq(hosting.subscriptionId, subscriptionId))
+          .limit(1)
+        if (hostingRecords.length > 0) {
+          hostingId = hostingRecords[0].id
+        }
+      }
+
+      // Update website record
+      await db.update(websites)
+        .set({
+          syncWebsiteId: enhanceWebsiteId,
+          domainId: domainId || websiteRecord.domainId,
+          hostingId: hostingId || websiteRecord.hostingId,
+          status: status,
+          updatedAt: new Date(),
+        })
+        .where(eq(websites.id, websiteId))
+
+      return {
+        success: true,
+        data: {
+          primaryDomain,
+          subscriptionId,
+          status,
+          hostingId,
+          domainId,
+        },
+      }
+    }
+
+    // 6. Nếu đã có syncWebsiteId, sync data từ Enhance
     if (existingExternalWebsiteId) {
-      const checkResult = await enhanceClient.getWebsite(existingExternalWebsiteId, customerExternalId)
-      if (checkResult.success && checkResult.data) {
-        const existingWebsiteData = checkResult.data
-        // Lấy domain hiện tại - có thể là string hoặc object/array
-        let existingDomainValue = existingWebsiteData.domain || existingWebsiteData.primaryDomain
-        // Nếu là object hoặc array, lấy giá trị đầu tiên hoặc thuộc tính name/domain
-        if (existingDomainValue && typeof existingDomainValue !== 'string') {
-          if (Array.isArray(existingDomainValue) && existingDomainValue.length > 0) {
-            existingDomainValue = existingDomainValue[0].domain || existingDomainValue[0].name || existingDomainValue[0]
-          } else if (existingDomainValue.domain) {
-            existingDomainValue = existingDomainValue.domain
-          } else if (existingDomainValue.name) {
-            existingDomainValue = existingDomainValue.name
-          } else {
-            existingDomainValue = String(existingDomainValue)
-          }
-        }
-        const existingDomain = (existingDomainValue || '').toString().trim().toLowerCase()
-        const newDomain = domainData.domainName.trim().toLowerCase()
-
-        // Kiểm tra xem domain có thay đổi không
-        const domainChanged = existingDomain && existingDomain !== newDomain
-
-        // Nếu có thay đổi domain, cần update
-        if (domainChanged) {
-          const updateParams: any = {}
-          let updateSuccess = true
-          let updateErrors: string[] = []
-          
-          // Update domain nếu có thay đổi
-          // Thử add domain mới (Enhance có thể hỗ trợ multiple domains)
-          const addDomainResult = await enhanceClient.addDomain(existingExternalWebsiteId, domainData.domainName, customerExternalId)
-          
-          if (!addDomainResult.success) {
-            // Nếu add domain thất bại, thử update domain chính
-            updateParams.domain = domainData.domainName
-          }
-
-          // Update website với các thay đổi
-          if (Object.keys(updateParams).length > 0) {
-            // Kiểm tra lại website có tồn tại không trước khi update
-            const verifyResult = await enhanceClient.getWebsite(existingExternalWebsiteId, customerExternalId)
-            
-            if (!verifyResult.success || !verifyResult.data) {
-              updateSuccess = false
-              updateErrors.push(`Website không tồn tại trên Control Panel (${verifyResult.statusCode || 'Unknown'})`)
-            } else {
-              const updateResult = await enhanceClient.updateWebsite(existingExternalWebsiteId, updateParams, customerExternalId)
-
-              if (!updateResult.success) {
-                updateSuccess = false
-                const errorMsg = updateResult.error || 'Không thể cập nhật website'
-                const statusCode = updateResult.statusCode ? ` (HTTP ${updateResult.statusCode})` : ''
-                updateErrors.push(`${errorMsg}${statusCode}`)
-                
-                // Log chi tiết để debug
-                console.error('[Website Sync] Update website failed:', {
-                  websiteId: existingExternalWebsiteId,
-                  orgId: customerExternalId,
-                  params: updateParams,
-                  error: updateResult.error,
-                  statusCode: updateResult.statusCode,
-                })
-              }
-            }
-          }
-
-          // Cập nhật notes với thông tin mới
-          const syncInfo = `[SYNC] External Website ID: ${existingExternalWebsiteId}, Customer External ID: ${customerExternalId}, Domain: ${domainData.domainName}, Updated at: ${new Date().toISOString()}`
-          const updatedNotes = websiteRecord.notes 
-            ? `${websiteRecord.notes}\n\n${syncInfo}`
-            : syncInfo
-
-          await db.update(websites)
-            .set({
-              notes: updatedNotes,
-            })
-            .where(eq(websites.id, websiteId))
-
-          // Tạo response message
-          const responseMessage = `Website đã tồn tại trên Control Panel. Domain đã được cập nhật từ "${existingDomain}" sang "${domainData.domainName}".`
-
-          if (!updateSuccess) {
-            return createSuccessResponse(
-              {
-                websiteId: websiteId,
-                externalWebsiteId: existingExternalWebsiteId,
-                customerExternalId: customerExternalId,
-                domain: domainData.domainName,
-                alreadyExists: true,
-                updateWarning: updateErrors.join('; '),
-              },
-              responseMessage
-            )
-          }
-
-          return createSuccessResponse(
-            {
-              websiteId: websiteId,
-              externalWebsiteId: existingExternalWebsiteId,
-              customerExternalId: customerExternalId,
-              domain: domainData.domainName,
-              alreadyExists: true,
-              domainUpdated: true,
-            },
-            responseMessage
-          )
-        }
-
-        // Domain không thay đổi, chỉ trả về thông tin
+      const syncResult = await syncWebsiteFromEnhance(existingExternalWebsiteId, customerExternalId)
+      if (syncResult.success) {
         return createSuccessResponse(
           {
             websiteId: websiteId,
             externalWebsiteId: existingExternalWebsiteId,
             customerExternalId: customerExternalId,
-            domain: domainData.domainName,
-            alreadyExists: true,
+            ...syncResult.data,
           },
-          `Website đã tồn tại trên Control Panel với ID: ${existingExternalWebsiteId}`
+          'Đã đồng bộ thông tin website từ Control Panel thành công'
+        )
+      } else {
+        return createErrorResponse(
+          `Không thể đồng bộ website từ Control Panel: ${syncResult.error || 'Unknown error'}`,
+          500
         )
       }
-      // Nếu không tìm thấy, có thể website đã bị xóa, tiếp tục tạo mới
     }
 
-    // 7. Kiểm tra xem website đã tồn tại trên Control Panel chưa bằng cách list websites của customer
+    // 7. Nếu chưa có syncWebsiteId, tìm website trên Control Panel bằng domain
     const listResult = await enhanceClient.listWebsites(customerExternalId)
     if (listResult.success && listResult.data) {
       const normalizedDomain = domainData.domainName.trim().toLowerCase()
       const existingWebsite = listResult.data.find((w: any) => {
-        const websiteDomain = (w.domain || w.primaryDomain || '').trim().toLowerCase()
-        return websiteDomain === normalizedDomain
+        let websiteDomain = w.domain || w.primaryDomain || ''
+        // Convert to string if it's not already
+        if (typeof websiteDomain !== 'string') {
+          if (Array.isArray(websiteDomain) && websiteDomain.length > 0) {
+            websiteDomain = websiteDomain[0].domain || websiteDomain[0].name || websiteDomain[0]
+          } else if (websiteDomain && typeof websiteDomain === 'object') {
+            websiteDomain = websiteDomain.domain || websiteDomain.name || String(websiteDomain)
+          } else {
+            websiteDomain = String(websiteDomain)
+          }
+        }
+        return String(websiteDomain).trim().toLowerCase() === normalizedDomain
       })
 
-      if (existingWebsite) {
-        const foundWebsiteId = existingWebsite.id
-        // Lưu externalWebsiteId vào notes
-        const syncInfo = `[SYNC] External Website ID: ${foundWebsiteId}, Customer External ID: ${customerExternalId}, Synced at: ${new Date().toISOString()}`
-        const updatedNotes = websiteRecord.notes 
-          ? `${websiteRecord.notes}\n\n${syncInfo}`
-          : syncInfo
-
-        await db.update(websites)
-          .set({
-            notes: updatedNotes,
-          })
-          .where(eq(websites.id, websiteId))
-
-        return createSuccessResponse(
-          {
-            websiteId: websiteId,
-            externalWebsiteId: foundWebsiteId,
-            customerExternalId: customerExternalId,
-            domain: domainData.domainName,
-            alreadyExists: true,
-          },
-          `Website đã tồn tại trên Control Panel với domain "${domainData.domainName}" và ID: ${foundWebsiteId}`
-        )
-      }
-    }
-
-    // 8. Nếu website có hosting, cần đảm bảo hosting đã có subscription trước khi tạo website
-    let subscriptionId: number | undefined
-    if (hostingData && websiteRecord.hostingId) {
-      // Kiểm tra xem hosting đã có subscriptionId trong syncMetadata chưa
-      let hasSubscription = false
-      if (hostingData.syncMetadata) {
-        try {
-          const metadata = typeof hostingData.syncMetadata === 'string' 
-            ? JSON.parse(hostingData.syncMetadata) 
-            : hostingData.syncMetadata
-          const subscriptionIdValue = metadata.subscriptionId || metadata.externalSubscriptionId
-          if (subscriptionIdValue) {
-            subscriptionId = typeof subscriptionIdValue === 'string' 
-              ? parseInt(subscriptionIdValue, 10) 
-              : subscriptionIdValue
-            hasSubscription = true
-          }
-        } catch (e) {
-          // Ignore parse errors
-        }
-      }
-
-      // Nếu chưa có subscription, cần sync hosting trước để tạo subscription
-      if (!hasSubscription) {
-        console.log(`[Website Sync] Hosting ${hostingData.id} chưa có subscription, đang sync hosting...`)
-        
-        // Lấy plan mapping
-        const planMapping = await db.select()
-          .from(controlPanelPlans)
-          .where(and(
-            eq(controlPanelPlans.controlPanelId, cpId),
-            eq(controlPanelPlans.localPlanType, 'HOSTING'),
-            eq(controlPanelPlans.localPlanId, hostingData.hostingTypeId),
-            eq(controlPanelPlans.isActive, 'YES')
-          ))
-          .limit(1)
-
-        if (planMapping.length === 0) {
-          return createErrorResponse(
-            `Không tìm thấy plan mapping cho hosting. Vui lòng tạo mapping trong Control Panels > Plans trước khi sync website.`,
-            404
+      if (existingWebsite && existingWebsite.id) {
+        existingExternalWebsiteId = String(existingWebsite.id)
+        // Sync data từ Enhance
+        const syncResult = await syncWebsiteFromEnhance(existingExternalWebsiteId, customerExternalId)
+        if (syncResult.success) {
+          return createSuccessResponse(
+            {
+              websiteId: websiteId,
+              externalWebsiteId: existingExternalWebsiteId,
+              customerExternalId: customerExternalId,
+              ...syncResult.data,
+              alreadyExists: true,
+            },
+            `Website đã tồn tại trên Control Panel và đã được đồng bộ`
           )
-        }
-
-        const enhancePlanId = planMapping[0].externalPlanId
-
-        // Tạo subscription trên Enhance
-        const subscriptionResult = await enhanceClient.createSubscription(
-          customerExternalId,
-          enhancePlanId
-        )
-
-        if (!subscriptionResult.success || !subscriptionResult.data) {
+        } else {
           return createErrorResponse(
-            `Không thể tạo subscription trên Control Panel: ${subscriptionResult.error || 'Unknown error'}. Vui lòng sync hosting trước.`,
+            `Không thể đồng bộ website từ Control Panel: ${syncResult.error || 'Unknown error'}`,
             500
           )
         }
-
-        subscriptionId = subscriptionResult.data.id
-
-        // Update hosting record với subscription info
-        const currentMetadata = hostingData.syncMetadata ? JSON.parse(JSON.stringify(hostingData.syncMetadata)) : {}
-        const updatedMetadata = {
-          ...currentMetadata,
-          subscriptionId: subscriptionId,
-          externalSubscriptionId: subscriptionId,
-          subscriptionSyncedAt: new Date().toISOString(),
-        }
-
-        await db.update(hosting)
-          .set({
-            externalAccountId: customerExternalId,
-            syncStatus: 'SYNCED',
-            lastSyncedAt: new Date(),
-            syncMetadata: updatedMetadata,
-          })
-          .where(eq(hosting.id, hostingData.id))
-
-        console.log(`[Website Sync] Đã tạo subscription ${subscriptionId} cho hosting ${hostingData.id}`)
       }
     }
 
-    // 9. Tạo website mới trên Control Panel
-    // Lưu ý: Enhance yêu cầu subscriptionId là bắt buộc khi tạo website
-    if (!subscriptionId) {
-      return createErrorResponse(
-        'Website cần có hosting với subscription để tạo trên Control Panel. Vui lòng gán hosting cho website trước.',
-        400
-      )
-    }
-
-    const websiteResult = await enhanceClient.createWebsite({
-      customerId: customerExternalId,
-      domain: domainData.domainName,
-      subscriptionId: subscriptionId,
-    })
-
-    if (!websiteResult.success || !websiteResult.data) {
-      // Kiểm tra xem có phải lỗi do website đã tồn tại không
-      if (websiteResult.statusCode === 409 || websiteResult.error?.toLowerCase().includes('already exists') || websiteResult.error?.toLowerCase().includes('duplicate')) {
-        // Thử list lại để tìm website
-        const retryListResult = await enhanceClient.listWebsites(customerExternalId)
-        if (retryListResult.success && retryListResult.data) {
-          const normalizedDomain = domainData.domainName.trim().toLowerCase()
-          const existingWebsite = retryListResult.data.find((w: any) => {
-            const websiteDomain = (w.domain || w.primaryDomain || '').trim().toLowerCase()
-            return websiteDomain === normalizedDomain
-          })
-
-          if (existingWebsite) {
-            const foundWebsiteId = existingWebsite.id
-            const syncInfo = `[SYNC] External Website ID: ${foundWebsiteId}, Customer External ID: ${customerExternalId}, Synced at: ${new Date().toISOString()}`
-            const updatedNotes = websiteRecord.notes 
-              ? `${websiteRecord.notes}\n\n${syncInfo}`
-              : syncInfo
-
-            await db.update(websites)
-              .set({
-                notes: updatedNotes,
-              })
-              .where(eq(websites.id, websiteId))
-
-            return createSuccessResponse(
-              {
-                websiteId: websiteId,
-                externalWebsiteId: foundWebsiteId,
-                customerExternalId: customerExternalId,
-                domain: domainData.domainName,
-                alreadyExists: true,
-              },
-              `Website đã tồn tại trên Control Panel với domain "${domainData.domainName}" và ID: ${foundWebsiteId}`
-            )
-          }
-        }
-      }
-
-      return createErrorResponse(
-        `Không thể tạo website trên Control Panel: ${websiteResult.error || 'Unknown error'}`,
-        500
-      )
-    }
-
-    const externalWebsiteId = websiteResult.data.id
-
-    // 6. Update website record với sync info (lưu vào notes nếu có)
-    const syncInfo = `[SYNC] External Website ID: ${externalWebsiteId}, Customer External ID: ${customerExternalId}, Synced at: ${new Date().toISOString()}`
-    const updatedNotes = websiteRecord.notes 
-      ? `${websiteRecord.notes}\n\n${syncInfo}`
-      : syncInfo
-
-    await db.update(websites)
-      .set({
-        notes: updatedNotes,
-      })
-      .where(eq(websites.id, websiteId))
-
-    return createSuccessResponse(
-      {
-        websiteId: websiteId,
-        externalWebsiteId: externalWebsiteId,
-        customerExternalId: customerExternalId,
-        domain: domainData.domainName,
-      },
-      'Tạo website trên Control Panel thành công'
+    // 8. Nếu không tìm thấy website trên Control Panel, trả về lỗi
+    return createErrorResponse(
+      'Không tìm thấy website trên Control Panel. Vui lòng tạo website trên Control Panel trước khi sync.',
+      404
     )
   } catch (error: any) {
     console.error('Error syncing website:', error)
