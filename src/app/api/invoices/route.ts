@@ -54,9 +54,6 @@ export async function GET() {
       .orderBy(desc(invoices.issueDate), desc(invoices.createdAt))
 
     const data = results.map((row) => {
-      const name = (row.customerCompany && String(row.customerCompany).trim() !== '')
-        ? row.customerCompany
-        : (row.customerName ?? 'Không xác định')
       const email =
         (row as typeof row & { customerCompanyEmail?: string | null }).customerCompanyEmail &&
         String((row as typeof row & { customerCompanyEmail?: string | null }).customerCompanyEmail).trim() !== ''
@@ -69,7 +66,8 @@ export async function GET() {
         issueDate: row.issueDate?.toISOString() ?? null,
         dueDate: row.dueDate?.toISOString() ?? null,
         customerId: row.customerId,
-        customerName: name,
+        customerName: row.customerName ?? 'Không xác định',
+        customerCompany: row.customerCompany ?? null,
         customerEmail: email,
         subtotal: Number(row.subtotal) || 0,
         tax: Number(row.tax) || 0,

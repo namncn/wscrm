@@ -372,9 +372,15 @@ export default function AdminInvoiceDetailPage() {
               </CardHeader>
               <CardContent className="grid gap-3 md:grid-cols-2">
                 <div>
-                  <p className="text-xs uppercase text-muted-foreground mb-1">Tên / Công ty</p>
-                  <p className="font-semibold text-slate-800">{invoice.customer.displayName ?? invoice.customer.name}</p>
+                  <p className="text-xs uppercase text-muted-foreground mb-1">Tên khách hàng</p>
+                  <p className="font-semibold text-slate-800">{invoice.customer.name}</p>
                 </div>
+                {invoice.customer.company && invoice.customer.company.trim() !== '' && (
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground mb-1">Công ty</p>
+                    <p className="text-slate-700">{invoice.customer.company}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-xs uppercase text-muted-foreground mb-1">Email</p>
                   <p className="text-slate-700">{invoice.customer.displayEmail ?? invoice.customer.email ?? 'Chưa cập nhật'}</p>

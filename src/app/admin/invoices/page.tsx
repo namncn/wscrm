@@ -37,6 +37,7 @@ type InvoiceSummary = {
   issueDate: string
   dueDate: string
   customerName: string
+  customerCompany?: string | null
   customerEmail?: string | null
   total: number
   currency: string
@@ -86,6 +87,7 @@ export default function AdminInvoicesPage() {
             issueDate: invoice.issueDate,
             dueDate: invoice.dueDate,
             customerName: invoice.customerName ?? invoice.customer?.name ?? 'Không xác định',
+            customerCompany: invoice.customerCompany ?? invoice.customer?.company ?? null,
             customerEmail: invoice.customerEmail ?? invoice.customer?.email ?? null,
             total: invoice.total ?? invoice.totals?.total ?? 0,
             currency: invoice.currency ?? invoice.totals?.currency ?? 'VND',
@@ -188,6 +190,7 @@ export default function AdminInvoicesPage() {
       (invoice) =>
         invoice.invoiceNumber.toLowerCase().includes(term) ||
         invoice.customerName.toLowerCase().includes(term) ||
+        invoice.customerCompany?.toLowerCase().includes(term) ||
         invoice.customerEmail?.toLowerCase().includes(term) ||
         statusConfig[invoice.status].label.toLowerCase().includes(term)
     )
@@ -425,6 +428,9 @@ export default function AdminInvoicesPage() {
                         </TableCell>
                         <TableCell>
                           <div className="font-medium text-slate-800">{invoice.customerName}</div>
+                          {invoice.customerCompany && invoice.customerCompany.trim() !== '' && (
+                            <div className="text-xs text-muted-foreground">{invoice.customerCompany}</div>
+                          )}
                           <div className="text-xs text-muted-foreground">{invoice.customerEmail || '—'}</div>
                         </TableCell>
                         <TableCell>{formatDate(invoice.issueDate)}</TableCell>

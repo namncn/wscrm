@@ -347,7 +347,7 @@ export async function generateInvoicePdf(invoiceId: number): Promise<InvoicePdfR
   cursorY -= 20
   const infoHeaderY = cursorY - 4
   const infoFontSize = 11
-  const infoLineHeight = 14
+  const infoLineHeight = 16
   const leftColumnWidth = contentWidth * 0.42
   const rightColumnWidth = contentWidth * 0.42
 
@@ -377,17 +377,15 @@ export async function generateInvoicePdf(invoiceId: number): Promise<InvoicePdfR
     align: 'right',
   })
 
-  // Ưu tiên thông tin công ty; không có công ty mới dùng tên cá nhân
+  // Tên khách hàng trên, tên công ty dưới (chỉ hiển thị khi có dữ liệu)
   const rec = invoiceRecord as typeof invoiceRecord & {
     customerCompanyEmail?: string | null
     customerCompanyAddress?: string | null
     customerCompanyPhone?: string | null
     customerCompanyTaxCode?: string | null
   }
-  const recipientName =
-    (rec.customerCompany && String(rec.customerCompany).trim() !== '')
-      ? rec.customerCompany
-      : (invoiceRecord.customerName ?? 'Khách hàng')
+  const recipientPersonalName = invoiceRecord.customerName ?? 'Khách hàng'
+  const recipientCompanyName = rec.customerCompany && String(rec.customerCompany).trim() !== '' ? String(rec.customerCompany).trim() : null
   const recipientAddress =
     (rec.customerCompanyAddress && rec.customerCompanyAddress.trim() !== '')
       ? rec.customerCompanyAddress
@@ -414,7 +412,10 @@ export async function generateInvoicePdf(invoiceId: number): Promise<InvoicePdfR
         : 'Chưa cập nhật'
 
   const recipientAddressLines = wrapText(recipientAddress, infoFontSize, rightColumnWidth)
-  const customerLines: string[] = [recipientName]
+  const customerLines: string[] = [recipientPersonalName]
+  if (recipientCompanyName) {
+    customerLines.push(recipientCompanyName)
+  }
   recipientAddressLines.forEach((addrLine) => customerLines.push(addrLine))
   customerLines.push(`${recipientPhone}`, `${recipientEmail}`)
   if (recipientTax && recipientTax !== 'Chưa cập nhật') {
@@ -431,7 +432,7 @@ export async function generateInvoicePdf(invoiceId: number): Promise<InvoicePdfR
   })
 
   // Place next section below the info block; use actual bottom if address wrapped to many lines
-  const infoBlockBottom = Math.min(infoLeftY, infoRightY) - 10
+  const infoBlockBottom = Math.min(infoLeftY, infoRightY) - 24
   cursorY = Math.min(infoSectionY - 35, infoBlockBottom)
 
   // Items table
@@ -664,7 +665,7 @@ export async function generateInvoicePdf(invoiceId: number): Promise<InvoicePdfR
       customerAddress: invoiceRecord.customerAddress ?? null,
       customerPhone: invoiceRecord.customerPhone ?? null,
       customerTaxCode: invoiceRecord.customerTaxCode ?? null,
-      displayName: recipientName,
+      displayName: (recipientCompanyName || recipientPersonalName),
       displayEmail: recipientEmail,
     },
     items: items.map((item) => ({
