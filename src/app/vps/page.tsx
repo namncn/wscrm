@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -35,15 +35,70 @@ interface VpsProduct {
   popular?: boolean
 }
 
-export default function VpsPage() {
-  const { data: session, status } = useSession()
+// Component that handles search params - needs to be wrapped in Suspense
+function SearchParamsHandler({ 
+  vpsProducts, 
+  isLoadingProducts, 
+  onAddToCart 
+}: {
+  vpsProducts: VpsProduct[]
+  isLoadingProducts: boolean
+  onAddToCart: (product: VpsProduct) => Promise<void>
+}) {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const [processedCartId, setProcessedCartId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const productId = searchParams.get('add_to_cart')
+    
+    // Only process if we have products loaded
+    if (!productId) {
+      return
+    }
+    
+    if (isLoadingProducts) {
+      return
+    }
+    
+    // Use processedCartId to prevent duplicate processing
+    if (productId === processedCartId) {
+      return
+    }
+    
+    if (vpsProducts.length === 0) {
+      return
+    }
+    
+    // Try to find product - handle both string and number IDs
+    const product = vpsProducts.find(p => 
+      String(p.id) === String(productId) || p.id === productId
+    )
+    if (!product) {
+      return
+    }
+    
+    setProcessedCartId(productId)
+    
+    // Call the callback to add to cart
+    onAddToCart(product).then(() => {
+      // Remove query parameters after adding to cart
+      router.replace('/vps', { scroll: false })
+      setTimeout(() => setProcessedCartId(null), 2000)
+    }).catch(() => {
+      setProcessedCartId(null)
+    })
+  }, [searchParams, vpsProducts, isLoadingProducts, processedCartId, router, onAddToCart])
+
+  return null
+}
+
+export default function VpsPage() {
+  const { data: session, status } = useSession()
   // VPS page is public - no authentication required
   const [isLoading, setIsLoading] = useState(false)
   const [vpsProducts, setVpsProducts] = useState<VpsProduct[]>([])
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
-  const [processedCartId, setProcessedCartId] = useState<string | null>(null)
 
   // Fetch VPS products from API (public access)
   useEffect(() => {
@@ -153,108 +208,73 @@ export default function VpsPage() {
     }
   }, [status, session])
 
-  // Handle add_to_cart query parameter (for external links)
-  useEffect(() => {
-    const productId = searchParams.get('add_to_cart')
-    
-    // Only process if we have products loaded
-    if (!productId || isLoadingProducts || productId === processedCartId) {
-      return
-    }
-    
-    if (vpsProducts.length === 0) {
-      return
-    }
-    
-    // Try to find product - handle both string and number IDs
-    const product = vpsProducts.find(p => 
-      String(p.id) === String(productId) || p.id === productId
-    )
-    if (!product) {
-      return
-    }
-    
-    setProcessedCartId(productId)
-    
-    // Directly add to cart
-    const addToCart = async () => {
-      setIsLoading(true)
-      try {
-        const cartData = {
-          id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          serviceId: product.id,
-          serviceType: 'VPS',
-          serviceName: product.name,
-          quantity: 1,
-          price: product.price.toString(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }
-
-        // If user is logged in, use API
-        if (status === 'authenticated' && session?.user) {
-          const response = await fetch('/api/cart', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              serviceId: product.id,
-              serviceType: 'VPS',
-              serviceName: product.name,
-              quantity: 1,
-              price: product.price
-            }),
-          })
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            throw new Error(errorData.error || 'Không thể thêm vào giỏ hàng')
-          }
-
-          window.dispatchEvent(new Event('cartUpdated'))
-          toastSuccess('Đã thêm vào giỏ hàng!')
-          
-          // Remove query parameters
-          router.replace('/vps', { scroll: false })
-          setTimeout(() => setProcessedCartId(null), 2000)
-        } else {
-          // If not logged in, use localStorage
-          const existingCart = localStorage.getItem('cart')
-          const cartItems = existingCart ? JSON.parse(existingCart) : []
-          
-          // Check if item already exists
-          const existingIndex = cartItems.findIndex(
-            (item: any) => item.serviceId === product.id && item.serviceType === 'VPS'
-          )
-          
-          if (existingIndex >= 0) {
-            cartItems[existingIndex].quantity += 1
-            cartItems[existingIndex].updatedAt = new Date().toISOString()
-          } else {
-            cartItems.push(cartData)
-          }
-          
-          localStorage.setItem('cart', JSON.stringify(cartItems))
-          
-          window.dispatchEvent(new Event('cartUpdated'))
-          toastSuccess('Đã thêm vào giỏ hàng!')
-          
-          // Remove query parameters
-          router.replace('/vps', { scroll: false })
-          setTimeout(() => setProcessedCartId(null), 2000)
-        }
-      } catch (error: any) {
-        toastError(`Lỗi: ${error.message || 'Có lỗi xảy ra khi thêm vào giỏ hàng'}`)
-        setProcessedCartId(null)
-      } finally {
-        setIsLoading(false)
+  // Handler for adding to cart from search params
+  const handleAddToCartFromParams = useCallback(async (product: VpsProduct) => {
+    setIsLoading(true)
+    try {
+      const cartData = {
+        id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        serviceId: product.id,
+        serviceType: 'VPS',
+        serviceName: product.name,
+        quantity: 1,
+        price: product.price.toString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       }
+
+      // If user is logged in, use API
+      if (status === 'authenticated' && session?.user) {
+        const response = await fetch('/api/cart', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            serviceId: product.id,
+            serviceType: 'VPS',
+            serviceName: product.name,
+            quantity: 1,
+            price: product.price
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Không thể thêm vào giỏ hàng')
+        }
+
+        window.dispatchEvent(new Event('cartUpdated'))
+        toastSuccess('Đã thêm vào giỏ hàng!')
+      } else {
+        // If not logged in, use localStorage
+        const existingCart = localStorage.getItem('cart')
+        const cartItems = existingCart ? JSON.parse(existingCart) : []
+        
+        // Check if item already exists
+        const existingIndex = cartItems.findIndex(
+          (item: any) => item.serviceId === product.id && item.serviceType === 'VPS'
+        )
+        
+        if (existingIndex >= 0) {
+          cartItems[existingIndex].quantity += 1
+          cartItems[existingIndex].updatedAt = new Date().toISOString()
+        } else {
+          cartItems.push(cartData)
+        }
+        
+        localStorage.setItem('cart', JSON.stringify(cartItems))
+        
+        window.dispatchEvent(new Event('cartUpdated'))
+        toastSuccess('Đã thêm vào giỏ hàng!')
+      }
+    } catch (error: any) {
+      toastError(`Lỗi: ${error.message || 'Có lỗi xảy ra khi thêm vào giỏ hàng'}`)
+      throw error
+    } finally {
+      setIsLoading(false)
     }
-    
-    // Call addToCart immediately
-    addToCart()
-  }, [searchParams, vpsProducts, isLoadingProducts, processedCartId, status, session, router])
+  }, [status, session])
 
   if (isLoadingProducts) {
     return (
@@ -275,6 +295,13 @@ export default function VpsPage() {
 
   return (
     <MemberLayout title="VPS">
+      <Suspense fallback={null}>
+        <SearchParamsHandler 
+          vpsProducts={vpsProducts}
+          isLoadingProducts={isLoadingProducts}
+          onAddToCart={handleAddToCartFromParams}
+        />
+      </Suspense>
       <div className="bg-slate-50">
         {/* Hero Section */}
         <div className="bg-gradient-to-br from-slate-700 via-indigo-500 to-slate-500 text-white">

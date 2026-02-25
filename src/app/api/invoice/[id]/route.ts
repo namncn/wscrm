@@ -50,6 +50,10 @@ export async function GET(_: NextRequest, { params }: RouteContext) {
         customerPhone: customers.phone,
         customerAddress: customers.address,
         customerTaxCode: customers.taxCode,
+        customerCompanyEmail: customers.companyEmail,
+        customerCompanyAddress: customers.companyAddress,
+        customerCompanyPhone: customers.companyPhone,
+        customerCompanyTaxCode: customers.companyTaxCode,
       })
       .from(invoices)
       .leftJoin(customers, eq(customers.id, invoices.customerId))
@@ -108,15 +112,52 @@ export async function GET(_: NextRequest, { params }: RouteContext) {
       paymentTerms: invoiceRecord.paymentTerms ?? null,
       paymentMethod: invoiceRecord.paymentMethod ?? null,
       notes: invoiceRecord.notes ?? null,
-      customer: {
-        id: invoiceRecord.customerId,
-        name: invoiceRecord.customerName ?? 'Không xác định',
-        email: invoiceRecord.customerEmail ?? null,
-        company: invoiceRecord.customerCompany ?? null,
-        phone: invoiceRecord.customerPhone ?? null,
-        address: invoiceRecord.customerAddress ?? null,
-        taxCode: invoiceRecord.customerTaxCode ?? null,
-      },
+      customer: (() => {
+        const r = invoiceRecord as typeof invoiceRecord & {
+          customerCompanyEmail?: string | null
+          customerCompanyAddress?: string | null
+          customerCompanyPhone?: string | null
+          customerCompanyTaxCode?: string | null
+        }
+        const displayName =
+          (r.customerCompany && String(r.customerCompany).trim() !== '')
+            ? r.customerCompany
+            : (invoiceRecord.customerName ?? 'Không xác định')
+        const displayAddress =
+          (r.customerCompanyAddress && String(r.customerCompanyAddress).trim() !== '')
+            ? r.customerCompanyAddress
+            : (invoiceRecord.customerAddress ?? null)
+        const displayPhone =
+          (r.customerCompanyPhone && String(r.customerCompanyPhone).trim() !== '')
+            ? r.customerCompanyPhone
+            : (invoiceRecord.customerPhone ?? null)
+        const displayEmail =
+          (r.customerCompanyEmail && String(r.customerCompanyEmail).trim() !== '')
+            ? r.customerCompanyEmail
+            : (invoiceRecord.customerEmail ?? null)
+        const displayTaxCode =
+          (r.customerCompanyTaxCode && String(r.customerCompanyTaxCode).trim() !== '')
+            ? r.customerCompanyTaxCode
+            : (invoiceRecord.customerTaxCode ?? null)
+        return {
+          id: invoiceRecord.customerId,
+          name: invoiceRecord.customerName ?? 'Không xác định',
+          email: invoiceRecord.customerEmail ?? null,
+          company: invoiceRecord.customerCompany ?? null,
+          phone: invoiceRecord.customerPhone ?? null,
+          address: invoiceRecord.customerAddress ?? null,
+          taxCode: invoiceRecord.customerTaxCode ?? null,
+          companyEmail: r.customerCompanyEmail ?? null,
+          companyAddress: r.customerCompanyAddress ?? null,
+          companyPhone: r.customerCompanyPhone ?? null,
+          companyTaxCode: r.customerCompanyTaxCode ?? null,
+          displayName,
+          displayAddress,
+          displayPhone,
+          displayEmail,
+          displayTaxCode,
+        }
+      })(),
       totals: {
         subtotal: Number(invoiceRecord.subtotal) || 0,
         tax: Number(invoiceRecord.tax) || 0,

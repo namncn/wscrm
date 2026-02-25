@@ -94,7 +94,8 @@ export async function sendInvoiceEmailNow(invoiceId: number, options: SendOption
 
   const { invoice, items, pdfBuffer } = pdfResult
 
-  if (!invoice.customerEmail) {
+  const toEmail = (invoice as { displayEmail?: string | null }).displayEmail ?? invoice.customerEmail
+  if (!toEmail) {
     throw new Error('Khách hàng chưa có email để gửi hoá đơn')
   }
 
@@ -117,7 +118,7 @@ export async function sendInvoiceEmailNow(invoiceId: number, options: SendOption
             <p style="margin: 8px 0 0; font-size: 14px;">Ngày phát hành: ${issueDate} • Đến hạn: ${dueDate}</p>
           </div>
           <div style="padding: 24px;">
-            <p style="font-size: 15px; line-height: 1.6;">Xin chào ${invoice.customerName ?? 'Quý khách'},</p>
+            <p style="font-size: 15px; line-height: 1.6;">Xin chào ${(invoice as { displayName?: string }).displayName ?? invoice.customerName ?? 'Quý khách'},</p>
             <p style="font-size: 15px; line-height: 1.6;">Chúng tôi gửi tới bạn hoá đơn <strong>${invoice.invoiceNumber}</strong> với thông tin chi tiết như sau:</p>
 
             <table style="width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 14px; color: #1e293b;">
@@ -162,7 +163,7 @@ export async function sendInvoiceEmailNow(invoiceId: number, options: SendOption
   `
 
   await sendEmail({
-    to: invoice.customerEmail,
+    to: toEmail,
     subject: `Hoá đơn ${invoice.invoiceNumber}`,
     cc: options.cc,
     html,
@@ -176,7 +177,7 @@ export async function sendInvoiceEmailNow(invoiceId: number, options: SendOption
   })
 
   return {
-    email: invoice.customerEmail,
+    email: toEmail,
     invoiceNumber: invoice.invoiceNumber,
   }
 }
@@ -189,7 +190,8 @@ export async function sendInvoiceReminderEmail(invoiceId: number, options: SendO
 
   const { invoice, items, pdfBuffer } = pdfResult
 
-  if (!invoice.customerEmail) {
+  const reminderToEmail = (invoice as { displayEmail?: string | null }).displayEmail ?? invoice.customerEmail
+  if (!reminderToEmail) {
     throw new Error('Khách hàng chưa có email để gửi nhắc nhở')
   }
 
@@ -212,7 +214,7 @@ export async function sendInvoiceReminderEmail(invoiceId: number, options: SendO
             <p style="margin: 6px 0 0; font-size: 13px;">Hoá đơn ${invoice.invoiceNumber} • Đến hạn: ${dueDate}</p>
           </div>
           <div style="padding: 22px;">
-            <p style="font-size: 14px; line-height: 1.6;">Xin chào ${invoice.customerName ?? 'Quý khách'},</p>
+            <p style="font-size: 14px; line-height: 1.6;">Xin chào ${(invoice as { displayName?: string }).displayName ?? invoice.customerName ?? 'Quý khách'},</p>
             <p style="font-size: 14px; line-height: 1.6; color: #334155;">
               Đây là email nhắc nhở thanh toán cho hoá đơn <strong>${invoice.invoiceNumber}</strong> được phát hành ngày <strong>${issueDate}</strong>.
             </p>
@@ -255,7 +257,7 @@ export async function sendInvoiceReminderEmail(invoiceId: number, options: SendO
   `
 
   await sendEmail({
-    to: invoice.customerEmail,
+    to: reminderToEmail,
     subject: `Nhắc nhở thanh toán hoá đơn ${invoice.invoiceNumber}`,
     cc: options.cc,
     html,
@@ -269,7 +271,7 @@ export async function sendInvoiceReminderEmail(invoiceId: number, options: SendO
   })
 
   return {
-    email: invoice.customerEmail,
+    email: reminderToEmail,
     invoiceNumber: invoice.invoiceNumber,
   }
 }

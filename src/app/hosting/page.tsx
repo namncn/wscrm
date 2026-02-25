@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -43,15 +43,70 @@ interface HostingProduct {
   popular?: boolean
 }
 
-export default function HostingPage() {
-  const { data: session, status } = useSession()
+// Component that handles search params - needs to be wrapped in Suspense
+function SearchParamsHandler({ 
+  hostingProducts, 
+  isLoadingProducts, 
+  onAddToCart 
+}: {
+  hostingProducts: HostingProduct[]
+  isLoadingProducts: boolean
+  onAddToCart: (product: HostingProduct) => Promise<void>
+}) {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const [processedCartId, setProcessedCartId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const productId = searchParams.get('add_to_cart')
+    
+    // Only process if we have products loaded
+    if (!productId) {
+      return
+    }
+    
+    if (isLoadingProducts) {
+      return
+    }
+    
+    // Use processedCartId to prevent duplicate processing
+    if (productId === processedCartId) {
+      return
+    }
+    
+    if (hostingProducts.length === 0) {
+      return
+    }
+    
+    // Try to find product - handle both string and number IDs
+    const product = hostingProducts.find(p => 
+      String(p.id) === String(productId) || p.id === productId
+    )
+    if (!product) {
+      return
+    }
+    
+    setProcessedCartId(productId)
+    
+    // Call the callback to add to cart
+    onAddToCart(product).then(() => {
+      // Remove query parameters after adding to cart
+      router.replace('/hosting', { scroll: false })
+      setTimeout(() => setProcessedCartId(null), 2000)
+    }).catch(() => {
+      setProcessedCartId(null)
+    })
+  }, [searchParams, hostingProducts, isLoadingProducts, processedCartId, router, onAddToCart])
+
+  return null
+}
+
+export default function HostingPage() {
+  const { data: session, status } = useSession()
   // Hosting page is public - no authentication required
   const [isLoading, setIsLoading] = useState(false)
   const [hostingProducts, setHostingProducts] = useState<HostingProduct[]>([])
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
-  const [processedCartId, setProcessedCartId] = useState<string | null>(null)
 
   // Fetch hosting products from API (public access)
   useEffect(() => {
@@ -169,7 +224,7 @@ export default function HostingPage() {
         
         // Dispatch custom event to update cart count in header
         window.dispatchEvent(new Event('cartUpdated'))
-        
+
         toastSuccess('Đã thêm vào giỏ hàng! Chuyển đến trang giỏ hàng.')
         window.location.href = '/cart'
       }
@@ -180,117 +235,73 @@ export default function HostingPage() {
     }
   }, [status, session])
 
-  // Handle add_to_cart query parameter (for external links)
-  useEffect(() => {
-    const productId = searchParams.get('add_to_cart')
-    
-    // Only process if we have products loaded
-    if (!productId) {
-      return
-    }
-    
-    if (isLoadingProducts) {
-      return
-    }
-    
-    // Use processedCartId to prevent duplicate processing (don't check isLoading)
-    if (productId === processedCartId) {
-      return
-    }
-    
-    if (hostingProducts.length === 0) {
-      return
-    }
-    
-    // Try to find product - handle both string and number IDs
-    const product = hostingProducts.find(p => 
-      String(p.id) === String(productId) || p.id === productId
-    )
-    if (!product) {
-      return
-    }
-    
-    setProcessedCartId(productId)
-    
-    // Directly add to cart (same logic as handlePurchase)
-    const addToCart = async () => {
-      setIsLoading(true)
-      try {
-        const cartData = {
-          id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          serviceId: product.id,
-          serviceType: 'HOSTING',
-          serviceName: product.name,
-          quantity: 1,
-          price: product.price.toString(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }
-
-        // If user is logged in, use API
-        if (status === 'authenticated' && session?.user) {
-          const response = await fetch('/api/cart', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              serviceId: product.id,
-              serviceType: 'HOSTING',
-              serviceName: product.name,
-              quantity: 1,
-              price: product.price
-            }),
-          })
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            throw new Error(errorData.error || 'Không thể thêm vào giỏ hàng')
-          }
-
-          window.dispatchEvent(new Event('cartUpdated'))
-          toastSuccess('Đã thêm vào giỏ hàng!')
-          
-          // Remove query parameters
-          router.replace('/hosting', { scroll: false })
-          setTimeout(() => setProcessedCartId(null), 2000)
-        } else {
-          // If not logged in, use localStorage
-          const existingCart = localStorage.getItem('cart')
-          const cartItems = existingCart ? JSON.parse(existingCart) : []
-          
-          // Check if item already exists
-          const existingIndex = cartItems.findIndex(
-            (item: any) => item.serviceId === product.id && item.serviceType === 'HOSTING'
-          )
-          
-          if (existingIndex >= 0) {
-            cartItems[existingIndex].quantity += 1
-            cartItems[existingIndex].updatedAt = new Date().toISOString()
-          } else {
-            cartItems.push(cartData)
-          }
-          
-          localStorage.setItem('cart', JSON.stringify(cartItems))
-          
-          window.dispatchEvent(new Event('cartUpdated'))
-          toastSuccess('Đã thêm vào giỏ hàng!')
-          
-          // Remove query parameters
-          router.replace('/hosting', { scroll: false })
-          setTimeout(() => setProcessedCartId(null), 2000)
-        }
-      } catch (error: any) {
-        toastError(`Lỗi: ${error.message || 'Có lỗi xảy ra khi thêm vào giỏ hàng'}`)
-        setProcessedCartId(null)
-      } finally {
-        setIsLoading(false)
+  // Handler for adding to cart from search params
+  const handleAddToCartFromParams = useCallback(async (product: HostingProduct) => {
+    setIsLoading(true)
+    try {
+      const cartData = {
+        id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        serviceId: product.id,
+        serviceType: 'HOSTING',
+        serviceName: product.name,
+        quantity: 1,
+        price: product.price.toString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       }
+
+      // If user is logged in, use API
+      if (status === 'authenticated' && session?.user) {
+        const response = await fetch('/api/cart', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            serviceId: product.id,
+            serviceType: 'HOSTING',
+            serviceName: product.name,
+            quantity: 1,
+            price: product.price
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Không thể thêm vào giỏ hàng')
+        }
+
+        window.dispatchEvent(new Event('cartUpdated'))
+        toastSuccess('Đã thêm vào giỏ hàng!')
+      } else {
+        // If not logged in, use localStorage
+        const existingCart = localStorage.getItem('cart')
+        const cartItems = existingCart ? JSON.parse(existingCart) : []
+        
+        // Check if item already exists
+        const existingIndex = cartItems.findIndex(
+          (item: any) => item.serviceId === product.id && item.serviceType === 'HOSTING'
+        )
+        
+        if (existingIndex >= 0) {
+          cartItems[existingIndex].quantity += 1
+          cartItems[existingIndex].updatedAt = new Date().toISOString()
+        } else {
+          cartItems.push(cartData)
+        }
+        
+        localStorage.setItem('cart', JSON.stringify(cartItems))
+        
+        window.dispatchEvent(new Event('cartUpdated'))
+        toastSuccess('Đã thêm vào giỏ hàng!')
+      }
+    } catch (error: any) {
+      toastError(`Lỗi: ${error.message || 'Có lỗi xảy ra khi thêm vào giỏ hàng'}`)
+      throw error
+    } finally {
+      setIsLoading(false)
     }
-    
-    // Call addToCart immediately
-    addToCart()
-  }, [searchParams, hostingProducts, isLoadingProducts, isLoading, processedCartId, status, session, router])
+  }, [status, session])
 
   if (isLoadingProducts) {
     return (
@@ -311,6 +322,13 @@ export default function HostingPage() {
 
   return (
     <MemberLayout title="Hosting">
+      <Suspense fallback={null}>
+        <SearchParamsHandler 
+          hostingProducts={hostingProducts}
+          isLoadingProducts={isLoadingProducts}
+          onAddToCart={handleAddToCartFromParams}
+        />
+      </Suspense>
       <div className="bg-gray-50">
         {/* Hero Section */}
         <div className="bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 text-white">
