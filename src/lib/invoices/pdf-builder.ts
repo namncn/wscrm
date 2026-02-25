@@ -510,9 +510,13 @@ export async function generateInvoicePdf(invoiceId: number): Promise<InvoicePdfR
         case 'tax':
           value = item.taxLabel === 'KCT' ? 'KCT' : `${Number(item.taxRate) || 0}%`
           break
-        case 'amount':
-          value = formatCurrency(unitPriceValue * quantityValue, invoiceRecord.currency || 'VND')
+        case 'amount': {
+          const subtotal = unitPriceValue * quantityValue
+          const taxRatePct = item.taxLabel === 'KCT' ? 0 : Number(item.taxRate) || 0
+          const amountWithTax = subtotal * (1 + taxRatePct / 100)
+          value = formatCurrency(amountWithTax, invoiceRecord.currency || 'VND')
           break
+        }
       }
       const textX =
         column.align === 'right'
