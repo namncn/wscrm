@@ -9,7 +9,14 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const productId = searchParams.get('product_id')
-    const serviceType = searchParams.get('service_type') || 'HOSTING'
+    const serviceTypeParam = searchParams.get('service_type') || 'HOSTING'
+    
+    // Validate and narrow serviceType to the expected enum type
+    type ServiceType = 'DOMAIN' | 'HOSTING' | 'VPS'
+    const validServiceTypes: ServiceType[] = ['DOMAIN', 'HOSTING', 'VPS']
+    const serviceType: ServiceType = validServiceTypes.includes(serviceTypeParam as ServiceType) 
+      ? (serviceTypeParam as ServiceType) 
+      : 'HOSTING'
 
     if (!productId) {
       return NextResponse.redirect(new URL('/hosting?error=missing_product_id', req.url))
@@ -100,13 +107,14 @@ export async function GET(req: NextRequest) {
 
           if (existingItems.length > 0) {
             // Update quantity
+            const existingItem = existingItems[0]
             await db
               .update(cart)
               .set({
-                quantity: existingItems[0].quantity + 1,
+                quantity: (existingItem.quantity ?? 1) + 1,
                 updatedAt: new Date()
               })
-              .where(eq(cart.id, existingItems[0].id))
+              .where(eq(cart.id, existingItem.id))
           } else {
             // Add new item
             const cartData: any = {

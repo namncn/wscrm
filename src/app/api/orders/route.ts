@@ -380,8 +380,8 @@ export async function POST(req: Request) {
     if (isAdmin) {
       const isEmail = typeof customerId === 'string' && customerId.includes('@')
       customer = isEmail
-        ? await db.select({ id: customers.id, name: customers.name, phone: customers.phone, address: customers.address, company: customers.company, userId: customers.userId }).from(customers).where(eq(customers.email, customerId)).limit(1)
-        : await db.select({ id: customers.id, name: customers.name, phone: customers.phone, address: customers.address, company: customers.company, userId: customers.userId }).from(customers).where(eq(customers.id, customerId)).limit(1)
+        ? await db.select({ id: customers.id, name: customers.name, phone: customers.phone, address: customers.address, company: customers.company, taxCode: customers.taxCode, companyEmail: customers.companyEmail, companyAddress: customers.companyAddress, companyPhone: customers.companyPhone, userId: customers.userId }).from(customers).where(eq(customers.email, customerId)).limit(1)
+        : await db.select({ id: customers.id, name: customers.name, phone: customers.phone, address: customers.address, company: customers.company, taxCode: customers.taxCode, companyEmail: customers.companyEmail, companyAddress: customers.companyAddress, companyPhone: customers.companyPhone, userId: customers.userId }).from(customers).where(eq(customers.id, customerId)).limit(1)
 
       if (!customer[0]) {
         return createErrorResponse('Khách hàng không tồn tại', 400)
@@ -400,6 +400,10 @@ export async function POST(req: Request) {
         phone: customers.phone,
         address: customers.address,
         company: customers.company,
+        taxCode: customers.taxCode,
+        companyEmail: customers.companyEmail,
+        companyAddress: customers.companyAddress,
+        companyPhone: customers.companyPhone,
         userId: customers.userId
       }).from(customers).where(
         and(
@@ -437,6 +441,10 @@ export async function POST(req: Request) {
               phone: customers.phone,
               address: customers.address,
               company: customers.company,
+              taxCode: customers.taxCode,
+              companyEmail: customers.companyEmail,
+              companyAddress: customers.companyAddress,
+              companyPhone: customers.companyPhone,
               userId: customers.userId
             }).from(customers).where(eq(customers.id, existingCustomerWithEmail[0].id)).limit(1)
           } else {
@@ -447,6 +455,10 @@ export async function POST(req: Request) {
               phone: customers.phone,
               address: customers.address,
               company: customers.company,
+              taxCode: customers.taxCode,
+              companyEmail: customers.companyEmail,
+              companyAddress: customers.companyAddress,
+              companyPhone: customers.companyPhone,
               userId: customers.userId
             }).from(customers).where(eq(customers.id, existingCustomerWithEmail[0].id)).limit(1)
           }
@@ -475,6 +487,10 @@ export async function POST(req: Request) {
               phone: customers.phone,
               address: customers.address,
               company: customers.company,
+              taxCode: customers.taxCode,
+              companyEmail: customers.companyEmail,
+              companyAddress: customers.companyAddress,
+              companyPhone: customers.companyPhone,
               userId: customers.userId
             }).from(customers).where(
               and(
@@ -492,6 +508,10 @@ export async function POST(req: Request) {
                 phone: customers.phone,
                 address: customers.address,
                 company: customers.company,
+                taxCode: customers.taxCode,
+                companyEmail: customers.companyEmail,
+                companyAddress: customers.companyAddress,
+                companyPhone: customers.companyPhone,
                 userId: customers.userId
               }).from(customers).where(eq(customers.email, customerId)).limit(1)
               
@@ -514,6 +534,10 @@ export async function POST(req: Request) {
                     phone: customers.phone,
                     address: customers.address,
                     company: customers.company,
+                    taxCode: customers.taxCode,
+                    companyEmail: customers.companyEmail,
+                    companyAddress: customers.companyAddress,
+                    companyPhone: customers.companyPhone,
                     userId: customers.userId
                   }).from(customers).where(eq(customers.id, existingCustomer[0].id)).limit(1)
                 } else {
@@ -610,6 +634,10 @@ export async function POST(req: Request) {
             phone: customers.phone,
             address: customers.address,
             company: customers.company,
+            taxCode: customers.taxCode,
+            companyEmail: customers.companyEmail,
+            companyAddress: customers.companyAddress,
+            companyPhone: customers.companyPhone,
             userId: customers.userId
           }).from(customers).where(
             and(

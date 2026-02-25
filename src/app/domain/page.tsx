@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -36,10 +36,58 @@ interface DomainProduct {
   popular?: boolean
 }
 
-export default function DomainPage() {
-  const { data: session, status } = useSession()
+// Component that handles search params - needs to be wrapped in Suspense
+function SearchParamsHandler({ 
+  domainProducts, 
+  isLoadingProducts, 
+  onDomainSelect 
+}: {
+  domainProducts: DomainProduct[]
+  isLoadingProducts: boolean
+  onDomainSelect: (product: DomainProduct, domainName?: string) => void
+}) {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const [processedCartId, setProcessedCartId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const productId = searchParams.get('add_to_cart')
+    const domainName = searchParams.get('domain_name')
+    
+    // Only process if we have products loaded
+    if (!productId || isLoadingProducts || productId === processedCartId) {
+      return
+    }
+    
+    if (domainProducts.length === 0) {
+      return
+    }
+    
+    // Try to find product - handle both string and number IDs
+    const product = domainProducts.find(p => 
+      String(p.id) === String(productId) || p.id === productId
+    )
+    if (!product) {
+      return
+    }
+    
+    setProcessedCartId(productId)
+    
+    // Call the callback to open dialog with selected domain
+    onDomainSelect(product, domainName || undefined)
+    
+    // Remove query parameters after opening dialog
+    setTimeout(() => {
+      router.replace('/domain', { scroll: false })
+      setTimeout(() => setProcessedCartId(null), 2000)
+    }, 100)
+  }, [searchParams, domainProducts, isLoadingProducts, processedCartId, router, onDomainSelect])
+
+  return null
+}
+
+export default function DomainPage() {
+  const { data: session, status } = useSession()
   // Domain page is public - no authentication required
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -48,7 +96,6 @@ export default function DomainPage() {
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
   const [isDomainDialogOpen, setIsDomainDialogOpen] = useState(false)
   const [domainNameInput, setDomainNameInput] = useState('')
-  const [processedCartId, setProcessedCartId] = useState<string | null>(null)
 
   // Fetch domain types from API (public access)
   useEffect(() => {
@@ -138,31 +185,8 @@ export default function DomainPage() {
     fetchDomainTypes()
   }, [])
 
-  // Handle add_to_cart query parameter (for external links)
-  useEffect(() => {
-    const productId = searchParams.get('add_to_cart')
-    const domainName = searchParams.get('domain_name')
-    
-    // Only process if we have products loaded
-    if (!productId || isLoadingProducts || productId === processedCartId) {
-      return
-    }
-    
-    if (domainProducts.length === 0) {
-      return
-    }
-    
-    // Try to find product - handle both string and number IDs
-    const product = domainProducts.find(p => 
-      String(p.id) === String(productId) || p.id === productId
-    )
-    if (!product) {
-      return
-    }
-    
-    setProcessedCartId(productId)
-    
-    // Open dialog with selected domain and pre-fill domain name if provided
+  // Handler for domain selection from search params
+  const handleDomainSelect = (product: DomainProduct, domainName?: string) => {
     setSelectedDomain(product)
     if (domainName) {
       setDomainNameInput(domainName)
@@ -170,13 +194,7 @@ export default function DomainPage() {
       setDomainNameInput('')
     }
     setIsDomainDialogOpen(true)
-    
-    // Remove query parameters after opening dialog
-    setTimeout(() => {
-      router.replace('/domain', { scroll: false })
-      setTimeout(() => setProcessedCartId(null), 2000)
-    }, 100)
-  }, [searchParams, domainProducts, isLoadingProducts, processedCartId, router])
+  }
 
   if (isLoadingProducts) {
     return (
@@ -294,6 +312,13 @@ export default function DomainPage() {
 
   return (
     <MemberLayout title="Tên Miền">
+      <Suspense fallback={null}>
+        <SearchParamsHandler 
+          domainProducts={domainProducts}
+          isLoadingProducts={isLoadingProducts}
+          onDomainSelect={handleDomainSelect}
+        />
+      </Suspense>
       <div className="bg-gray-50">
         {/* Hero Section */}
         <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white">
