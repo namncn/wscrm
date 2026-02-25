@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
     // Tạo order item
     await db.insert(orderItems).values({
       orderId,
-      serviceId: hostingPackage.id.toString(),
+      serviceId: hostingPackage.id,
       serviceType: 'HOSTING',
       quantity: 1,
       price: hostingPackage.price.toString(),

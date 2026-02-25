@@ -659,13 +659,13 @@ VALUES
 (3, 300000.00, 'BANK_TRANSFER', 'Thanh toán đợt 2 qua ngân hàng', '2024-07-30 16:45:00', '2024-07-30 16:45:00');
 
 -- Websites data
-INSERT IGNORE INTO websites (name, domainId, hostingId, vpsId, contractId, orderId, customerId, status, description, notes, createdAt) VALUES
-('Website ABC Company', 1, 1, NULL, 1, 1, 1, 'LIVE', 'Website chính của công ty ABC', 'Website đang hoạt động tốt', '2024-01-20 11:00:00'),
-('Website XYZ Corp', 3, 2, NULL, 2, 2, 2, 'LIVE', 'Website chính của công ty XYZ', NULL, '2024-02-15 15:30:00'),
-('Server ABC Company', NULL, NULL, 1, 3, 3, 1, 'LIVE', 'VPS server cho các ứng dụng của công ty ABC', 'Cần backup định kỳ', '2024-03-10 10:00:00'),
-('Server XYZ Corp', NULL, NULL, 2, 4, 4, 2, 'LIVE', 'VPS server cho hệ thống của công ty XYZ', NULL, '2024-04-05 17:30:00'),
-('Website DEF Company', 5, 3, NULL, 5, 5, 3, 'LIVE', 'Website công ty DEF', 'Đang trong giai đoạn phát triển', '2024-05-12 12:00:00'),
-('Website GHI Company', 6, 4, NULL, NULL, 6, 4, 'MAINTENANCE', 'Website đang bảo trì', 'Chờ thanh toán để kích hoạt', '2024-06-01 08:30:00');
+INSERT IGNORE INTO websites (domainId, hostingId, vpsId, contractId, orderId, customerId, status, description, notes, createdAt) VALUES
+(1, 1, NULL, 1, 1, 1, 'LIVE', 'Website chính của công ty ABC', 'Website đang hoạt động tốt', '2024-01-20 11:00:00'),
+(3, 2, NULL, 2, 2, 2, 'LIVE', 'Website chính của công ty XYZ', NULL, '2024-02-15 15:30:00'),
+(NULL, NULL, 1, 3, 3, 1, 'LIVE', 'VPS server cho các ứng dụng của công ty ABC', 'Cần backup định kỳ', '2024-03-10 10:00:00'),
+(NULL, NULL, 2, 4, 4, 2, 'LIVE', 'VPS server cho hệ thống của công ty XYZ', NULL, '2024-04-05 17:30:00'),
+(5, 3, NULL, 5, 5, 3, 'LIVE', 'Website công ty DEF', 'Đang trong giai đoạn phát triển', '2024-05-12 12:00:00'),
+(6, 4, NULL, NULL, 6, 4, 'MAINTENANCE', 'Website đang bảo trì', 'Chờ thanh toán để kích hoạt', '2024-06-01 08:30:00');
 
 -- Cart data
 -- Note: 

@@ -42,6 +42,11 @@ type InvoiceDetail = {
     phone?: string | null
     address?: string | null
     taxCode?: string | null
+    displayName?: string
+    displayEmail?: string | null
+    displayPhone?: string | null
+    displayAddress?: string | null
+    displayTaxCode?: string | null
   }
   totals: {
     subtotal: number
@@ -370,21 +375,27 @@ export default function AdminInvoiceDetailPage() {
                   <p className="text-xs uppercase text-muted-foreground mb-1">Tên khách hàng</p>
                   <p className="font-semibold text-slate-800">{invoice.customer.name}</p>
                 </div>
+                {invoice.customer.company && invoice.customer.company.trim() !== '' && (
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground mb-1">Công ty</p>
+                    <p className="text-slate-700">{invoice.customer.company}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-xs uppercase text-muted-foreground mb-1">Email</p>
-                  <p className="text-slate-700">{invoice.customer.email || 'Chưa cập nhật'}</p>
+                  <p className="text-slate-700">{invoice.customer.displayEmail ?? invoice.customer.email ?? 'Chưa cập nhật'}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase text-muted-foreground mb-1">Công ty</p>
-                  <p className="text-slate-700">{invoice.customer.company || 'Chưa cập nhật'}</p>
+                  <p className="text-xs uppercase text-muted-foreground mb-1">Số điện thoại</p>
+                  <p className="text-slate-700">{invoice.customer.displayPhone ?? invoice.customer.phone ?? 'Chưa cập nhật'}</p>
                 </div>
                 <div>
                   <p className="text-xs uppercase text-muted-foreground mb-1">Mã số thuế</p>
-                  <p className="text-slate-700">{invoice.customer.taxCode || 'Chưa cập nhật'}</p>
+                  <p className="text-slate-700">{invoice.customer.displayTaxCode ?? invoice.customer.taxCode ?? 'Chưa cập nhật'}</p>
                 </div>
                 <div className="md:col-span-2">
                   <p className="text-xs uppercase text-muted-foreground mb-1">Địa chỉ</p>
-                  <p className="text-slate-700">{invoice.customer.address || 'Chưa cập nhật'}</p>
+                  <p className="text-slate-700">{invoice.customer.displayAddress ?? invoice.customer.address ?? 'Chưa cập nhật'}</p>
                 </div>
               </CardContent>
             </Card>

@@ -46,27 +46,37 @@ export async function GET() {
         currency: invoices.currency,
         customerName: customers.name,
         customerEmail: customers.email,
+        customerCompany: customers.company,
+        customerCompanyEmail: customers.companyEmail,
       })
       .from(invoices)
       .leftJoin(customers, eq(customers.id, invoices.customerId))
       .orderBy(desc(invoices.issueDate), desc(invoices.createdAt))
 
-    const data = results.map((row) => ({
-      id: row.id,
-      invoiceNumber: row.invoiceNumber,
-      status: row.status,
-      issueDate: row.issueDate?.toISOString() ?? null,
-      dueDate: row.dueDate?.toISOString() ?? null,
-      customerId: row.customerId,
-      customerName: row.customerName ?? 'Không xác định',
-      customerEmail: row.customerEmail ?? null,
-      subtotal: Number(row.subtotal) || 0,
-      tax: Number(row.tax) || 0,
-      total: Number(row.total) || 0,
-      paid: Number(row.paid) || 0,
-      balance: Number(row.balance) || 0,
-      currency: row.currency,
-    }))
+    const data = results.map((row) => {
+      const email =
+        (row as typeof row & { customerCompanyEmail?: string | null }).customerCompanyEmail &&
+        String((row as typeof row & { customerCompanyEmail?: string | null }).customerCompanyEmail).trim() !== ''
+          ? (row as typeof row & { customerCompanyEmail?: string | null }).customerCompanyEmail
+          : (row.customerEmail ?? null)
+      return {
+        id: row.id,
+        invoiceNumber: row.invoiceNumber,
+        status: row.status,
+        issueDate: row.issueDate?.toISOString() ?? null,
+        dueDate: row.dueDate?.toISOString() ?? null,
+        customerId: row.customerId,
+        customerName: row.customerName ?? 'Không xác định',
+        customerCompany: row.customerCompany ?? null,
+        customerEmail: email,
+        subtotal: Number(row.subtotal) || 0,
+        tax: Number(row.tax) || 0,
+        total: Number(row.total) || 0,
+        paid: Number(row.paid) || 0,
+        balance: Number(row.balance) || 0,
+        currency: row.currency,
+      }
+    })
 
     return createSuccessResponse(data)
   } catch (error) {

@@ -29,6 +29,8 @@ export type InvoiceRecordForPdf = {
   customerAddress: string | null
   customerPhone: string | null
   customerTaxCode: string | null
+  displayName?: string
+  displayEmail?: string | null
 }
 
 export type InvoiceItemForPdf = {
@@ -143,6 +145,10 @@ export async function generateInvoicePdf(invoiceId: number): Promise<InvoicePdfR
       customerAddress: customers.address,
       customerPhone: customers.phone,
       customerTaxCode: customers.taxCode,
+      customerCompanyEmail: customers.companyEmail,
+      customerCompanyAddress: customers.companyAddress,
+      customerCompanyPhone: customers.companyPhone,
+      customerCompanyTaxCode: customers.companyTaxCode,
     })
     .from(invoices)
     .leftJoin(customers, eq(customers.id, invoices.customerId))
@@ -249,6 +255,49 @@ export async function generateInvoicePdf(invoiceId: number): Promise<InvoicePdfR
     drawAbsoluteText(text, options?.x ?? margin, cursorY, options)
   }
 
+  /** Wrap long text into lines that fit within maxWidth (for address etc.) */
+  const wrapText = (
+    text: string,
+    fontSize: number,
+    maxWidth: number,
+    fontToUse: typeof font | typeof boldFont = font
+  ): string[] => {
+    if (!text || !String(text).trim()) return ['']
+    const str = String(text).trim()
+    const words = str.split(/\s+/)
+    const lines: string[] = []
+    let current = ''
+    words.forEach((word) => {
+      const candidate = current ? `${current} ${word}` : word
+      const w = fontToUse.widthOfTextAtSize(candidate, fontSize)
+      if (w <= maxWidth) {
+        current = candidate
+      } else {
+        if (current) {
+          lines.push(current)
+        }
+        const wordWidth = fontToUse.widthOfTextAtSize(word, fontSize)
+        if (wordWidth > maxWidth) {
+          let fragment = ''
+          word.split('').forEach((char) => {
+            const next = fragment + char
+            if (fontToUse.widthOfTextAtSize(next, fontSize) <= maxWidth) {
+              fragment = next
+            } else {
+              if (fragment) lines.push(fragment)
+              fragment = char
+            }
+          })
+          current = fragment
+        } else {
+          current = word
+        }
+      }
+    })
+    if (current) lines.push(current)
+    return lines.length ? lines : ['']
+  }
+
   // Header section
   const headerHeight = 95
   const headerY = cursorY - headerHeight
@@ -297,21 +346,28 @@ export async function generateInvoicePdf(invoiceId: number): Promise<InvoicePdfR
   const infoSectionY = cursorY - infoSectionHeight
   cursorY -= 20
   const infoHeaderY = cursorY - 4
+  const infoFontSize = 11
+  const infoLineHeight = 16
+  const leftColumnWidth = contentWidth * 0.42
+  const rightColumnWidth = contentWidth * 0.42
+
   drawAbsoluteText('Thông tin công ty', margin + sectionPadding, infoHeaderY, {
     font: boldFont,
     fontSize: 12,
   })
   let infoLeftY = infoHeaderY - 18
-  const companyLines = [
-    companyInfo.name,
-    companyInfo.address,
-    `${companyInfo.phone}`,
-    `${companyInfo.email}`,
-    `${companyInfo.taxCode}`,
-  ]
-  companyLines.forEach((line) => {
-    drawAbsoluteText(line, margin + sectionPadding, infoLeftY, { fontSize: 11 })
-    infoLeftY -= 15
+  const companyNameLine = companyInfo.name
+  const companyAddressLines = wrapText(companyInfo.address, infoFontSize, leftColumnWidth)
+  const companyRest = [`${companyInfo.phone}`, `${companyInfo.email}`, `${companyInfo.taxCode}`]
+  drawAbsoluteText(companyNameLine, margin + sectionPadding, infoLeftY, { fontSize: infoFontSize })
+  infoLeftY -= infoLineHeight
+  companyAddressLines.forEach((addrLine) => {
+    drawAbsoluteText(addrLine, margin + sectionPadding, infoLeftY, { fontSize: infoFontSize })
+    infoLeftY -= infoLineHeight
+  })
+  companyRest.forEach((line) => {
+    drawAbsoluteText(line, margin + sectionPadding, infoLeftY, { fontSize: infoFontSize })
+    infoLeftY -= infoLineHeight
   })
 
   const recipientHeaderY = infoHeaderY
@@ -321,37 +377,63 @@ export async function generateInvoicePdf(invoiceId: number): Promise<InvoicePdfR
     align: 'right',
   })
 
-  const recipientName = invoiceRecord.customerCompany || invoiceRecord.customerName || 'Khách hàng'
+  // Tên khách hàng trên, tên công ty dưới (chỉ hiển thị khi có dữ liệu)
+  const rec = invoiceRecord as typeof invoiceRecord & {
+    customerCompanyEmail?: string | null
+    customerCompanyAddress?: string | null
+    customerCompanyPhone?: string | null
+    customerCompanyTaxCode?: string | null
+  }
+  const recipientPersonalName = invoiceRecord.customerName ?? 'Khách hàng'
+  const recipientCompanyName = rec.customerCompany && String(rec.customerCompany).trim() !== '' ? String(rec.customerCompany).trim() : null
   const recipientAddress =
-    invoiceRecord.customerCompany && invoiceRecord.customerAddress
-      ? invoiceRecord.customerAddress
-      : invoiceRecord.customerAddress || 'Chưa cập nhật'
+    (rec.customerCompanyAddress && rec.customerCompanyAddress.trim() !== '')
+      ? rec.customerCompanyAddress
+      : (invoiceRecord.customerAddress && invoiceRecord.customerAddress.trim() !== '')
+        ? invoiceRecord.customerAddress
+        : 'Chưa cập nhật'
   const recipientPhone =
-    invoiceRecord.customerCompany && invoiceRecord.customerPhone
-      ? invoiceRecord.customerPhone
-      : invoiceRecord.customerPhone || 'Chưa cập nhật'
+    (rec.customerCompanyPhone && rec.customerCompanyPhone.trim() !== '')
+      ? rec.customerCompanyPhone
+      : (invoiceRecord.customerPhone && invoiceRecord.customerPhone.trim() !== '')
+        ? invoiceRecord.customerPhone
+        : 'Chưa cập nhật'
+  const recipientEmail =
+    (rec.customerCompanyEmail && rec.customerCompanyEmail.trim() !== '')
+      ? rec.customerCompanyEmail
+      : (invoiceRecord.customerEmail && invoiceRecord.customerEmail.trim() !== '')
+        ? invoiceRecord.customerEmail
+        : 'Chưa cập nhật'
   const recipientTax =
-    invoiceRecord.customerCompany && invoiceRecord.customerTaxCode
-      ? invoiceRecord.customerTaxCode
-      : invoiceRecord.customerTaxCode || 'Chưa cập nhật'
+    (rec.customerCompanyTaxCode && rec.customerCompanyTaxCode.trim() !== '')
+      ? rec.customerCompanyTaxCode
+      : (invoiceRecord.customerTaxCode && invoiceRecord.customerTaxCode.trim() !== '')
+        ? invoiceRecord.customerTaxCode
+        : 'Chưa cập nhật'
 
-  const customerLines = [
-    recipientName,
-    recipientAddress,
-    `${recipientPhone}`,
-    `${invoiceRecord.customerEmail || 'Chưa cập nhật'}`,
-  ]
+  const recipientAddressLines = wrapText(recipientAddress, infoFontSize, rightColumnWidth)
+  const customerLines: string[] = [recipientPersonalName]
+  if (recipientCompanyName) {
+    customerLines.push(recipientCompanyName)
+  }
+  recipientAddressLines.forEach((addrLine) => customerLines.push(addrLine))
+  customerLines.push(`${recipientPhone}`, `${recipientEmail}`)
   if (recipientTax && recipientTax !== 'Chưa cập nhật') {
     customerLines.push(`${recipientTax}`)
   }
 
   let infoRightY = recipientHeaderY - 18
   customerLines.forEach((line) => {
-    drawAbsoluteText(line, margin + contentWidth - sectionPadding, infoRightY, { fontSize: 11, align: 'right' })
-    infoRightY -= 15
+    drawAbsoluteText(line, margin + contentWidth - sectionPadding, infoRightY, {
+      fontSize: infoFontSize,
+      align: 'right',
+    })
+    infoRightY -= infoLineHeight
   })
 
-  cursorY = infoSectionY - 35
+  // Place next section below the info block; use actual bottom if address wrapped to many lines
+  const infoBlockBottom = Math.min(infoLeftY, infoRightY) - 24
+  cursorY = Math.min(infoSectionY - 35, infoBlockBottom)
 
   // Items table
   drawText('Chi tiết sản phẩm/dịch vụ', { font: boldFont, fontSize: 13 })
@@ -583,6 +665,8 @@ export async function generateInvoicePdf(invoiceId: number): Promise<InvoicePdfR
       customerAddress: invoiceRecord.customerAddress ?? null,
       customerPhone: invoiceRecord.customerPhone ?? null,
       customerTaxCode: invoiceRecord.customerTaxCode ?? null,
+      displayName: (recipientCompanyName || recipientPersonalName),
+      displayEmail: recipientEmail,
     },
     items: items.map((item) => ({
       description: item.description,
